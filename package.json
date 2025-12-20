@@ -9,9 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tsparticles/engine": "^3.9.1",
+    "@tsparticles/plugin-emitters": "^3.9.1",
+    "@tsparticles/react": "^3.0.0",
+    "@tsparticles/slim": "^3.9.1",
+    "lucide-react": "^0.562.0",
     "next": "16.1.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "tsparticles": "^3.9.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
