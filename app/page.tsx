@@ -19,68 +19,69 @@ export default function Home() {
   return (
     <>
       {init && (
-        <Particles
-          id="tsparticles"
-          className="absolute inset-0 -z-10"
-          options={{
-            background: {
-              color: {
-                value: "transparent",
-              },
-            },
-            fpsLimit: 120,
-
-            particles: {
-              color: {
-                value: "#ffffff",
-              },
-              links: {
-                color: "#ffffff",
-                distance: 150,
-                enable: true,
-                opacity: 0.1,
-                width: 1,
-              },
-              move: {
-                direction: "bottom-right",
-                enable: true,
-                outModes: {
-                  default: "out",
-                },
-                random: false,
-                speed: 1,
-                straight: false,
-              },
-              number: {
-                density: {
-                  enable: true,
-                },
-                value: 80,
-              },
-              opacity: {
-                value: 0.2,
-              },
-              shape: {
-                type: "circle",
-              },
-              size: {
-                value: { min: 1, max: 3 },
-              },
-            },
-            detectRetina: true,
-          }}
-        />
-      )}
-      <div className="flex flex-col items-center justify-center h-screen relative z-10">
         <div
-          className="bg-[#0a0a0a] max-w-[1024px] h-full mx-auto flex flex-col items-center justify-center"
+          className="absolute inset-0 -z-10"
           style={{
-            maskImage:
-              "linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)",
+            maskImage: "radial-gradient(ellipse 600px 450px at center, transparent 0%, transparent 60%, black 100%)",
             WebkitMaskImage:
-              "linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)",
+              "radial-gradient(ellipse 600px 450px at center, transparent 0%, transparent 60%, black 100%)",
           }}
         >
+          <Particles
+            id="tsparticles"
+            className="absolute inset-0"
+            options={{
+              background: {
+                color: {
+                  value: "transparent",
+                },
+              },
+              fpsLimit: 120,
+
+              particles: {
+                color: {
+                  value: "#ffffff",
+                },
+                links: {
+                  color: "#ffffff",
+                  distance: 150,
+                  enable: true,
+                  opacity: 0.1,
+                  width: 1,
+                },
+                move: {
+                  direction: "bottom-right",
+                  enable: true,
+                  outModes: {
+                    default: "out",
+                  },
+                  random: false,
+                  speed: 1,
+                  straight: false,
+                },
+                number: {
+                  density: {
+                    enable: true,
+                  },
+                  value: 80,
+                },
+                opacity: {
+                  value: 0.2,
+                },
+                shape: {
+                  type: "circle",
+                },
+                size: {
+                  value: { min: 1, max: 3 },
+                },
+              },
+              detectRetina: true,
+            }}
+          />
+        </div>
+      )}
+      <div className="flex flex-col items-center justify-center h-screen relative z-10">
+        <div className="max-w-[1024px] h-full mx-auto flex flex-col items-center justify-center">
           <h1 className="text-4xl font-bold">Understand the universe </h1>
           <MonoLabel text="WITH AI" />
 
