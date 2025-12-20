@@ -5,7 +5,7 @@ import { motion, useAnimate } from "framer-motion";
 import LandingPage from "./components/LandingPage";
 import ParticlesBackground from "./components/ParticlesBackground";
 import DotGridBackground from "./components/DotGridBackground";
-import AppPage from "./components/AppPage";
+import AppPage from "./app/AppPage";
 
 export default function Home() {
   const [scope, animate] = useAnimate();

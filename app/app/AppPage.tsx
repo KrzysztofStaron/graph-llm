@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGraphCanvas } from "../hooks/useGraphCanvas";
-import { GraphCanvas } from "../app/GraphCanvas";
+import { GraphCanvas } from "./GraphCanvas";
 import { GraphNode, Edge } from "../types/graph";
 
 const AppPage = () => {

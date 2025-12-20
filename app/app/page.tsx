@@ -3,13 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useAnimate } from "framer-motion";
-import ParticlesBackground from "../components/ParticlesBackground";
 import DotGridBackground from "../components/DotGridBackground";
-import AppPage from "../components/AppPage";
+import AppPage from "./AppPage";
 
 export default function AppRoute() {
   const [scope, animate] = useAnimate();
-  const router = useRouter();
 
   useEffect(() => {
     const init = async () => {
