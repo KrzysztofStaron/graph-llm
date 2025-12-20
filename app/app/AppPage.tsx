@@ -8,16 +8,16 @@ const AppPage = () => {
     "context-1": {
       id: "context-1",
       type: "context",
-      x: 200,
+      x: 550,
       y: 100,
-      value: "",
+      value: "name of user is Krzysztof",
       parentIds: [],
       childrenIds: ["input-1"],
     },
     "input-1": { id: "input-1", type: "input", x: 400, y: 300, value: "", parentIds: ["context-1"], childrenIds: [] },
   };
 
-  const { canvasOffset, nodes, setNodes, handleMouseDown } = useGraphCanvas(initialNodes);
+  const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
   const onInputSubmit = (query: string, caller: GraphNode) => {
     // Find the first response child node
@@ -26,33 +26,27 @@ const AppPage = () => {
       return childNode?.type === "response";
     });
 
+    // Set the value to query of the InputFieldNode
+    treeManager.patchNode(caller.id, { value: query });
+
     // Figure out what node to affect
 
     if (responseNodeId) {
       // put existing response node into loading state
-      setNodes(prev => ({
-        ...prev,
-        [responseNodeId!]: { ...prev[responseNodeId!], value: "" },
-      }));
+      treeManager.patchNode(responseNodeId, { value: "" });
     } else {
       const newNode = createNode("response", caller.x, caller.y + 200);
       responseNodeId = newNode.id;
 
-      // Update both sides of the relationship in a single state update
-      setNodes(prev => ({
-        ...prev,
-        [caller.id]: { ...prev[caller.id], childrenIds: [...prev[caller.id].childrenIds, newNode.id] },
-        [newNode.id]: { ...newNode, parentIds: [...newNode.parentIds, caller.id] },
-      }));
+      // Add the new node and link it to the caller
+      treeManager.addNode(newNode);
+      treeManager.linkNodes(caller.id, newNode.id);
     }
 
     // respondeNodeId tells us which node to affect
 
     aiService.streamChat(query, reponse => {
-      setNodes(prev => ({
-        ...prev,
-        [responseNodeId]: { ...prev[responseNodeId], value: reponse },
-      }));
+      treeManager.patchNode(responseNodeId, { value: reponse });
     });
   };
 

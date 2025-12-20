@@ -17,7 +17,7 @@ const AppPage = () => {
     "input-1": { id: "input-1", type: "input", x: 400, y: 300, value: "", parentIds: ["context-1"], childrenIds: [] },
   };
 
-  const { canvasOffset, nodes, setNodes, handleMouseDown } = useGraphCanvas(initialNodes);
+  const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
   const onInputSubmit = (query: string, caller: GraphNode) => {
     // Find the first response child node
@@ -27,32 +27,20 @@ const AppPage = () => {
     });
 
     if (responseNodeId) {
-      setNodes(prev => ({
-        ...prev,
-        [responseNodeId]: { ...prev[responseNodeId], value: "" },
-      }));
+      treeManager.patchNode(responseNodeId, { value: "" });
 
       aiService.chat(query).then(res => {
-        setNodes(prev => ({
-          ...prev,
-          [responseNodeId]: { ...prev[responseNodeId], value: res },
-        }));
+        treeManager.patchNode(responseNodeId, { value: res });
       });
     } else {
       const newNode = createNode("response", caller.x, caller.y + 200);
 
-      // Update both sides of the relationship in a single state update
-      setNodes(prev => ({
-        ...prev,
-        [caller.id]: { ...prev[caller.id], childrenIds: [...prev[caller.id].childrenIds, newNode.id] },
-        [newNode.id]: { ...newNode, parentIds: [...newNode.parentIds, caller.id] },
-      }));
+      // Add the new node and link it to the caller
+      treeManager.addNode(newNode);
+      treeManager.linkNodes(caller.id, newNode.id);
 
       aiService.chat(query).then(res => {
-        setNodes(prev => ({
-          ...prev,
-          [newNode.id]: { ...prev[newNode.id], value: res },
-        }));
+        treeManager.patchNode(newNode.id, { value: res });
       });
     }
   };

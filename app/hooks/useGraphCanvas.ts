@@ -1,5 +1,68 @@
-import { useState, useRef, useEffect } from "react";
+import { useReducer, useRef, useEffect, useMemo } from "react";
 import type { ContextNode, Edge, GraphNode, GraphNodes, InputNode, NodeType, ResponseNode } from "../types/graph";
+
+type GraphAction =
+  | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
+  | { type: "ADD_NODE"; node: GraphNode }
+  | { type: "LINK"; fromId: string; toId: string }
+  | { type: "MOVE_NODE"; id: string; dx: number; dy: number };
+
+export class TreeManager {
+  constructor(private dispatch: (action: GraphAction) => void) {}
+
+  patchNode(id: string, patch: Partial<GraphNode>): void {
+    this.dispatch({ type: "PATCH_NODE", id, patch });
+  }
+
+  addNode(node: GraphNode): void {
+    this.dispatch({ type: "ADD_NODE", node });
+  }
+
+  linkNodes(fromId: string, toId: string): void {
+    this.dispatch({ type: "LINK", fromId, toId });
+  }
+
+  moveNode(id: string, dx: number, dy: number): void {
+    this.dispatch({ type: "MOVE_NODE", id, dx, dy });
+  }
+}
+
+function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
+  switch (action.type) {
+    case "PATCH_NODE": {
+      const node = nodes[action.id];
+      if (!node) return nodes;
+      return { ...nodes, [action.id]: { ...node, ...action.patch } };
+    }
+    case "ADD_NODE": {
+      return { ...nodes, [action.node.id]: action.node };
+    }
+    case "LINK": {
+      const fromNode = nodes[action.fromId];
+      const toNode = nodes[action.toId];
+      if (!fromNode || !toNode) return nodes;
+
+      return {
+        ...nodes,
+        [action.fromId]: {
+          ...fromNode,
+          childrenIds: fromNode.childrenIds.includes(action.toId)
+            ? fromNode.childrenIds
+            : [...fromNode.childrenIds, action.toId],
+        },
+        [action.toId]: {
+          ...toNode,
+          parentIds: toNode.parentIds.includes(action.fromId) ? toNode.parentIds : [...toNode.parentIds, action.fromId],
+        },
+      };
+    }
+    case "MOVE_NODE": {
+      const node = nodes[action.id];
+      if (!node) return nodes;
+      return { ...nodes, [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy } };
+    }
+  }
+}
 
 export const createEdge = (from: string, to: string) => {
   const edge: Edge = { from, to };
@@ -27,8 +90,14 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
 }
 
 export const useGraphCanvas = (initialNodes: GraphNodes) => {
-  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
-  const [nodes, setNodes] = useState<GraphNodes>(initialNodes);
+  const [canvasOffset, setCanvasOffset] = useReducer(
+    (prev: { x: number; y: number }, delta: { dx: number; dy: number }) => ({
+      x: prev.x + delta.dx,
+      y: prev.y + delta.dy,
+    }),
+    { x: 0, y: 0 }
+  );
+  const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
 
   const draggingRef = useRef<{ type: "canvas" | "node"; nodeId?: string } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -44,6 +113,8 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     }
   };
 
+  const treeManager = useMemo(() => new TreeManager(dispatch), [dispatch]);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!draggingRef.current) return;
@@ -53,14 +124,9 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
       lastMousePos.current = { x: e.clientX, y: e.clientY };
 
       if (draggingRef.current.type === "canvas") {
-        setCanvasOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+        setCanvasOffset({ dx, dy });
       } else if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
-        const nodeId = draggingRef.current.nodeId;
-        setNodes(prev => {
-          const node = prev[nodeId];
-          if (!node) return prev;
-          return { ...prev, [nodeId]: { ...node, x: node.x + dx, y: node.y + dy } };
-        });
+        treeManager.moveNode(draggingRef.current.nodeId, dx, dy);
       }
     };
 
@@ -74,12 +140,12 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, []);
+  }, [treeManager]);
 
   return {
     canvasOffset,
     nodes,
-    setNodes,
+    treeManager,
     handleMouseDown,
   };
 };
