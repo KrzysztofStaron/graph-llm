@@ -10,6 +10,49 @@ type GraphAction =
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
 
+  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined) {
+    if (!startNode) {
+      console.warn("buildChatML: startNode is undefined");
+      return {};
+    }
+
+    const normalizedTree: Record<number, { type: NodeType; value: string; id: string }[]> = {
+      0: [],
+    };
+
+    const traverse = (currentNode: GraphNode, level: number) => {
+      if (!normalizedTree[level]) {
+        normalizedTree[level] = [];
+      }
+
+      normalizedTree[level].push({ type: currentNode.type, value: currentNode.value, id: currentNode.id });
+
+      currentNode.parentIds.forEach(parentId => {
+        const parentNode = nodes[parentId];
+        if (parentNode) {
+          traverse(parentNode, level + 1);
+        } else {
+          console.warn(`buildChatML: Parent node ${parentId} not found`);
+        }
+      });
+    };
+
+    traverse(startNode, 0);
+
+    const maxLevel = Math.max(...Object.keys(normalizedTree).map(Number));
+    const messages = [];
+    for (let level = 0; level <= maxLevel; level++) {
+      messages.push(
+        ...normalizedTree[level].map(node => ({
+          role: node.type === "context" || node.type === "input" ? "user" : "assistant",
+          content: node.value,
+        }))
+      );
+    }
+
+    return messages.reverse();
+  }
+
   patchNode(id: string, patch: Partial<GraphNode>): void {
     this.dispatch({ type: "PATCH_NODE", id, patch });
   }
