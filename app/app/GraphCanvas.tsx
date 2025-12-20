@@ -1,10 +1,9 @@
 import { motion } from "framer-motion";
 import { InputFieldNode, ResponseNode, ContextNode } from "./nodes";
-import { GraphNode, Edge } from "../types/graph";
+import { GraphNode, GraphNodes } from "../types/graph";
 
 interface GraphCanvasProps {
-  nodes: GraphNode[];
-  edges: Edge[];
+  nodes: GraphNodes;
   canvasOffset: { x: number; y: number };
   onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
   onInputSubmit: (query: string, caller: GraphNode) => void;
@@ -19,7 +18,11 @@ const getNodeCenter = (node: GraphNode) => {
   };
 };
 
-export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown, onInputSubmit }: GraphCanvasProps) => {
+export const GraphCanvas = ({ nodes, canvasOffset, onMouseDown, onInputSubmit }: GraphCanvasProps) => {
+  // Derive edges from nodes' childrenIds
+  const nodeArray = Object.values(nodes);
+  const edges = nodeArray.flatMap(node => node.childrenIds.map(to => ({ from: node.id, to })));
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -30,8 +33,8 @@ export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown, onInputSu
     >
       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
         {edges.map(edge => {
-          const fromNode = nodes.find(n => n.id === edge.from);
-          const toNode = nodes.find(n => n.id === edge.to);
+          const fromNode = nodes[edge.from];
+          const toNode = nodes[edge.to];
           if (!fromNode || !toNode) return null;
           const from = getNodeCenter(fromNode);
           const to = getNodeCenter(toNode);
@@ -55,7 +58,7 @@ export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown, onInputSu
           transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
         }}
       >
-        {nodes.map(node => (
+        {nodeArray.map(node => (
           <div
             key={node.id}
             className="absolute cursor-move"

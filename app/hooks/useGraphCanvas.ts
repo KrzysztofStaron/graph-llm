@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ContextNode, Edge, GraphNode, InputNode, NodeType, ResponseNode } from "../types/graph";
+import type { ContextNode, Edge, GraphNode, GraphNodes, InputNode, NodeType, ResponseNode } from "../types/graph";
 
 export const createEdge = (from: string, to: string) => {
   const edge: Edge = { from, to };
@@ -14,11 +14,11 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
 
   switch (type) {
     case "input":
-      return { id, type: "input", x, y };
+      return { id, type: "input", x, y, value: "", parentIds: [], childrenIds: [] };
     case "response":
-      return { id, type: "response", x, y, content: "" };
+      return { id, type: "response", x, y, value: "", parentIds: [], childrenIds: [] };
     case "context":
-      return { id, type: "context", x, y };
+      return { id, type: "context", x, y, value: "", parentIds: [], childrenIds: [] };
     default: {
       const _exhaustive: never = type;
       return _exhaustive;
@@ -26,9 +26,9 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
   }
 }
 
-export const useGraphCanvas = (initialNodes: GraphNode[]) => {
+export const useGraphCanvas = (initialNodes: GraphNodes) => {
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
-  const [nodes, setNodes] = useState<GraphNode[]>(initialNodes);
+  const [nodes, setNodes] = useState<GraphNodes>(initialNodes);
 
   const draggingRef = useRef<{ type: "canvas" | "node"; nodeId?: string } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -56,7 +56,11 @@ export const useGraphCanvas = (initialNodes: GraphNode[]) => {
         setCanvasOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
       } else if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
         const nodeId = draggingRef.current.nodeId;
-        setNodes(prev => prev.map(node => (node.id === nodeId ? { ...node, x: node.x + dx, y: node.y + dy } : node)));
+        setNodes(prev => {
+          const node = prev[nodeId];
+          if (!node) return prev;
+          return { ...prev, [nodeId]: { ...node, x: node.x + dx, y: node.y + dy } };
+        });
       }
     };
 

@@ -1,7 +1,7 @@
 import { ResponseNode as ResponseNodeType } from "@/app/types/graph";
 
 export const ResponseNode = ({ node }: { node: ResponseNodeType }) => {
-  const content = node.content;
+  const content = node.value;
   const isLoading = content.length === 0;
 
   return (

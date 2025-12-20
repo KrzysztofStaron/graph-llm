@@ -17,7 +17,7 @@ export class aiService {
     return response.text();
   }
 
-  static async streamChat(message: string, onChunk: (chunk: string) => void): Promise<void> {
+  static async streamChat(message: string, onChunk: (chunk: string) => void, onComplete?: () => void): Promise<void> {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat/stream`, {
       method: "POST",
       headers: {
@@ -74,6 +74,7 @@ export class aiService {
       }
     } finally {
       reader.releaseLock();
+      onComplete?.();
     }
   }
 }
