@@ -61,7 +61,7 @@ const AppPage = () => {
     }
 
     // Send the query
-    aiService.streamChat(query, reponse => {
+    aiService.streamChat(TreeManager.buildChatML(nodes, caller), reponse => {
       treeManager.patchNode(responseNodeId, { value: reponse });
     });
   };

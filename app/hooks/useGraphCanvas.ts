@@ -10,10 +10,10 @@ type GraphAction =
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
 
-  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined) {
+  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined): Message[] {
     if (!startNode) {
       console.warn("buildChatML: startNode is undefined");
-      return {};
+      return [];
     }
 
     const normalizedTree: Record<number, { type: NodeType; value: string; id: string }[]> = {
