@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --dark-bg: #050505;
 }
 
 @theme inline {
@@ -11,6 +12,7 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-universal-sans: var(--font-universal-sans);
+  --color-dark-bg: var(--dark-bg);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,9 +23,12 @@
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-universal-sans), Arial, Helvetica, sans-serif;
+
+  background-size: 40px 40px;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background: var(--background);
 }
 
 .text-secondary {
