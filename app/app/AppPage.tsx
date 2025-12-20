@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createEdge, createNode, useGraphCanvas } from "../hooks/useGraphCanvas";
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphNode, Edge } from "../types/graph";
-import { LLM } from "../actions/LLM";
+import { aiService } from "../interfaces/aiService";
 
 const AppPage = () => {
   const initialNodes: GraphNode[] = [
@@ -30,8 +30,8 @@ const AppPage = () => {
         })
       );
 
-      LLM(query).then(res => {
-        setNodes(prev => prev.map(node => (node.id === responseNodeId ? { ...node, content: res } : node)));
+      aiService.streamChat(query, chunk => {
+        setNodes(prev => prev.map(node => (node.id === responseNodeId ? { ...node, content: chunk } : node)));
       });
     } else {
       const newNode = createNode("response", caller.x, caller.y + 200);
@@ -39,8 +39,8 @@ const AppPage = () => {
       setNodes(prev => [...prev, newNode]);
       setEdges(prev => [...prev, createEdge(caller.id, newNode.id)]);
 
-      LLM(query).then(res => {
-        setNodes(prev => prev.map(node => (node.id === newNode.id ? { ...node, content: res } : node)));
+      aiService.streamChat(query, chunk => {
+        setNodes(prev => prev.map(node => (node.id === newNode.id ? { ...node, content: chunk } : node)));
       });
     }
   };
