@@ -1,13 +1,13 @@
 import { globals } from "../globals";
 
 export class aiService {
-  static async chat(message: string): Promise<string> {
+  static async chat(message: string | { role: string; content: string }[]): Promise<string> {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ messages: Array.isArray(message) ? message : [{ role: "user", content: message }] }),
     });
 
     if (!response.ok) {
@@ -17,13 +17,17 @@ export class aiService {
     return response.text();
   }
 
-  static async streamChat(message: string, onChunk: (chunk: string) => void, onComplete?: () => void): Promise<void> {
+  static async streamChat(
+    message: string | { role: string; content: string }[],
+    onChunk: (chunk: string) => void,
+    onComplete?: () => void
+  ): Promise<void> {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat/stream`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ messages: Array.isArray(message) ? message : [{ role: "user", content: message }] }),
     });
 
     if (!response.ok) {
