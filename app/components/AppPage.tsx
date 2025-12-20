@@ -1,8 +1,18 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, FileText } from "lucide-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
 
+export class TreeNode {
+  public parent: TreeNode | null;
+
+  constructor(parent: TreeNode | null) {
+    this.parent = parent;
+  }
+}
+
 const AppPage = () => {
+  const [tree, setTree] = useState<TreeNode>(new TreeNode(null));
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -11,6 +21,8 @@ const AppPage = () => {
       className="flex flex-col items-center justify-center h-screen pointer-events-auto"
     >
       <InputField />
+      <ResponseNode />
+      <ContextNode />
     </motion.div>
   );
 };
@@ -31,7 +43,6 @@ const InputField = () => {
         <div className="absolute bottom-2.5 right-2.5 flex items-center">
           <button
             aria-label="Submit query"
-            type="submit"
             className="aspect-square rounded-full p-2.5 bg-white text-black hover:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={query.length === 0}
           >
@@ -39,6 +50,33 @@ const InputField = () => {
           </button>
         </div>
       </form>
+    </div>
+  );
+};
+
+const ResponseNode = () => {
+  return (
+    <div className="w-full max-w-3xl px-4 mt-4">
+      <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
+        <div className="block resize-none py-5 pl-4 pr-4  w-full rounded-3xl border-none bg-[#0a0a0a] text-white">
+          <p>
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin scelerisque dictum tortor, eu vestibulum sem
+            imperdiet a.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ContextNode = () => {
+  return (
+    <div className="w-full max-w-3xl px-4 mt-4 flex justify-center">
+      <div className="w-24 h-24 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
+        <div className="w-full h-full flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] text-white">
+          <FileText className="size-8" />
+        </div>
+      </div>
     </div>
   );
 };

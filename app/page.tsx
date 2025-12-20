@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, useAnimate } from "framer-motion";
 import LandingPage from "./components/LandingPage";
 import ParticlesBackground from "./components/ParticlesBackground";
@@ -9,7 +9,9 @@ import AppPage from "./components/AppPage";
 
 export default function Home() {
   const [scope, animate] = useAnimate();
-  const [showApp, setShowApp] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const showApp = pathname === "/app";
 
   const handleStart = async () => {
     const hideAnims = [
@@ -20,7 +22,7 @@ export default function Home() {
 
     await Promise.all(hideAnims);
 
-    setShowApp(true);
+    router.push("/app");
     await new Promise(resolve => requestAnimationFrame(resolve));
     await animate(".app-page-container", { opacity: 1 }, { duration: 0.25 });
   };
