@@ -1,5 +1,30 @@
 import { useState, useRef, useEffect } from "react";
-import { GraphNode } from "../types/graph";
+import type { ContextNode, Edge, GraphNode, InputNode, NodeType, ResponseNode } from "../types/graph";
+
+export const createEdge = (from: string, to: string) => {
+  const edge: Edge = { from, to };
+  return edge;
+};
+
+export function createNode(type: "input", x: number, y: number): InputNode;
+export function createNode(type: "response", x: number, y: number): ResponseNode;
+export function createNode(type: "context", x: number, y: number): ContextNode;
+export function createNode(type: NodeType, x: number, y: number): GraphNode {
+  const id = crypto.randomUUID();
+
+  switch (type) {
+    case "input":
+      return { id, type: "input", x, y };
+    case "response":
+      return { id, type: "response", x, y, content: "" };
+    case "context":
+      return { id, type: "context", x, y };
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
+  }
+}
 
 export const useGraphCanvas = (initialNodes: GraphNode[]) => {
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });

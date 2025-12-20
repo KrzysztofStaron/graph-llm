@@ -7,6 +7,7 @@ interface GraphCanvasProps {
   edges: Edge[];
   canvasOffset: { x: number; y: number };
   onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
+  onInputSubmit: (query: string, caller: GraphNode) => void;
 }
 
 const getNodeCenter = (node: GraphNode) => {
@@ -18,7 +19,7 @@ const getNodeCenter = (node: GraphNode) => {
   };
 };
 
-export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown }: GraphCanvasProps) => {
+export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown, onInputSubmit }: GraphCanvasProps) => {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -58,15 +59,18 @@ export const GraphCanvas = ({ nodes, edges, canvasOffset, onMouseDown }: GraphCa
           <div
             key={node.id}
             className="absolute cursor-move"
+            data-node-id={node.id}
             style={{ left: node.x, top: node.y }}
             onMouseDown={e => {
               e.stopPropagation();
               onMouseDown(e, node.id);
             }}
           >
-            {node.type === "input" && <InputFieldNode />}
-            {node.type === "response" && <ResponseNode content={node.content} />}
-            {node.type === "context" && <ContextNode />}
+            {node.type === "input" && (
+              <InputFieldNode node={node} onInputSubmit={query => onInputSubmit(query, node)} />
+            )}
+            {node.type === "response" && <ResponseNode node={node} />}
+            {node.type === "context" && <ContextNode node={node} />}
           </div>
         ))}
       </div>
