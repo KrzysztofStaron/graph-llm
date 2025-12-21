@@ -26,9 +26,9 @@ export const ResponseNode = memo(
       .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
 
     return (
-      <div className="max-w-[768px]">
+      <div className="max-w-[808px] min-w-[200px]">
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20">
-          <div className="block resize-none py-5 pl-4 pr-4 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none">
+          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none">
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
@@ -39,15 +39,15 @@ export const ResponseNode = memo(
                 remarkPlugins={[remarkMath, remarkGfm]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
-                  h1: ({ children }) => <h1 className="text-2xl font-semibold tracking-tight mb-3 mt-2">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-xl font-semibold tracking-tight mb-3 mt-4">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-lg font-semibold tracking-tight mb-2 mt-4">{children}</h3>,
-                  h4: ({ children }) => (
-                    <h4 className="text-base font-semibold tracking-tight mb-2 mt-3">{children}</h4>
+                  h1: ({ children }) => <h1 className="text-3xl font-semibold tracking-tight mb-3 mt-2">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-2xl font-semibold tracking-tight mb-3 mt-4">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-xl font-semibold tracking-tight mb-2 mt-4">{children}</h3>,
+                  h4: ({ children }) => <h4 className="text-lg font-semibold tracking-tight mb-2 mt-3">{children}</h4>,
+                  h5: ({ children }) => (
+                    <h5 className="text-base font-semibold tracking-tight mb-2 mt-3">{children}</h5>
                   ),
-                  h5: ({ children }) => <h5 className="text-sm font-semibold tracking-tight mb-2 mt-3">{children}</h5>,
                   h6: ({ children }) => (
-                    <h6 className="text-sm font-semibold tracking-tight mb-2 mt-3 opacity-90">{children}</h6>
+                    <h6 className="text-base font-semibold tracking-tight mb-2 mt-3 opacity-90">{children}</h6>
                   ),
                   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                   ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,

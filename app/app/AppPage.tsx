@@ -75,7 +75,9 @@ const AppPage = () => {
     });
 
     // If response has no Input Node, create a new one
-    if (responseNode.childrenIds.some(childId => nodes[childId]?.type === "input") === false) {
+    if (
+      nodesWithQuery[responseNodeId].childrenIds.some(childId => nodesWithQuery[childId]?.type === "input") === false
+    ) {
       const newInputNode = createNode("input", responseNode.x, responseNode.y + 200);
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
