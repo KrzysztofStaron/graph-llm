@@ -36,12 +36,14 @@ const AppPage = () => {
 
   const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
-  const onInputSubmit = (query: string, caller: GraphNode) => {
+  const onInputSubmit = async (query: string, caller: GraphNode) => {
     // Find the first response child node
     let responseNodeId = caller.childrenIds.find(childId => {
       const childNode = nodes[childId];
       return childNode?.type === "response";
     });
+
+    let responseNode: GraphNode;
 
     // Set the value to query of the InputFieldNode
     treeManager.patchNode(caller.id, { value: query });
@@ -51,6 +53,7 @@ const AppPage = () => {
       // put existing response node into loading state
 
       treeManager.patchNode(responseNodeId, { value: "" });
+      responseNode = nodes[responseNodeId];
     } else {
       // create a new response node
 
@@ -58,12 +61,21 @@ const AppPage = () => {
       responseNodeId = newNode.id;
       treeManager.addNode(newNode);
       treeManager.linkNodes(caller.id, newNode.id);
+
+      responseNode = newNode;
     }
 
     // Send the query
-    aiService.streamChat(TreeManager.buildChatML(nodes, caller), reponse => {
+    const response = await aiService.streamChat(TreeManager.buildChatML(nodes, caller), reponse => {
       treeManager.patchNode(responseNodeId, { value: reponse });
     });
+
+    // If response has no Input Node, create a new one
+    if (responseNode.childrenIds.some(childId => nodes[childId].type === "input") === false) {
+      const newInputNode = createNode("input", responseNode.x, responseNode.y + 200);
+      treeManager.addNode(newInputNode);
+      treeManager.linkNodes(responseNodeId, newInputNode.id);
+    }
   };
 
   return (

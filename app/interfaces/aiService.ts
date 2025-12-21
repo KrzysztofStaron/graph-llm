@@ -19,9 +19,8 @@ export class aiService {
 
   static async streamChat(
     message: string | { role: string; content: string }[],
-    onChunk: (chunk: string) => void,
-    onComplete?: () => void
-  ): Promise<void> {
+    onChunk: (chunk: string) => void
+  ): Promise<string> {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat/stream`, {
       method: "POST",
       headers: {
@@ -78,7 +77,8 @@ export class aiService {
       }
     } finally {
       reader.releaseLock();
-      onComplete?.();
     }
+
+    return fullResponse;
   }
 }

@@ -41,16 +41,22 @@ export class TreeManager {
 
     const maxLevel = Math.max(...Object.keys(normalizedTree).map(Number));
     const messages = [];
+
     for (let level = 0; level <= maxLevel; level++) {
-      messages.push(
-        ...normalizedTree[level].map(node => ({
-          role: node.type === "context" || node.type === "input" ? "user" : "assistant",
-          content: node.value,
-        }))
-      );
+      const mergedNodes = normalizedTree[level].map(node => node.value);
+      const roleType = normalizedTree[level][0].type;
+
+      messages.push({
+        role: roleType === "context" || roleType === "input" ? "user" : "assistant",
+        content: mergedNodes.join("--------------------------------"),
+      });
     }
 
-    return messages.reverse();
+    const ret = messages.reverse();
+
+    console.log(ret);
+
+    return ret;
   }
 
   patchNode(id: string, patch: Partial<GraphNode>): void {
