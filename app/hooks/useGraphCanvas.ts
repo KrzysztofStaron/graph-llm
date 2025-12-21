@@ -48,7 +48,7 @@ export class TreeManager {
 
       messages.push({
         role: roleType === "context" || roleType === "input" ? "user" : "assistant",
-        content: mergedNodes.join("--------------------------------"),
+        content: mergedNodes.join("<separatorOfContextualData />"),
       });
     }
 
