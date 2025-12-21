@@ -1,16 +1,21 @@
 import { InputNode } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 type Mode = "ask" | "display";
 
-export const InputFieldNode = ({
-  node,
-  onInputSubmit,
-}: {
+type InputFieldNodeProps = {
   node: InputNode;
   onInputSubmit: (query: string) => void;
-}) => {
+};
+
+const arraysEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+export const InputFieldNode = memo(function InputFieldNode({
+  node,
+  onInputSubmit,
+}: InputFieldNodeProps) {
   const [mode, setMode] = useState<Mode>("ask");
   const [query, setQuery] = useState("");
 
@@ -68,4 +73,11 @@ export const InputFieldNode = ({
       </div>
     </div>
   );
-};
+}, (prev, next) => {
+  // Only re-render when value, parentIds, or childrenIds change
+  return (
+    prev.node.value === next.node.value &&
+    arraysEqual(prev.node.parentIds, next.node.parentIds) &&
+    arraysEqual(prev.node.childrenIds, next.node.childrenIds)
+  );
+});

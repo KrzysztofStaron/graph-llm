@@ -42,6 +42,23 @@ export class aiService {
 
     let buffer = "";
     let fullResponse = "";
+    let lastUpdateTime = 0;
+    let pendingUpdate = false;
+    let THROTTLE_MS = 0;
+
+    const throttledOnChunk = (content: string) => {
+      const now = Date.now();
+      if (now - lastUpdateTime >= THROTTLE_MS) {
+        onChunk(content);
+        THROTTLE_MS += 100;
+        THROTTLE_MS = Math.min(THROTTLE_MS, 500);
+
+        lastUpdateTime = now;
+        pendingUpdate = false;
+      } else {
+        pendingUpdate = true;
+      }
+    };
 
     try {
       while (true) {
@@ -57,14 +74,17 @@ export class aiService {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") {
-              return;
+              if (pendingUpdate) {
+                onChunk(fullResponse);
+              }
+              return fullResponse;
             }
 
             try {
               const parsed = JSON.parse(data);
               if (parsed.content) {
                 fullResponse += parsed.content;
-                onChunk(fullResponse);
+                throttledOnChunk(fullResponse);
               }
               if (parsed.error) {
                 throw new Error(parsed.error);
@@ -77,6 +97,10 @@ export class aiService {
       }
     } finally {
       reader.releaseLock();
+    }
+
+    if (pendingUpdate) {
+      onChunk(fullResponse);
     }
 
     return fullResponse;
