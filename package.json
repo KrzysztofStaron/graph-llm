@@ -19,6 +19,9 @@
     "next": "16.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "rehype-mathjax": "^7.1.0",
+    "remark-math": "^6.0.0",
     "tsparticles": "^3.9.1"
   },
   "devDependencies": {
