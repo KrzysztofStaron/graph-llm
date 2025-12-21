@@ -10,36 +10,12 @@ export const ResponseNode = ({ node }: { node: ResponseNodeType }) => {
   const isLoading = rawContent.length === 0;
 
   // Preprocess content to normalize math delimiters
-  // Convert [ ... ] to $$ ... $$ for display math and ( ... ) to $ ... $ for inline math
+  // Convert \[ ... \] to $$ ... $$ for display math and \( ... \) to $ ... $ for inline math
   const content = rawContent
-    // Convert display math: [ ... ] blocks (especially multiline)
-    .replace(/\[([\s\S]*?)\]/g, (match, math, offset) => {
-      // Check if it's likely math (contains LaTeX commands or math symbols)
-      const isMath =
-        /\\[a-zA-Z]+|\\[{}_^]|frac|sqrt|sum|int|begin|end|aligned|matrix|pmatrix|bmatrix|alpha|beta|gamma|pi|theta|lambda|mu|sigma|delta|Delta/.test(
-          math
-        );
-      // Also check if it's on its own line(s) or preceded by text ending with certain patterns
-      const before = rawContent.substring(Math.max(0, offset - 20), offset);
-      const after = rawContent.substring(
-        offset + match.length,
-        Math.min(rawContent.length, offset + match.length + 20)
-      );
-      const isStandalone = /[\n:]/.test(before.slice(-1)) || /[\n\.]/.test(after[0] || "");
-
-      if (isMath && (isStandalone || math.includes("\\begin") || math.includes("\\end"))) {
-        return `$$${math}$$`;
-      }
-      return match;
-    })
-    // Convert inline math: ( ... ) containing LaTeX
-    .replace(/\(([^)]+)\)/g, (match, math) => {
-      // Only convert if it contains LaTeX commands
-      if (/\\[a-zA-Z]+|\\[{}_^]|frac|sqrt|sum|int/.test(math)) {
-        return `$${math}$`;
-      }
-      return match;
-    });
+    // Convert display math: \[ ... \] to $$ ... $$
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => `$$${math}$$`)
+    // Convert inline math: \( ... \) to $ ... $
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
 
   return (
     <div className="max-w-[768px]">
@@ -55,12 +31,30 @@ export const ResponseNode = ({ node }: { node: ResponseNodeType }) => {
               remarkPlugins={[remarkMath, remarkGfm]}
               rehypePlugins={[rehypeKatex]}
               components={{
+                h1: ({ children }) => <h1 className="text-2xl font-semibold tracking-tight mb-3 mt-2">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-xl font-semibold tracking-tight mb-3 mt-4">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-lg font-semibold tracking-tight mb-2 mt-4">{children}</h3>,
+                h4: ({ children }) => <h4 className="text-base font-semibold tracking-tight mb-2 mt-3">{children}</h4>,
+                h5: ({ children }) => <h5 className="text-sm font-semibold tracking-tight mb-2 mt-3">{children}</h5>,
+                h6: ({ children }) => (
+                  <h6 className="text-sm font-semibold tracking-tight mb-2 mt-3 opacity-90">{children}</h6>
+                ),
                 p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                 ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
                 ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
                 li: ({ children }) => <li className="ml-2">{children}</li>,
                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                 em: ({ children }) => <em className="italic">{children}</em>,
+                a: ({ children, href }) => (
+                  <a
+                    href={href}
+                    className="underline underline-offset-4 decoration-white/30 hover:decoration-white/70"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {children}
+                  </a>
+                ),
                 code: ({ children, className }) => {
                   const isInline = !className;
                   return isInline ? (
@@ -70,6 +64,12 @@ export const ResponseNode = ({ node }: { node: ResponseNodeType }) => {
                   );
                 },
                 pre: ({ children }) => <pre className="bg-white/10 p-2 rounded overflow-x-auto mb-2">{children}</pre>,
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-2 border-white/15 pl-3 italic text-white/85 my-3">
+                    {children}
+                  </blockquote>
+                ),
+                hr: () => <hr className="border-white/10 my-4" />,
                 table: ({ children }) => (
                   <div className="overflow-x-auto mb-2">
                     <table className="w-full border-collapse text-sm">{children}</table>
