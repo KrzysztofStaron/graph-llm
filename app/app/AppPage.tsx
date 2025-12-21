@@ -72,13 +72,14 @@ const AppPage = () => {
     // Send the query - use the locally updated nodes object
     const response = await aiService.streamChat(TreeManager.buildChatML(nodesWithQuery, updatedCaller), reponse => {
       treeManager.patchNode(responseNodeId, { value: reponse });
+      nodesWithQuery[responseNodeId].value = reponse;
     });
 
     // If response has no Input Node, create a new one
-    if (
-      nodesWithQuery[responseNodeId].childrenIds.some(childId => nodesWithQuery[childId]?.type === "input") === false
-    ) {
-      const newInputNode = createNode("input", responseNode.x, responseNode.y + 200);
+    if (responseNode.childrenIds.some(childId => nodes[childId].type === "input") === false) {
+      const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
+
+      const newInputNode = createNode("input", responseNode.x, responseNode.y + nodeElement.offsetHeight + 200);
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
     }
@@ -102,6 +103,16 @@ const AppPage = () => {
         canvasOffset={canvasOffset}
         onMouseDown={handleMouseDown}
         onInputSubmit={onInputSubmit}
+      />
+      <div
+        className="dot-grid-background fixed inset-0 -z-20"
+        style={{
+          backgroundSize: "40px 40px",
+          backgroundImage: "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
+          backgroundColor: "#0a0a0a",
+          opacity: 0.4,
+          backgroundPosition: `${canvasOffset.x % 40}px ${canvasOffset.y % 40}px`,
+        }}
       />
     </div>
   );

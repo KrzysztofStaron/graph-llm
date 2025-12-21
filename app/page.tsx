@@ -35,7 +35,9 @@ export default function Home() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
     >
-      <DotGridBackground />
+      <div className="opacity-50">
+        <DotGridBackground />
+      </div>
       <LandingPage onStart={handleStart} />
       <ParticlesBackground />
 

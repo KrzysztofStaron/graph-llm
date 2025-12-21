@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion, useAnimate } from "framer-motion";
-import DotGridBackground from "../components/DotGridBackground";
 import AppPage from "./AppPage";
 
 export default function AppRoute() {
@@ -25,8 +23,6 @@ export default function AppRoute() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
     >
-      <DotGridBackground />
-
       <div className="app-page-container absolute inset-0 z-20 pointer-events-none">
         <AppPage />
       </div>
