@@ -44,7 +44,7 @@ export class aiService {
     let fullResponse = "";
     let lastUpdateTime = 0;
     let pendingUpdate = false;
-    const THROTTLE_MS = 200;
+    const THROTTLE_MS = 500;
 
     const throttledOnChunk = (content: string) => {
       const now = Date.now();

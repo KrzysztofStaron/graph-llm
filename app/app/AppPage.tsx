@@ -61,7 +61,7 @@ const AppPage = () => {
     } else {
       // create a new response node
 
-      const newNode = createNode("response", caller.x, caller.y + 200);
+      const newNode = createNode("response", caller.x, caller.y + 150);
       responseNodeId = newNode.id;
       treeManager.addNode(newNode);
       treeManager.linkNodes(caller.id, newNode.id);
@@ -78,8 +78,11 @@ const AppPage = () => {
     // If response has no Input Node, create a new one
     if (responseNode.childrenIds.some(childId => nodes[childId].type === "input") === false) {
       const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
+      const width = nodeElement?.offsetWidth ?? 400;
+      const height = nodeElement?.offsetHeight ?? 80;
 
-      const newInputNode = createNode("input", responseNode.x, responseNode.y + nodeElement.offsetHeight + 200);
+      const newInputNode = createNode("input", responseNode.x, responseNode.y + height + 50);
+
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
     }
@@ -87,17 +90,6 @@ const AppPage = () => {
 
   return (
     <div className="relative w-full h-screen">
-      <button
-        className="absolute top-4 left-4 z-50 bg-blue-500 text-white p-2 rounded-md pointer-events-auto"
-        onClick={e => {
-          e.stopPropagation();
-
-          const messages = TreeManager.buildChatML(nodes, nodes["efce5fa5-ad1b-47f2-b614-1b1d55950d17"]);
-          console.log("ChatML result:", messages);
-        }}
-      >
-        Build ChatML
-      </button>
       <GraphCanvas
         nodes={nodes}
         canvasOffset={canvasOffset}
