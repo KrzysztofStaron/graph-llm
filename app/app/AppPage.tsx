@@ -45,6 +45,10 @@ const AppPage = () => {
 
     let responseNode: GraphNode;
 
+    // Create updated nodes object with the query value set
+    const updatedCaller = { ...caller, value: query };
+    const nodesWithQuery = { ...nodes, [caller.id]: updatedCaller };
+
     // Set the value to query of the InputFieldNode
     treeManager.patchNode(caller.id, { value: query });
 
@@ -65,13 +69,13 @@ const AppPage = () => {
       responseNode = newNode;
     }
 
-    // Send the query
-    const response = await aiService.streamChat(TreeManager.buildChatML(nodes, caller), reponse => {
+    // Send the query - use the locally updated nodes object
+    const response = await aiService.streamChat(TreeManager.buildChatML(nodesWithQuery, updatedCaller), reponse => {
       treeManager.patchNode(responseNodeId, { value: reponse });
     });
 
     // If response has no Input Node, create a new one
-    if (responseNode.childrenIds.some(childId => nodes[childId].type === "input") === false) {
+    if (responseNode.childrenIds.some(childId => nodes[childId]?.type === "input") === false) {
       const newInputNode = createNode("input", responseNode.x, responseNode.y + 200);
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);

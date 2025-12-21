@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,6 +32,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/katex@0.16.27/dist/katex.min.css"
+          integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${universalSans.variable} antialiased`}>
         {children}
       </body>

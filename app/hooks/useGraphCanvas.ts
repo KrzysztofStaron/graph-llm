@@ -10,7 +10,7 @@ type GraphAction =
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
 
-  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined): Message[] {
+  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined) {
     if (!startNode) {
       console.warn("buildChatML: startNode is undefined");
       return [];
@@ -147,6 +147,7 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     { x: 0, y: 0 }
   );
   const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
+  const nodesRef = useRef(nodes);
 
   const draggingRef = useRef<{ type: "canvas" | "node"; nodeId?: string } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -163,6 +164,10 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   };
 
   const treeManager = useMemo(() => new TreeManager(dispatch), [dispatch]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -194,6 +199,7 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   return {
     canvasOffset,
     nodes,
+    nodesRef,
     treeManager,
     handleMouseDown,
   };

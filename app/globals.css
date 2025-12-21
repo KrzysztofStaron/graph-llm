@@ -34,3 +34,12 @@ body {
 .text-secondary {
   opacity: 0.5;
 }
+
+/* KaTeX styling adjustments for dark theme */
+.katex {
+  color: inherit !important;
+}
+
+.katex-display {
+  margin: 0.5em 0 !important;
+}

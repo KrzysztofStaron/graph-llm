@@ -10,11 +10,20 @@ interface GraphCanvasProps {
 }
 
 const getNodeCenter = (node: GraphNode) => {
-  const width = node.type === "context" ? 96 : 400;
-  const height = node.type === "context" ? 96 : node.type === "input" ? 120 : 80;
+  const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`) as HTMLElement;
+
+  const width = nodeElement ? nodeElement.offsetWidth : node.type === "context" ? 96 : 400;
+  const height = nodeElement
+    ? nodeElement.offsetHeight
+    : node.type === "context"
+    ? 96
+    : node.type === "input"
+    ? 120
+    : 80;
+
   return {
     x: node.x + width / 2,
-    y: node.y + height / 2,
+    y: node.y + Math.min(height, 120) / 2,
   };
 };
 
