@@ -1,3 +1,5 @@
 export class globals {
-  static readonly graphLLMBackendUrl = "http://localhost:5000";
+  static readonly graphLLMBackendUrl = "https://api.graphai.one"; //
 }
+
+// http://localhost:995

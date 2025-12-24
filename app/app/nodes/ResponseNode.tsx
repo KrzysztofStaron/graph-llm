@@ -5,6 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { memo, useMemo } from "react";
+import { PlusIcon } from "lucide-react";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
@@ -152,7 +153,10 @@ export const ResponseNode = memo(
     }, [rawContent]);
 
     return (
-      <div className="max-w-[808px] min-w-[200px]">
+      <div className="max-w-[808px] min-w-[200px] flex items-center group">
+        <button className="size-[40px]">
+          <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
+        </button>
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20">
           <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none">
             {isLoading ? (
@@ -165,6 +169,9 @@ export const ResponseNode = memo(
             )}
           </div>
         </div>
+        <button className="size-[40px]">
+          <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
+        </button>
       </div>
     );
   },

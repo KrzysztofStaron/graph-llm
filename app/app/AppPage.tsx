@@ -36,6 +36,12 @@ const AppPage = () => {
 
   const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
+  const addInputNode = (caller: GraphNode, position: { x: number; y: number }) => {
+    const newInputNode = createNode("input", position.x, position.y);
+    treeManager.addNode(newInputNode);
+    treeManager.linkNodes(caller.id, newInputNode.id);
+  };
+
   const onInputSubmit = async (query: string, caller: GraphNode) => {
     // Find the first response child node
     let responseNodeId = caller.childrenIds.find(childId => {
