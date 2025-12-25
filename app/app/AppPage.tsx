@@ -36,10 +36,15 @@ const AppPage = () => {
 
   const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
-  const addInputNode = (caller: GraphNode, position: { x: number; y: number }) => {
-    const newInputNode = createNode("input", position.x, position.y);
+  const onAddNodeFromResponse = (responseNode: GraphNode, position: "left" | "right") => {
+    const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
+    const width = nodeElement?.offsetWidth ?? 400;
+
+    const offsetX = position === "left" ? -width - 100 : width + 100;
+    const newInputNode = createNode("input", responseNode.x + offsetX, responseNode.y);
+
     treeManager.addNode(newInputNode);
-    treeManager.linkNodes(caller.id, newInputNode.id);
+    treeManager.linkNodes(responseNode.id, newInputNode.id);
   };
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
@@ -101,6 +106,7 @@ const AppPage = () => {
         canvasOffset={canvasOffset}
         onMouseDown={handleMouseDown}
         onInputSubmit={onInputSubmit}
+        onAddNodeFromResponse={onAddNodeFromResponse}
       />
       <div
         className="dot-grid-background fixed inset-0 -z-20"

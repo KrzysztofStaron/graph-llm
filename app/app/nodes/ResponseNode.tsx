@@ -9,6 +9,7 @@ import { PlusIcon } from "lucide-react";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
+  onAddNode?: (position: "left" | "right") => void;
 };
 
 const arraysEqual = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -142,7 +143,7 @@ const splitIntoChunks = (content: string): string[] => {
 };
 
 export const ResponseNode = memo(
-  function ResponseNode({ node }: ResponseNodeProps) {
+  function ResponseNode({ node, onAddNode }: ResponseNodeProps) {
     const rawContent = node.value;
     const isLoading = rawContent.length === 0;
 
@@ -152,9 +153,19 @@ export const ResponseNode = memo(
       return splitIntoChunks(normalized);
     }, [rawContent]);
 
+    const handleAddLeft = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onAddNode?.("left");
+    };
+
+    const handleAddRight = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onAddNode?.("right");
+    };
+
     return (
       <div className="max-w-[808px] min-w-[200px] flex items-center group">
-        <button className="size-[40px]">
+        <button className="size-[40px]" onClick={handleAddLeft}>
           <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
         </button>
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20">
@@ -169,7 +180,7 @@ export const ResponseNode = memo(
             )}
           </div>
         </div>
-        <button className="size-[40px]">
+        <button className="size-[40px]" onClick={handleAddRight}>
           <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
         </button>
       </div>

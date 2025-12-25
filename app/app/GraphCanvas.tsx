@@ -8,6 +8,7 @@ interface GraphCanvasProps {
   canvasOffset: { x: number; y: number };
   onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
   onInputSubmit: (query: string, caller: GraphNode) => void;
+  onAddNodeFromResponse: (responseNode: GraphNode, position: "left" | "right") => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -23,7 +24,13 @@ const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   };
 };
 
-export const GraphCanvas = ({ nodes, canvasOffset, onMouseDown, onInputSubmit }: GraphCanvasProps) => {
+export const GraphCanvas = ({
+  nodes,
+  canvasOffset,
+  onMouseDown,
+  onInputSubmit,
+  onAddNodeFromResponse,
+}: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap(node => node.childrenIds.map(to => ({ from: node.id, to })));
 
@@ -137,7 +144,9 @@ export const GraphCanvas = ({ nodes, canvasOffset, onMouseDown, onInputSubmit }:
             {node.type === "input" && (
               <InputFieldNode node={node} onInputSubmit={query => onInputSubmit(query, node)} />
             )}
-            {node.type === "response" && <ResponseNode node={node} />}
+            {node.type === "response" && (
+              <ResponseNode node={node} onAddNode={position => onAddNodeFromResponse(node, position)} />
+            )}
             {node.type === "context" && <ContextNode node={node} />}
           </div>
         ))}
