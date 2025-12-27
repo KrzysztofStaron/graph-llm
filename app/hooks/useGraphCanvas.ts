@@ -139,28 +139,22 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
 }
 
 export const useGraphCanvas = (initialNodes: GraphNodes) => {
-  const [canvasOffset, setCanvasOffset] = useReducer(
-    (prev: { x: number; y: number }, delta: { dx: number; dy: number }) => ({
-      x: prev.x + delta.dx,
-      y: prev.y + delta.dy,
-    }),
-    { x: 0, y: 0 }
+  const [transform, setTransform] = useReducer(
+    (prev: { x: number; y: number; k: number }, next: { x: number; y: number; k: number }) => next,
+    { x: 0, y: 0, k: 1 }
   );
   const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
   const nodesRef = useRef(nodes);
 
-  const draggingRef = useRef<{ type: "canvas" | "node"; nodeId?: string } | null>(null);
+  const draggingRef = useRef<{ type: "node"; nodeId: string } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent, nodeId?: string) => {
+    if (!nodeId) return; // d3-zoom will handle canvas panning
+
     e.preventDefault();
     lastMousePos.current = { x: e.clientX, y: e.clientY };
-
-    if (nodeId) {
-      draggingRef.current = { type: "node", nodeId };
-    } else {
-      draggingRef.current = { type: "canvas" };
-    }
+    draggingRef.current = { type: "node", nodeId };
   };
 
   const treeManager = useMemo(() => new TreeManager(dispatch), [dispatch]);
@@ -173,13 +167,11 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!draggingRef.current) return;
 
-      const dx = e.clientX - lastMousePos.current.x;
-      const dy = e.clientY - lastMousePos.current.y;
+      const dx = (e.clientX - lastMousePos.current.x) / transform.k;
+      const dy = (e.clientY - lastMousePos.current.y) / transform.k;
       lastMousePos.current = { x: e.clientX, y: e.clientY };
 
-      if (draggingRef.current.type === "canvas") {
-        setCanvasOffset({ dx, dy });
-      } else if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
+      if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
         treeManager.moveNode(draggingRef.current.nodeId, dx, dy);
       }
     };
@@ -194,10 +186,11 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [treeManager]);
+  }, [treeManager, transform.k]);
 
   return {
-    canvasOffset,
+    transform,
+    setTransform,
     nodes,
     nodesRef,
     treeManager,

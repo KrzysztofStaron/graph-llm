@@ -17,7 +17,7 @@ const AppPage = () => {
     "input-1": { id: "input-1", type: "input", x: 400, y: 300, value: "", parentIds: ["context-1"], childrenIds: [] },
   };
 
-  const { canvasOffset, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
+  const { transform, setTransform, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
 
   const onInputSubmit = (query: string, caller: GraphNode) => {
     // Find the first response child node
@@ -48,9 +48,11 @@ const AppPage = () => {
   return (
     <GraphCanvas
       nodes={nodes}
-      canvasOffset={canvasOffset}
+      transform={transform}
+      setTransform={setTransform}
       onMouseDown={handleMouseDown}
       onInputSubmit={onInputSubmit}
+      onAddNodeFromResponse={() => {}} // Dummy prop for now
     />
   );
 };

@@ -165,7 +165,7 @@ export const ResponseNode = memo(
 
     return (
       <div className="max-w-[808px] min-w-[200px] flex items-center group">
-        <button className="size-[40px]" onClick={handleAddLeft}>
+        <button className="size-[40px]" onClick={handleAddLeft} onMouseDown={e => e.stopPropagation()}>
           <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
         </button>
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20">
@@ -180,7 +180,7 @@ export const ResponseNode = memo(
             )}
           </div>
         </div>
-        <button className="size-[40px]" onClick={handleAddRight}>
+        <button className="size-[40px]" onClick={handleAddRight} onMouseDown={e => e.stopPropagation()}>
           <PlusIcon size={30} className="hidden group-hover:block rounded-full border border-white/10" />
         </button>
       </div>

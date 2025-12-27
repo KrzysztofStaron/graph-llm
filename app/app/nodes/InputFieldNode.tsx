@@ -56,6 +56,9 @@ export const InputFieldNode = memo(
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onMouseDown={e => e.stopPropagation()}
+                onWheel={e => {
+                  e.stopPropagation();
+                }}
                 onKeyDown={e => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
