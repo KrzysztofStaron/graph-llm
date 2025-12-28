@@ -153,6 +153,7 @@ const AppPage = () => {
         onMouseDown={handleMouseDown}
         onInputSubmit={onInputSubmit}
         onAddNodeFromResponse={onAddNodeFromResponse}
+        onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
       />
       <div
         className="dot-grid-background fixed inset-0 -z-20"

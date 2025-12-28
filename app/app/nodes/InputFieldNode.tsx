@@ -1,5 +1,5 @@
 import { InputNode } from "@/app/types/graph";
-import { ArrowUp, ChevronRight, Pencil } from "lucide-react";
+import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
 import { memo, useRef, useState } from "react";
 
 enum Mode {
@@ -10,16 +10,22 @@ enum Mode {
 type InputFieldNodeProps = {
   node: InputNode;
   onInputSubmit: (query: string) => void;
+  onDelete: () => void;
 };
 
 const arraysEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
 export const InputFieldNode = memo(
-  function InputFieldNode({ node, onInputSubmit }: InputFieldNodeProps) {
+  function InputFieldNode({
+    node,
+    onInputSubmit,
+    onDelete,
+  }: InputFieldNodeProps) {
     const [mode, setMode] = useState<Mode>(Mode.ASK);
     const [query, setQuery] = useState("");
     const [previousQuery, setPreviousQuery] = useState("");
+    const [isDeleteHovered, setIsDeleteHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const handleSubmit = () => {
@@ -59,7 +65,13 @@ export const InputFieldNode = memo(
         className="w-[400px] group"
         data-node-id={node.id}
       >
-        <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
+        <div
+          className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-300 ${
+            isDeleteHovered && node.childrenIds.length === 0
+              ? "rounded-3xl rounded-tr-xl"
+              : ""
+          }`}
+        >
           {mode === Mode.DISPLAY ? (
             <div className="py-5 pl-4 pr-4 w-full rounded-3xl border-none bg-[#0a0a0a] text-white flex justify-between items-center gap-2 cursor-move">
               <span className="flex items-center gap-2">
@@ -77,10 +89,31 @@ export const InputFieldNode = memo(
               </button>
             </div>
           ) : (
-            <div className="relative rounded-3xl bg-[#0a0a0a]">
+            <div
+              className={`relative rounded-3xl bg-[#0a0a0a] transition-all duration-300 ${
+                isDeleteHovered && node.childrenIds.length === 0
+                  ? "rounded-tl-3xl rounded-bl-3xl rounded-br-3xl rounded-tr-xl"
+                  : ""
+              }`}
+            >
               {/* Drag handle bar */}
-              <div className="h-8 w-full rounded-t-3xl cursor-move flex items-center justify-center">
+              <div className="h-8 w-full rounded-t-3xl cursor-move flex items-center justify-center relative">
                 <div className="w-12 h-1 rounded-full bg-white/20" />
+                {node.childrenIds.length === 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseEnter={() => setIsDeleteHovered(true)}
+                    onMouseLeave={() => setIsDeleteHovered(false)}
+                    className="absolute right-1 p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-50 hover:opacity-100 hidden group-hover:block"
+                    aria-label="Delete node"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
               <textarea
                 name="query"

@@ -11,7 +11,11 @@ interface GraphCanvasProps {
   setTransform: (transform: { x: number; y: number; k: number }) => void;
   onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
   onInputSubmit: (query: string, caller: GraphNode) => void;
-  onAddNodeFromResponse: (responseNode: GraphNode, position: "left" | "right") => void;
+  onAddNodeFromResponse: (
+    responseNode: GraphNode,
+    position: "left" | "right"
+  ) => void;
+  onDeleteNode: (nodeId: string) => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -19,7 +23,9 @@ type NodeDimensions = Record<string, { width: number; height: number }>;
 const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
   const width = dim?.width ?? (node.type === "context" ? 96 : 400);
-  const height = dim?.height ?? (node.type === "context" ? 96 : node.type === "input" ? 120 : 80);
+  const height =
+    dim?.height ??
+    (node.type === "context" ? 96 : node.type === "input" ? 120 : 80);
 
   return {
     x: node.x + width / 2,
@@ -34,28 +40,46 @@ export const GraphCanvas = ({
   onMouseDown,
   onInputSubmit,
   onAddNodeFromResponse,
+  onDeleteNode,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
-  const edges = nodeArray.flatMap(node => node.childrenIds.map(to => ({ from: node.id, to })));
+  const edges = nodeArray.flatMap((node) =>
+    node.childrenIds.map((to) => ({ from: node.id, to }))
+  );
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nodeDimensions, setNodeDimensions] = useState<NodeDimensions>({});
-  const zoomBehaviorRef = useRef<d3.ZoomBehavior<HTMLDivElement, unknown> | null>(null);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<
+    HTMLDivElement,
+    unknown
+  > | null>(null);
 
-  const updateNodeDimension = useCallback((nodeId: string, width: number, height: number) => {
-    setNodeDimensions(prev => {
-      const existing = prev[nodeId];
-      if (existing && existing.width === width && existing.height === height) {
-        return prev;
-      }
-      return { ...prev, [nodeId]: { width, height } };
-    });
-  }, []);
+  const updateNodeDimension = useCallback(
+    (nodeId: string, width: number, height: number) => {
+      setNodeDimensions((prev) => {
+        const existing = prev[nodeId];
+        if (
+          existing &&
+          existing.width === width &&
+          existing.height === height
+        ) {
+          return prev;
+        }
+        return { ...prev, [nodeId]: { width, height } };
+      });
+    },
+    []
+  );
 
   const fitView = useCallback(
     (duration = 750) => {
-      if (!viewportRef.current || !zoomBehaviorRef.current || nodeArray.length === 0) return;
+      if (
+        !viewportRef.current ||
+        !zoomBehaviorRef.current ||
+        nodeArray.length === 0
+      )
+        return;
 
       const padding = 100;
       const { clientWidth, clientHeight } = viewportRef.current;
@@ -65,10 +89,11 @@ export const GraphCanvas = ({
         maxX = -Infinity,
         maxY = -Infinity;
 
-      nodeArray.forEach(node => {
+      nodeArray.forEach((node) => {
         const dim = nodeDimensions[node.id] || {
           width: node.type === "context" ? 96 : 400,
-          height: node.type === "context" ? 96 : node.type === "input" ? 120 : 80,
+          height:
+            node.type === "context" ? 96 : node.type === "input" ? 120 : 80,
         };
         minX = Math.min(minX, node.x);
         minY = Math.min(minY, node.y);
@@ -107,14 +132,14 @@ export const GraphCanvas = ({
     const zoom = d3
       .zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 4])
-      .on("zoom", event => {
+      .on("zoom", (event) => {
         const { x, y, k } = event.transform;
         if (contentRef.current) {
           contentRef.current.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
         }
         setTransform({ x, y, k });
       })
-      .filter(event => {
+      .filter((event) => {
         // Only allow zoom/pan if not clicking on buttons or inputs
         const target = event.target as HTMLElement;
 
@@ -139,7 +164,10 @@ export const GraphCanvas = ({
     zoomBehaviorRef.current = zoom;
 
     // Set initial transform without transition
-    svg.call(zoom.transform, d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k));
+    svg.call(
+      zoom.transform,
+      d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k)
+    );
 
     return () => {
       svg.on(".zoom", null);
@@ -150,7 +178,13 @@ export const GraphCanvas = ({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "f" && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+      if (
+        e.key === "f" &&
+        !(
+          e.target instanceof HTMLTextAreaElement ||
+          e.target instanceof HTMLInputElement
+        )
+      ) {
         fitView();
       }
     };
@@ -163,20 +197,25 @@ export const GraphCanvas = ({
     const container = contentRef.current;
     if (!container) return;
 
-    const observer = new ResizeObserver(entries => {
-      entries.forEach(entry => {
+    const observer = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
         const element = entry.target as HTMLElement;
         const nodeId = element.dataset.nodeId;
         if (nodeId) {
-          updateNodeDimension(nodeId, element.offsetWidth, element.offsetHeight);
+          updateNodeDimension(
+            nodeId,
+            element.offsetWidth,
+            element.offsetHeight
+          );
         }
       });
     });
 
     // Use MutationObserver to detect when nodes are added/removed
     const mutationObserver = new MutationObserver(() => {
-      const nodeElements = container.querySelectorAll<HTMLElement>("[data-node-id]");
-      nodeElements.forEach(element => {
+      const nodeElements =
+        container.querySelectorAll<HTMLElement>("[data-node-id]");
+      nodeElements.forEach((element) => {
         observer.observe(element);
       });
     });
@@ -184,8 +223,9 @@ export const GraphCanvas = ({
     mutationObserver.observe(container, { childList: true, subtree: true });
 
     // Initial observation of existing nodes
-    const nodeElements = container.querySelectorAll<HTMLElement>("[data-node-id]");
-    nodeElements.forEach(element => {
+    const nodeElements =
+      container.querySelectorAll<HTMLElement>("[data-node-id]");
+    nodeElements.forEach((element) => {
       observer.observe(element);
     });
 
@@ -222,7 +262,7 @@ export const GraphCanvas = ({
               height: 1,
             }}
           >
-            {edges.map(edge => {
+            {edges.map((edge) => {
               const fromNode = nodes[edge.from];
               const toNode = nodes[edge.to];
               if (!fromNode || !toNode) return null;
@@ -242,21 +282,32 @@ export const GraphCanvas = ({
             })}
           </svg>
 
-          {nodeArray.map(node => (
+          {nodeArray.map((node) => (
             <div
               key={node.id}
-              className={`absolute cursor-move ${node.type === "response" ? "w-max" : ""}`}
+              className={`absolute cursor-move ${
+                node.type === "response" ? "w-max" : ""
+              }`}
               data-node-id={node.id}
               style={{ left: node.x, top: node.y }}
-              onMouseDown={e => {
+              onMouseDown={(e) => {
                 onMouseDown(e, node.id);
               }}
             >
               {node.type === "input" && (
-                <InputFieldNode node={node} onInputSubmit={query => onInputSubmit(query, node)} />
+                <InputFieldNode
+                  node={node}
+                  onInputSubmit={(query) => onInputSubmit(query, node)}
+                  onDelete={() => onDeleteNode(node.id)}
+                />
               )}
               {node.type === "response" && (
-                <ResponseNode node={node} onAddNode={position => onAddNodeFromResponse(node, position)} />
+                <ResponseNode
+                  node={node}
+                  onAddNode={(position) =>
+                    onAddNodeFromResponse(node, position)
+                  }
+                />
               )}
               {node.type === "context" && <ContextNode node={node} />}
             </div>

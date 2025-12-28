@@ -13,7 +13,8 @@ type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
   | { type: "ADD_NODE"; node: GraphNode }
   | { type: "LINK"; fromId: string; toId: string }
-  | { type: "MOVE_NODE"; id: string; dx: number; dy: number };
+  | { type: "MOVE_NODE"; id: string; dx: number; dy: number }
+  | { type: "DELETE_NODE"; id: string };
 
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
@@ -147,6 +148,10 @@ export class TreeManager {
   moveNode(id: string, dx: number, dy: number): void {
     this.dispatch({ type: "MOVE_NODE", id, dx, dy });
   }
+
+  deleteNode(id: string): void {
+    this.dispatch({ type: "DELETE_NODE", id });
+  }
 }
 
 function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
@@ -187,6 +192,37 @@ function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
         ...nodes,
         [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy },
       };
+    }
+    case "DELETE_NODE": {
+      const node = nodes[action.id];
+      if (!node) return nodes;
+
+      const updatedNodes = { ...nodes };
+      delete updatedNodes[action.id];
+
+      // Remove this node from all parents' childrenIds
+      for (const parentId of node.parentIds) {
+        const parent = updatedNodes[parentId];
+        if (parent) {
+          updatedNodes[parentId] = {
+            ...parent,
+            childrenIds: parent.childrenIds.filter((id) => id !== action.id),
+          };
+        }
+      }
+
+      // Remove this node from all children's parentIds
+      for (const childId of node.childrenIds) {
+        const child = updatedNodes[childId];
+        if (child) {
+          updatedNodes[childId] = {
+            ...child,
+            parentIds: child.parentIds.filter((id) => id !== action.id),
+          };
+        }
+      }
+
+      return updatedNodes;
     }
   }
 }
