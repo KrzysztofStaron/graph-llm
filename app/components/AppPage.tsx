@@ -59,6 +59,27 @@ const AppPageContent = () => {
     }
   };
 
+  const onAddInputNode = useCallback(
+    (fromNode: GraphNode, position: "left" | "right") => {
+      const nodeElement = document.querySelector(
+        `[data-node-id="${fromNode.id}"]`
+      ) as HTMLElement;
+      const width =
+        nodeElement?.offsetWidth ?? (fromNode.type === "context" ? 176 : 400);
+
+      const offsetX = position === "left" ? -width - 100 : width + 100;
+      const newInputNode = createNode(
+        "input",
+        fromNode.x + offsetX,
+        fromNode.y
+      );
+
+      treeManager.addNode(newInputNode);
+      treeManager.linkNodes(fromNode.id, newInputNode.id);
+    },
+    [treeManager]
+  );
+
   const onDeleteNode = useCallback(
     (nodeId: string) => {
       treeManager.deleteNode(nodeId);
@@ -74,7 +95,8 @@ const AppPageContent = () => {
       setTransform={setTransform}
       onMouseDown={handleMouseDown}
       onInputSubmit={onInputSubmit}
-      onAddNodeFromResponse={() => {}} // Dummy prop for now
+      onAddNodeFromResponse={onAddInputNode}
+      onAddNodeFromContext={onAddInputNode}
     />
   );
 };
