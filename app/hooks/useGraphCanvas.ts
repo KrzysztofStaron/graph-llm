@@ -14,7 +14,7 @@ type GraphAction =
   | { type: "ADD_NODE"; node: GraphNode }
   | { type: "LINK"; fromId: string; toId: string }
   | { type: "MOVE_NODE"; id: string; dx: number; dy: number }
-  | { type: "DELETE_NODE"; id: string };
+  | { type: "DELETE_CASCADE"; id: string };
 
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
@@ -150,7 +150,7 @@ export class TreeManager {
   }
 
   deleteNode(id: string): void {
-    this.dispatch({ type: "DELETE_NODE", id });
+    this.dispatch({ type: "DELETE_CASCADE", id });
   }
 }
 
@@ -193,33 +193,60 @@ function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
         [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy },
       };
     }
-    case "DELETE_NODE": {
-      const node = nodes[action.id];
-      if (!node) return nodes;
+    case "DELETE_CASCADE": {
+      const startNode = nodes[action.id];
+      if (!startNode) return nodes;
 
-      const updatedNodes = { ...nodes };
-      delete updatedNodes[action.id];
+      // DFS to collect nodes to delete
+      // Rule: stop (and keep) a branch when we hit a node with >1 parent
+      const toDelete = new Set<string>();
+      const stack: string[] = [action.id];
 
-      // Remove this node from all parents' childrenIds
-      for (const parentId of node.parentIds) {
-        const parent = updatedNodes[parentId];
-        if (parent) {
-          updatedNodes[parentId] = {
-            ...parent,
-            childrenIds: parent.childrenIds.filter((id) => id !== action.id),
-          };
+      while (stack.length > 0) {
+        const nodeId = stack.pop()!;
+
+        // Skip if already processed
+        if (toDelete.has(nodeId)) continue;
+
+        const node = nodes[nodeId];
+        if (!node) continue;
+
+        // For non-start nodes, check if this node has a parent outside the deletion set
+        if (nodeId !== action.id) {
+          // If node has >1 parent, stop here (keep this node and its descendants)
+          if (node.parentIds.length > 1) continue;
+
+          // If node has any parent not in toDelete, it still has a valid parent - keep it
+          const hasParentOutsideDeleteSet = node.parentIds.some(
+            (parentId) => !toDelete.has(parentId)
+          );
+          if (hasParentOutsideDeleteSet) continue;
+        }
+
+        // Mark for deletion
+        toDelete.add(nodeId);
+
+        // Add children to stack for DFS traversal
+        for (const childId of node.childrenIds) {
+          if (!toDelete.has(childId)) {
+            stack.push(childId);
+          }
         }
       }
 
-      // Remove this node from all children's parentIds
-      for (const childId of node.childrenIds) {
-        const child = updatedNodes[childId];
-        if (child) {
-          updatedNodes[childId] = {
-            ...child,
-            parentIds: child.parentIds.filter((id) => id !== action.id),
-          };
-        }
+      // Build the updated nodes object
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        // Skip nodes that are being deleted
+        if (toDelete.has(nodeId)) continue;
+
+        // Filter out deleted nodes from parentIds and childrenIds
+        updatedNodes[nodeId] = {
+          ...node,
+          parentIds: node.parentIds.filter((id) => !toDelete.has(id)),
+          childrenIds: node.childrenIds.filter((id) => !toDelete.has(id)),
+        };
       }
 
       return updatedNodes;

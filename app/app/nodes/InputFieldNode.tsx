@@ -1,6 +1,7 @@
 import { InputNode } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
 import { memo, useRef, useState } from "react";
+import { useGraphCanvasContext } from "../../hooks/GraphCanvasContext";
 
 enum Mode {
   ASK = "ask",
@@ -22,6 +23,7 @@ export const InputFieldNode = memo(
     onInputSubmit,
     onDelete,
   }: InputFieldNodeProps) {
+    const { nodes } = useGraphCanvasContext();
     const [mode, setMode] = useState<Mode>(Mode.ASK);
     const [query, setQuery] = useState("");
     const [previousQuery, setPreviousQuery] = useState("");
@@ -37,6 +39,48 @@ export const InputFieldNode = memo(
       setQuery(trimmedQuery);
       setMode(Mode.DISPLAY);
     };
+
+    const hasInputDescendant = (() => {
+      const visited = new Set<string>();
+
+      const checkDescendants = (nodeId: string): boolean => {
+        if (visited.has(nodeId)) return false;
+        visited.add(nodeId);
+
+        const currentNode = nodes[nodeId];
+        if (!currentNode) return false;
+
+        // Check if current node is an input node with the original node as parent
+        if (
+          currentNode.type === "response" &&
+          currentNode.parentIds.includes(node.id)
+        ) {
+          if (!node.childrenIds.includes(nodeId)) {
+            return true;
+          }
+        }
+
+        // Recursively check all children
+        for (const childId of currentNode.childrenIds) {
+          if (checkDescendants(childId)) {
+            if (!node.childrenIds.includes(nodeId)) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      };
+
+      // Check all direct children
+      for (const childId of node.childrenIds) {
+        if (checkDescendants(childId)) {
+          return true;
+        }
+      }
+
+      return false;
+    })();
 
     const performCancel = () => {
       if (previousQuery) {
@@ -66,10 +110,8 @@ export const InputFieldNode = memo(
         data-node-id={node.id}
       >
         <div
-          className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-300 ${
-            isDeleteHovered && node.childrenIds.length === 0
-              ? "rounded-3xl rounded-tr-xl"
-              : ""
+          className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-200 ${
+            isDeleteHovered && "rounded-3xl rounded-tr-xl"
           }`}
         >
           {mode === Mode.DISPLAY ? (
@@ -90,16 +132,15 @@ export const InputFieldNode = memo(
             </div>
           ) : (
             <div
-              className={`relative rounded-3xl bg-[#0a0a0a] transition-all duration-300 ${
-                isDeleteHovered && node.childrenIds.length === 0
-                  ? "rounded-tl-3xl rounded-bl-3xl rounded-br-3xl rounded-tr-xl"
-                  : ""
+              className={`relative rounded-3xl bg-[#0a0a0a] transition-all duration-200 ${
+                isDeleteHovered &&
+                "rounded-tl-3xl rounded-bl-3xl rounded-br-3xl rounded-tr-xl"
               }`}
             >
               {/* Drag handle bar */}
               <div className="h-8 w-full rounded-t-3xl cursor-move flex items-center justify-center relative">
                 <div className="w-12 h-1 rounded-full bg-white/20" />
-                {node.childrenIds.length === 0 && (
+                {hasInputDescendant === false && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -108,7 +149,7 @@ export const InputFieldNode = memo(
                     onMouseDown={(e) => e.stopPropagation()}
                     onMouseEnter={() => setIsDeleteHovered(true)}
                     onMouseLeave={() => setIsDeleteHovered(false)}
-                    className="absolute right-1 p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-50 hover:opacity-100 hidden group-hover:block"
+                    className="absolute right-1 p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-50 hover:opacity-200 hidden group-hover:block"
                     aria-label="Delete node"
                   >
                     <X className="size-3.5" />

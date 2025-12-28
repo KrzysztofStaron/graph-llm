@@ -1,40 +1,41 @@
-import { createNode, TreeManager, useGraphCanvas } from "../hooks/useGraphCanvas";
+import { createNode, TreeManager } from "../hooks/useGraphCanvas";
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
+import { GraphCanvasProvider, useGraphCanvasContext } from "../hooks/GraphCanvasContext";
 
-const AppPage = () => {
-  const initialNodes: GraphNodes = {
-    "context-1": {
-      id: "context-1",
-      type: "context",
-      x: 450,
-      y: 100,
-      value: "name of user is Krzysztof",
-      parentIds: [],
-      childrenIds: ["input-1"],
-    },
-    "context-2": {
-      id: "context-2",
-      type: "context",
-      x: 650,
-      y: 100,
-      value: "Krzysztof is 18 years old",
-      parentIds: [],
-      childrenIds: ["input-1"],
-    },
-    "input-1": {
-      id: "input-1",
-      type: "input",
-      x: 400,
-      y: 300,
-      value: "",
-      parentIds: ["context-1", "context-2"],
-      childrenIds: [],
-    },
-  };
+const initialNodes: GraphNodes = {
+  "context-1": {
+    id: "context-1",
+    type: "context",
+    x: 450,
+    y: 100,
+    value: "name of user is Krzysztof",
+    parentIds: [],
+    childrenIds: ["input-1"],
+  },
+  "context-2": {
+    id: "context-2",
+    type: "context",
+    x: 650,
+    y: 100,
+    value: "Krzysztof is 18 years old",
+    parentIds: [],
+    childrenIds: ["input-1"],
+  },
+  "input-1": {
+    id: "input-1",
+    type: "input",
+    x: 400,
+    y: 300,
+    value: "",
+    parentIds: ["context-1", "context-2"],
+    childrenIds: [],
+  },
+};
 
-  const { transform, setTransform, nodes, treeManager, handleMouseDown } = useGraphCanvas(initialNodes);
+const AppPageContent = () => {
+  const { transform, setTransform, nodes, treeManager, handleMouseDown } = useGraphCanvasContext();
 
   const onAddNodeFromResponse = (responseNode: GraphNode, position: "left" | "right") => {
     const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
@@ -166,6 +167,14 @@ const AppPage = () => {
         }}
       />
     </div>
+  );
+};
+
+const AppPage = () => {
+  return (
+    <GraphCanvasProvider initialNodes={initialNodes}>
+      <AppPageContent />
+    </GraphCanvasProvider>
   );
 };
 
