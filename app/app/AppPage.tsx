@@ -56,7 +56,7 @@ const AppPage = () => {
 
     let responseNode: GraphNode;
 
-    // Create updated nodes object with the query value set
+    // Create updated nodes object with the query value set - this will be mutated as we stream responses
     const updatedCaller = { ...caller, value: query };
     const nodesWithQuery = { ...nodes, [caller.id]: updatedCaller };
 
@@ -78,12 +78,13 @@ const AppPage = () => {
       treeManager.linkNodes(caller.id, newNode.id);
 
       responseNode = newNode;
+      nodesWithQuery[newNode.id] = newNode;
     }
 
     // Send the query - use the locally updated nodes object
-    await aiService.streamChat(TreeManager.buildChatML(nodesWithQuery, updatedCaller), reponse => {
-      treeManager.patchNode(responseNodeId, { value: reponse });
-      nodesWithQuery[responseNodeId].value = reponse;
+    await aiService.streamChat(TreeManager.buildChatML(nodesWithQuery, updatedCaller), response => {
+      treeManager.patchNode(responseNodeId, { value: response });
+      nodesWithQuery[responseNodeId] = { ...nodesWithQuery[responseNodeId], value: response };
     });
 
     // If response has no Input Node, create a new one
@@ -95,6 +96,51 @@ const AppPage = () => {
 
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
+      nodesWithQuery[newInputNode.id] = newInputNode;
+    }
+
+    // Cascading updates: find all descendant response nodes and update them level by level
+    await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
+  };
+
+  /**
+   * Recursively updates all descendant response nodes in breadth-first order.
+   * Updates all nodes at each depth level in parallel, then moves to the next level.
+   */
+  const cascadeUpdateDescendants = async (startNodeId: string, currentNodes: GraphNodes) => {
+    // Find all descendant response nodes grouped by depth level
+    const descendantLevels = TreeManager.findDescendantResponseNodes(startNodeId, currentNodes);
+
+    // Process each level sequentially
+    for (const levelNodes of descendantLevels) {
+      if (levelNodes.length === 0) continue;
+
+      // Put all nodes in this level into loading state
+      for (const node of levelNodes) {
+        treeManager.patchNode(node.id, { value: "" });
+        currentNodes[node.id] = { ...currentNodes[node.id], value: "" };
+      }
+
+      // Update all nodes at this level in parallel
+      await Promise.all(
+        levelNodes.map(async responseNode => {
+          // Find the input node parent of this response node to build ChatML
+          const inputParentId = responseNode.parentIds.find(parentId => {
+            const parent = currentNodes[parentId];
+            return parent?.type === "input";
+          });
+
+          if (!inputParentId) return;
+
+          const inputParent = currentNodes[inputParentId];
+
+          // Stream the AI response
+          await aiService.streamChat(TreeManager.buildChatML(currentNodes, inputParent), response => {
+            treeManager.patchNode(responseNode.id, { value: response });
+            currentNodes[responseNode.id] = { ...currentNodes[responseNode.id], value: response };
+          });
+        })
+      );
     }
   };
 

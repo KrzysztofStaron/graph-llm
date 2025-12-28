@@ -12,27 +12,40 @@ type InputFieldNodeProps = {
   onInputSubmit: (query: string) => void;
 };
 
-const arraysEqual = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+const arraysEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
 
 export const InputFieldNode = memo(
   function InputFieldNode({ node, onInputSubmit }: InputFieldNodeProps) {
     const [mode, setMode] = useState<Mode>(Mode.ASK);
     const [query, setQuery] = useState("");
+    const [previousQuery, setPreviousQuery] = useState("");
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    const fuckThisShitTempVar69 = useRef<string>("");
+    const handleSubmit = () => {
+      const trimmedQuery = query.trim();
+      if (trimmedQuery === "") return;
 
-    const handleCancel = () => {
-      setQuery(fuckThisShitTempVar69.current);
+      setPreviousQuery(trimmedQuery);
+      onInputSubmit(trimmedQuery);
+      setQuery(trimmedQuery);
       setMode(Mode.DISPLAY);
     };
 
-    const handleSubmit = () => {
-      if (query.trim() === "") return;
+    const performCancel = () => {
+      if (previousQuery) {
+        setQuery(previousQuery);
+        setMode(Mode.DISPLAY);
+      }
+    };
 
-      fuckThisShitTempVar69.current = query;
-      onInputSubmit(query);
+    const handleOnBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+      const relatedTarget = e.relatedTarget as Node | null;
+      if (relatedTarget && containerRef.current?.contains(relatedTarget)) {
+        return;
+      }
 
-      setMode(Mode.DISPLAY);
+      performCancel();
     };
 
     const handleEdit = () => {
@@ -41,7 +54,11 @@ export const InputFieldNode = memo(
     };
 
     return (
-      <div className="w-[400px] group" data-node-id={node.id}>
+      <div
+        ref={containerRef}
+        className="w-[400px] group"
+        data-node-id={node.id}
+      >
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
           {mode === Mode.DISPLAY ? (
             <div className="py-5 pl-4 pr-4 w-full rounded-3xl border-none bg-[#0a0a0a] text-white flex justify-between items-center gap-2 cursor-move">
@@ -51,7 +68,11 @@ export const InputFieldNode = memo(
               </span>
 
               {/* Edit Icon */}
-              <button onClick={handleEdit} className="cursor-pointer" onMouseDown={e => e.stopPropagation()}>
+              <button
+                onClick={handleEdit}
+                className="cursor-pointer"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <Pencil className="size-4 hidden group-hover:block opacity-50 hover:opacity-100 transition-opacity" />
               </button>
             </div>
@@ -67,19 +88,19 @@ export const InputFieldNode = memo(
                 placeholder="What do you want to know?"
                 aria-label="Query"
                 value={query}
-                onChange={e => setQuery(e.target.value)}
-                onMouseDown={e => e.stopPropagation()}
-                onWheel={e => {
+                onChange={(e) => setQuery(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onWheel={(e) => {
                   e.stopPropagation();
                 }}
-                onBlur={handleCancel}
-                onKeyDown={e => {
+                onBlur={handleOnBlur}
+                onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
                     handleSubmit();
-                  }
-                  if (e.key === "Escape") {
-                    handleCancel();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    performCancel();
                   }
                 }}
                 autoFocus
@@ -89,8 +110,11 @@ export const InputFieldNode = memo(
                   aria-label="Submit query"
                   className="aspect-square rounded-full p-2.5 bg-white text-black hover:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   disabled={query.trim().length === 0}
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={handleSubmit}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit();
+                  }}
                 >
                   <ArrowUp strokeWidth={2} className="size-4" />
                 </button>

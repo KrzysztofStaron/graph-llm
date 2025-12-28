@@ -1,5 +1,13 @@
 import { useReducer, useRef, useEffect, useMemo } from "react";
-import type { ContextNode, Edge, GraphNode, GraphNodes, InputNode, NodeType, ResponseNode } from "../types/graph";
+import type {
+  ContextNode,
+  Edge,
+  GraphNode,
+  GraphNodes,
+  InputNode,
+  NodeType,
+  ResponseNode,
+} from "../types/graph";
 
 type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -10,13 +18,73 @@ type GraphAction =
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
 
+  /**
+   * Finds all descendant response nodes starting from a given node, grouped by depth level (BFS).
+   * Returns an array of arrays, where each inner array contains response nodes at the same depth.
+   * Depth is measured by the number of response nodes encountered, not total nodes.
+   */
+  static findDescendantResponseNodes(
+    startNodeId: string,
+    nodes: GraphNodes
+  ): ResponseNode[][] {
+    const result: ResponseNode[][] = [];
+    const visited = new Set<string>();
+
+    // Queue contains [nodeId, responseDepth] pairs
+    // responseDepth tracks how many response nodes we've passed through
+    const queue: Array<{ nodeId: string; responseDepth: number }> = [];
+
+    // Start with the children of the start node
+    const startNode = nodes[startNodeId];
+    if (!startNode) return result;
+
+    for (const childId of startNode.childrenIds) {
+      queue.push({ nodeId: childId, responseDepth: 0 });
+    }
+
+    while (queue.length > 0) {
+      const { nodeId, responseDepth } = queue.shift()!;
+
+      // Skip if already visited (cycle protection)
+      if (visited.has(nodeId)) continue;
+      visited.add(nodeId);
+
+      const node = nodes[nodeId];
+      if (!node) continue;
+
+      let nextDepth = responseDepth;
+
+      // If it's a response node, add it to the appropriate depth level
+      if (node.type === "response") {
+        while (result.length <= responseDepth) {
+          result.push([]);
+        }
+        result[responseDepth].push(node as ResponseNode);
+        // Increment depth for children since we passed through a response node
+        nextDepth = responseDepth + 1;
+      }
+
+      // Add all children to the queue
+      for (const childId of node.childrenIds) {
+        if (!visited.has(childId)) {
+          queue.push({ nodeId: childId, responseDepth: nextDepth });
+        }
+      }
+    }
+
+    return result;
+  }
+
   static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined) {
     if (!startNode) {
       console.warn("buildChatML: startNode is undefined");
       return [];
     }
 
-    const normalizedTree: Record<number, { type: NodeType; value: string; id: string }[]> = {
+    const normalizedTree: Record<
+      number,
+      { type: NodeType; value: string; id: string }[]
+    > = {
       0: [],
     };
 
@@ -25,9 +93,13 @@ export class TreeManager {
         normalizedTree[level] = [];
       }
 
-      normalizedTree[level].push({ type: currentNode.type, value: currentNode.value, id: currentNode.id });
+      normalizedTree[level].push({
+        type: currentNode.type,
+        value: currentNode.value,
+        id: currentNode.id,
+      });
 
-      currentNode.parentIds.forEach(parentId => {
+      currentNode.parentIds.forEach((parentId) => {
         const parentNode = nodes[parentId];
         if (parentNode) {
           traverse(parentNode, level + 1);
@@ -43,11 +115,12 @@ export class TreeManager {
     const messages = [];
 
     for (let level = 0; level <= maxLevel; level++) {
-      const mergedNodes = normalizedTree[level].map(node => node.value);
+      const mergedNodes = normalizedTree[level].map((node) => node.value);
       const roleType = normalizedTree[level][0].type;
 
       messages.push({
-        role: roleType === "context" || roleType === "input" ? "user" : "assistant",
+        role:
+          roleType === "context" || roleType === "input" ? "user" : "assistant",
         content: mergedNodes.join("<separatorOfContextualData />"),
       });
     }
@@ -101,14 +174,19 @@ function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
         },
         [action.toId]: {
           ...toNode,
-          parentIds: toNode.parentIds.includes(action.fromId) ? toNode.parentIds : [...toNode.parentIds, action.fromId],
+          parentIds: toNode.parentIds.includes(action.fromId)
+            ? toNode.parentIds
+            : [...toNode.parentIds, action.fromId],
         },
       };
     }
     case "MOVE_NODE": {
       const node = nodes[action.id];
       if (!node) return nodes;
-      return { ...nodes, [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy } };
+      return {
+        ...nodes,
+        [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy },
+      };
     }
   }
 }
@@ -119,18 +197,46 @@ export const createEdge = (from: string, to: string) => {
 };
 
 export function createNode(type: "input", x: number, y: number): InputNode;
-export function createNode(type: "response", x: number, y: number): ResponseNode;
+export function createNode(
+  type: "response",
+  x: number,
+  y: number
+): ResponseNode;
 export function createNode(type: "context", x: number, y: number): ContextNode;
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
 
   switch (type) {
     case "input":
-      return { id, type: "input", x, y, value: "", parentIds: [], childrenIds: [] };
+      return {
+        id,
+        type: "input",
+        x,
+        y,
+        value: "",
+        parentIds: [],
+        childrenIds: [],
+      };
     case "response":
-      return { id, type: "response", x, y, value: "", parentIds: [], childrenIds: [] };
+      return {
+        id,
+        type: "response",
+        x,
+        y,
+        value: "",
+        parentIds: [],
+        childrenIds: [],
+      };
     case "context":
-      return { id, type: "context", x, y, value: "", parentIds: [], childrenIds: [] };
+      return {
+        id,
+        type: "context",
+        x,
+        y,
+        value: "",
+        parentIds: [],
+        childrenIds: [],
+      };
     default: {
       const _exhaustive: never = type;
       return _exhaustive;
@@ -140,7 +246,10 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
 
 export const useGraphCanvas = (initialNodes: GraphNodes) => {
   const [transform, setTransform] = useReducer(
-    (prev: { x: number; y: number; k: number }, next: { x: number; y: number; k: number }) => next,
+    (
+      prev: { x: number; y: number; k: number },
+      next: { x: number; y: number; k: number }
+    ) => next,
     { x: 0, y: 0, k: 1 }
   );
   const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
