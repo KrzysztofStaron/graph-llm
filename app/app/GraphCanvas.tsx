@@ -17,6 +17,7 @@ interface GraphCanvasProps {
     position: "left" | "right"
   ) => void;
   onDeleteNode: (nodeId: string) => void;
+  onContextNodeDoubleClick?: (nodeId: string) => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -42,6 +43,7 @@ export const GraphCanvas = ({
   onInputSubmit,
   onAddNodeFromResponse,
   onDeleteNode,
+  onContextNodeDoubleClick,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
@@ -366,6 +368,12 @@ export const GraphCanvas = ({
                 }}
                 onMouseDown={(e) => {
                   onMouseDown(e, node.id);
+                }}
+                onDoubleClick={(e) => {
+                  if (node.type === "context" && onContextNodeDoubleClick) {
+                    e.stopPropagation();
+                    onContextNodeDoubleClick(node.id);
+                  }
                 }}
               >
                 {node.type === "input" && (

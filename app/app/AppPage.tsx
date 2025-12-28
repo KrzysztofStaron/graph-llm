@@ -1,48 +1,89 @@
+import { useState, useCallback } from "react";
 import { createNode, TreeManager } from "../hooks/useGraphCanvas";
 import { GraphCanvas } from "./GraphCanvas";
+import { ContextSidebar } from "./ContextSidebar";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
-import { GraphCanvasProvider, useGraphCanvasContext } from "../hooks/GraphCanvasContext";
+import {
+  GraphCanvasProvider,
+  useGraphCanvasContext,
+} from "../hooks/GraphCanvasContext";
 
 const initialNodes: GraphNodes = {
   "context-1": {
     id: "context-1",
     type: "context",
-    x: 450,
+    x: 550 + 300,
     y: 100,
-    value: "name of user is Krzysztof",
+    value: `Today is ${new Date().toLocaleDateString()}, ${new Date().toLocaleDateString(
+      "en-US",
+      { weekday: "long" }
+    )}`,
     parentIds: [],
     childrenIds: ["input-1"],
   },
-  "context-2": {
-    id: "context-2",
-    type: "context",
-    x: 650,
-    y: 100,
-    value: "Krzysztof is 18 years old",
-    parentIds: [],
-    childrenIds: ["input-1"],
-  },
+
   "input-1": {
     id: "input-1",
     type: "input",
-    x: 400,
+    x: 400 + 300,
     y: 300,
     value: "",
-    parentIds: ["context-1", "context-2"],
+    parentIds: ["context-1"],
     childrenIds: [],
   },
 };
 
 const AppPageContent = () => {
-  const { transform, setTransform, nodes, treeManager, handleMouseDown } = useGraphCanvasContext();
+  const {
+    transform,
+    setTransform,
+    nodes,
+    nodesRef,
+    treeManager,
+    handleMouseDown,
+  } = useGraphCanvasContext();
 
-  const onAddNodeFromResponse = (responseNode: GraphNode, position: "left" | "right") => {
-    const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
+  // Context node editing state
+  const [editingContextNodeId, setEditingContextNodeId] = useState<
+    string | null
+  >(null);
+
+  const handleContextNodeDoubleClick = useCallback(
+    (nodeId: string) => {
+      const node = nodes[nodeId];
+      if (node && node.type === "context") {
+        setEditingContextNodeId(nodeId);
+      }
+    },
+    [nodes]
+  );
+
+  const handleCloseSidebar = useCallback(
+    (finalValue: string) => {
+      if (editingContextNodeId) {
+        treeManager.patchNode(editingContextNodeId, { value: finalValue });
+      }
+      setEditingContextNodeId(null);
+    },
+    [editingContextNodeId, treeManager]
+  );
+
+  const onAddNodeFromResponse = (
+    responseNode: GraphNode,
+    position: "left" | "right"
+  ) => {
+    const nodeElement = document.querySelector(
+      `[data-node-id="${responseNode.id}"]`
+    ) as HTMLElement;
     const width = nodeElement?.offsetWidth ?? 400;
 
     const offsetX = position === "left" ? -width - 100 : width + 100;
-    const newInputNode = createNode("input", responseNode.x + offsetX, responseNode.y);
+    const newInputNode = createNode(
+      "input",
+      responseNode.x + offsetX,
+      responseNode.y
+    );
 
     treeManager.addNode(newInputNode);
     treeManager.linkNodes(responseNode.id, newInputNode.id);
@@ -50,8 +91,8 @@ const AppPageContent = () => {
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
     // Find the first response child node
-    let responseNodeId = caller.childrenIds.find(childId => {
-      const childNode = nodes[childId];
+    let responseNodeId = caller.childrenIds.find((childId) => {
+      const childNode = nodesRef.current[childId];
       return childNode?.type === "response";
     });
 
@@ -59,7 +100,7 @@ const AppPageContent = () => {
 
     // Create updated nodes object with the query value set - this will be mutated as we stream responses
     const updatedCaller = { ...caller, value: query };
-    const nodesWithQuery = { ...nodes, [caller.id]: updatedCaller };
+    const nodesWithQuery = { ...nodesRef.current, [caller.id]: updatedCaller };
 
     // Set the value to query of the InputFieldNode
     treeManager.patchNode(caller.id, { value: query });
@@ -69,7 +110,7 @@ const AppPageContent = () => {
       // put existing response node into loading state
 
       treeManager.patchNode(responseNodeId, { value: "" });
-      responseNode = nodes[responseNodeId];
+      responseNode = nodesRef.current[responseNodeId];
     } else {
       // create a new response node
 
@@ -83,17 +124,33 @@ const AppPageContent = () => {
     }
 
     // Send the query - use the locally updated nodes object
-    await aiService.streamChat(TreeManager.buildChatML(nodesWithQuery, updatedCaller), response => {
-      treeManager.patchNode(responseNodeId, { value: response });
-      nodesWithQuery[responseNodeId] = { ...nodesWithQuery[responseNodeId], value: response };
-    });
+    await aiService.streamChat(
+      TreeManager.buildChatML(nodesWithQuery, updatedCaller),
+      (response) => {
+        treeManager.patchNode(responseNodeId, { value: response });
+        nodesWithQuery[responseNodeId] = {
+          ...nodesWithQuery[responseNodeId],
+          value: response,
+        };
+      }
+    );
 
     // If response has no Input Node, create a new one
-    if (responseNode.childrenIds.some(childId => nodes[childId].type === "input") === false) {
-      const nodeElement = document.querySelector(`[data-node-id="${responseNode.id}"]`) as HTMLElement;
+    if (
+      responseNode.childrenIds.some(
+        (childId) => nodesRef.current[childId].type === "input"
+      ) === false
+    ) {
+      const nodeElement = document.querySelector(
+        `[data-node-id="${responseNode.id}"]`
+      ) as HTMLElement;
       const height = nodeElement?.offsetHeight ?? 80;
 
-      const newInputNode = createNode("input", responseNode.x, responseNode.y + height + 50);
+      const newInputNode = createNode(
+        "input",
+        responseNode.x,
+        responseNode.y + height + 50
+      );
 
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
@@ -108,9 +165,15 @@ const AppPageContent = () => {
    * Recursively updates all descendant response nodes in breadth-first order.
    * Updates all nodes at each depth level in parallel, then moves to the next level.
    */
-  const cascadeUpdateDescendants = async (startNodeId: string, currentNodes: GraphNodes) => {
+  const cascadeUpdateDescendants = async (
+    startNodeId: string,
+    currentNodes: GraphNodes
+  ) => {
     // Find all descendant response nodes grouped by depth level
-    const descendantLevels = TreeManager.findDescendantResponseNodes(startNodeId, currentNodes);
+    const descendantLevels = TreeManager.findDescendantResponseNodes(
+      startNodeId,
+      currentNodes
+    );
 
     // Process each level sequentially
     for (const levelNodes of descendantLevels) {
@@ -124,9 +187,9 @@ const AppPageContent = () => {
 
       // Update all nodes at this level in parallel
       await Promise.all(
-        levelNodes.map(async responseNode => {
+        levelNodes.map(async (responseNode) => {
           // Find the input node parent of this response node to build ChatML
-          const inputParentId = responseNode.parentIds.find(parentId => {
+          const inputParentId = responseNode.parentIds.find((parentId) => {
             const parent = currentNodes[parentId];
             return parent?.type === "input";
           });
@@ -136,10 +199,16 @@ const AppPageContent = () => {
           const inputParent = currentNodes[inputParentId];
 
           // Stream the AI response
-          await aiService.streamChat(TreeManager.buildChatML(currentNodes, inputParent), response => {
-            treeManager.patchNode(responseNode.id, { value: response });
-            currentNodes[responseNode.id] = { ...currentNodes[responseNode.id], value: response };
-          });
+          await aiService.streamChat(
+            TreeManager.buildChatML(currentNodes, inputParent),
+            (response) => {
+              treeManager.patchNode(responseNode.id, { value: response });
+              currentNodes[responseNode.id] = {
+                ...currentNodes[responseNode.id],
+                value: response,
+              };
+            }
+          );
         })
       );
     }
@@ -155,12 +224,23 @@ const AppPageContent = () => {
         onInputSubmit={onInputSubmit}
         onAddNodeFromResponse={onAddNodeFromResponse}
         onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
+        onContextNodeDoubleClick={handleContextNodeDoubleClick}
       />
+      {editingContextNodeId && (
+        <ContextSidebar
+          value={nodes[editingContextNodeId]?.value || ""}
+          onChange={(val) => {
+            treeManager.patchNode(editingContextNodeId, { value: val });
+          }}
+          onClose={handleCloseSidebar}
+        />
+      )}
       <div
         className="dot-grid-background fixed inset-0 -z-20"
         style={{
           backgroundSize: `${40 * transform.k}px ${40 * transform.k}px`,
-          backgroundImage: "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
+          backgroundImage:
+            "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
           backgroundColor: "#0a0a0a",
           opacity: 0.4,
           backgroundPosition: `${transform.x}px ${transform.y}px`,
