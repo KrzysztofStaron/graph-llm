@@ -1,8 +1,4 @@
-interface DotGridBackgroundProps {
-  canvasOffset?: { x: number; y: number };
-}
-
-const DotGridBackground = ({ canvasOffset = { x: 0, y: 0 } }: DotGridBackgroundProps) => {
+const DotGridBackground = () => {
   return (
     <div
       className="dot-grid-background fixed inset-0 -z-20"
@@ -11,7 +7,7 @@ const DotGridBackground = ({ canvasOffset = { x: 0, y: 0 } }: DotGridBackgroundP
         backgroundImage: "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
         backgroundColor: "#0a0a0a",
         opacity: 0.8,
-        backgroundPosition: `${canvasOffset.x % 40}px ${canvasOffset.y % 40}px`,
+        backgroundPosition: "0 0",
       }}
     />
   );
