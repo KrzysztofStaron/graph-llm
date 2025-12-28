@@ -1,6 +1,6 @@
 import { InputNode } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 
 type Mode = "ask" | "display";
 
@@ -16,8 +16,17 @@ export const InputFieldNode = memo(
     const [mode, setMode] = useState<Mode>("ask");
     const [query, setQuery] = useState("");
 
+    const fuckThisShitTempVar69 = useRef<string>("");
+
+    const handleCancel = () => {
+      setQuery(fuckThisShitTempVar69.current);
+      setMode("display");
+    };
+
     const handleSubmit = () => {
       if (query.trim() === "") return;
+
+      fuckThisShitTempVar69.current = query;
       onInputSubmit(query);
 
       setMode("display");
@@ -63,6 +72,9 @@ export const InputFieldNode = memo(
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
                     handleSubmit();
+                  }
+                  if (e.key === "Escape") {
+                    handleCancel();
                   }
                 }}
                 autoFocus
