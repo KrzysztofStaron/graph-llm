@@ -245,7 +245,7 @@ export const GraphCanvas = ({
           {nodeArray.map(node => (
             <div
               key={node.id}
-              className="absolute cursor-move"
+              className={`absolute cursor-move ${node.type === "response" ? "w-max" : ""}`}
               data-node-id={node.id}
               style={{ left: node.x, top: node.y }}
               onMouseDown={e => {
