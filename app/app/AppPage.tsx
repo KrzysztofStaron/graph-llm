@@ -69,24 +69,18 @@ const AppPageContent = () => {
     [editingContextNodeId, treeManager]
   );
 
-  const onAddNodeFromResponse = (
-    responseNode: GraphNode,
-    position: "left" | "right"
-  ) => {
+  const onAddInputNode = (fromNode: GraphNode, position: "left" | "right") => {
     const nodeElement = document.querySelector(
-      `[data-node-id="${responseNode.id}"]`
+      `[data-node-id="${fromNode.id}"]`
     ) as HTMLElement;
-    const width = nodeElement?.offsetWidth ?? 400;
+    const width =
+      nodeElement?.offsetWidth ?? (fromNode.type === "context" ? 96 : 400);
 
     const offsetX = position === "left" ? -width - 100 : width + 100;
-    const newInputNode = createNode(
-      "input",
-      responseNode.x + offsetX,
-      responseNode.y
-    );
+    const newInputNode = createNode("input", fromNode.x + offsetX, fromNode.y);
 
     treeManager.addNode(newInputNode);
-    treeManager.linkNodes(responseNode.id, newInputNode.id);
+    treeManager.linkNodes(fromNode.id, newInputNode.id);
   };
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
@@ -222,7 +216,8 @@ const AppPageContent = () => {
         setTransform={setTransform}
         onMouseDown={handleMouseDown}
         onInputSubmit={onInputSubmit}
-        onAddNodeFromResponse={onAddNodeFromResponse}
+        onAddNodeFromResponse={onAddInputNode}
+        onAddNodeFromContext={onAddInputNode}
         onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
         onContextNodeDoubleClick={handleContextNodeDoubleClick}
       />

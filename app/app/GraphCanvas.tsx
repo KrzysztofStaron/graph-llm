@@ -16,6 +16,10 @@ interface GraphCanvasProps {
     responseNode: GraphNode,
     position: "left" | "right"
   ) => void;
+  onAddNodeFromContext: (
+    contextNode: GraphNode,
+    position: "left" | "right"
+  ) => void;
   onDeleteNode: (nodeId: string) => void;
   onContextNodeDoubleClick?: (nodeId: string) => void;
 }
@@ -42,6 +46,7 @@ export const GraphCanvas = ({
   onMouseDown,
   onInputSubmit,
   onAddNodeFromResponse,
+  onAddNodeFromContext,
   onDeleteNode,
   onContextNodeDoubleClick,
 }: GraphCanvasProps) => {
@@ -391,7 +396,14 @@ export const GraphCanvas = ({
                     }
                   />
                 )}
-                {node.type === "context" && <ContextNode node={node} />}
+                {node.type === "context" && (
+                  <ContextNode
+                    node={node}
+                    onAddNode={(position) =>
+                      onAddNodeFromContext(node, position)
+                    }
+                  />
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
