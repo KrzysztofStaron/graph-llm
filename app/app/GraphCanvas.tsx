@@ -1,9 +1,10 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { InputFieldNode, ResponseNode, ContextNode } from "./nodes";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { Maximize } from "lucide-react";
+import { ParticleEffect } from "../components/ui/ParticleEffect";
 
 interface GraphCanvasProps {
   nodes: GraphNodes;
@@ -50,6 +51,10 @@ export const GraphCanvas = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nodeDimensions, setNodeDimensions] = useState<NodeDimensions>({});
+  const [deletingNodes, setDeletingNodes] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
+  const nodesSnapshotRef = useRef<GraphNodes>(nodes);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<
     HTMLDivElement,
     unknown
@@ -192,6 +197,61 @@ export const GraphCanvas = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fitView]);
 
+  // Track node deletions to show particle effects
+  useEffect(() => {
+    const currentNodeIds = new Set(Object.keys(nodes));
+    const previousNodes = nodesSnapshotRef.current;
+
+    // Find deleted nodes
+    Object.keys(previousNodes).forEach((nodeId) => {
+      if (!currentNodeIds.has(nodeId)) {
+        // Node was deleted, get its center position from the snapshot
+        const deletedNode = previousNodes[nodeId];
+        if (deletedNode) {
+          const dim = nodeDimensions[nodeId] || {
+            width:
+              deletedNode.type === "context"
+                ? 96
+                : deletedNode.type === "input"
+                ? 400
+                : 200,
+            height:
+              deletedNode.type === "context"
+                ? 96
+                : deletedNode.type === "input"
+                ? 120
+                : 80,
+          };
+          const center = {
+            x: deletedNode.x + dim.width / 2,
+            y: deletedNode.y + dim.height / 2,
+          };
+
+          // Apply transform to get screen coordinates
+          const screenX = center.x * transform.k + transform.x;
+          const screenY = center.y * transform.k + transform.y;
+
+          setDeletingNodes((prev) => ({
+            ...prev,
+            [nodeId]: { x: screenX, y: screenY },
+          }));
+
+          // Remove after animation completes
+          setTimeout(() => {
+            setDeletingNodes((prev) => {
+              const next = { ...prev };
+              delete next[nodeId];
+              return next;
+            });
+          }, 200);
+        }
+      }
+    });
+
+    // Update snapshot
+    nodesSnapshotRef.current = nodes;
+  }, [nodes, nodeDimensions, transform]);
+
   // Set up ResizeObserver to track all node dimensions
   useEffect(() => {
     const container = contentRef.current;
@@ -282,38 +342,69 @@ export const GraphCanvas = ({
             })}
           </svg>
 
-          {nodeArray.map((node) => (
-            <div
-              key={node.id}
-              className={`absolute cursor-move ${
-                node.type === "response" ? "w-max" : ""
-              }`}
-              data-node-id={node.id}
-              style={{ left: node.x, top: node.y }}
-              onMouseDown={(e) => {
-                onMouseDown(e, node.id);
-              }}
-            >
-              {node.type === "input" && (
-                <InputFieldNode
-                  node={node}
-                  onInputSubmit={(query) => onInputSubmit(query, node)}
-                  onDelete={() => onDeleteNode(node.id)}
-                />
-              )}
-              {node.type === "response" && (
-                <ResponseNode
-                  node={node}
-                  onAddNode={(position) =>
-                    onAddNodeFromResponse(node, position)
-                  }
-                />
-              )}
-              {node.type === "context" && <ContextNode node={node} />}
-            </div>
-          ))}
+          <AnimatePresence mode="popLayout">
+            {nodeArray.map((node) => (
+              <motion.div
+                key={node.id}
+                className={`absolute cursor-move ${
+                  node.type === "response" ? "w-max" : ""
+                }`}
+                data-node-id={node.id}
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  transformOrigin: "center center",
+                }}
+                initial={{ scale: 1, opacity: 1 }}
+                exit={{
+                  scale: 0,
+                  opacity: 0,
+                  transition: {
+                    duration: 0.2,
+                    ease: "easeIn",
+                  },
+                }}
+                onMouseDown={(e) => {
+                  onMouseDown(e, node.id);
+                }}
+              >
+                {node.type === "input" && (
+                  <InputFieldNode
+                    node={node}
+                    onInputSubmit={(query) => onInputSubmit(query, node)}
+                    onDelete={() => onDeleteNode(node.id)}
+                  />
+                )}
+                {node.type === "response" && (
+                  <ResponseNode
+                    node={node}
+                    onAddNode={(position) =>
+                      onAddNodeFromResponse(node, position)
+                    }
+                  />
+                )}
+                {node.type === "context" && <ContextNode node={node} />}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* Particle effects for deleted nodes - outside transform container */}
+      {Object.entries(deletingNodes).map(([nodeId, position]) => (
+        <ParticleEffect
+          key={nodeId}
+          x={position.x}
+          y={position.y}
+          onComplete={() => {
+            setDeletingNodes((prev) => {
+              const next = { ...prev };
+              delete next[nodeId];
+              return next;
+            });
+          }}
+        />
+      ))}
 
       {/* UI Controls */}
       <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-50">
