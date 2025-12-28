@@ -58,10 +58,14 @@ export const GraphCanvas = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nodeDimensions, setNodeDimensions] = useState<NodeDimensions>({});
+  const [appearingNodes, setAppearingNodes] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
   const [deletingNodes, setDeletingNodes] = useState<
     Record<string, { x: number; y: number }>
   >({});
   const nodesSnapshotRef = useRef<GraphNodes>(nodes);
+  const hasMountedRef = useRef(false);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<
     HTMLDivElement,
     unknown
@@ -204,10 +208,59 @@ export const GraphCanvas = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fitView]);
 
-  // Track node deletions to show particle effects
+  // Track node appear/delete to show particle effects
   useEffect(() => {
     const currentNodeIds = new Set(Object.keys(nodes));
     const previousNodes = nodesSnapshotRef.current;
+
+    // Skip particles on the very first render
+    if (hasMountedRef.current === false) {
+      hasMountedRef.current = true;
+      nodesSnapshotRef.current = nodes;
+      return;
+    }
+
+    // Find newly added nodes
+    Object.keys(nodes).forEach((nodeId) => {
+      if (previousNodes[nodeId]) return;
+
+      const addedNode = nodes[nodeId];
+      const dim = nodeDimensions[nodeId] || {
+        width:
+          addedNode.type === "context"
+            ? 176
+            : addedNode.type === "input"
+            ? 400
+            : 200,
+        height:
+          addedNode.type === "context"
+            ? 96
+            : addedNode.type === "input"
+            ? 120
+            : 80,
+      };
+
+      const center = {
+        x: addedNode.x + dim.width / 2,
+        y: addedNode.y + dim.height / 2,
+      };
+
+      const screenX = center.x * transform.k + transform.x;
+      const screenY = center.y * transform.k + transform.y;
+
+      setAppearingNodes((prev) => ({
+        ...prev,
+        [nodeId]: { x: screenX, y: screenY },
+      }));
+
+      setTimeout(() => {
+        setAppearingNodes((prev) => {
+          const next = { ...prev };
+          delete next[nodeId];
+          return next;
+        });
+      }, 200);
+    });
 
     // Find deleted nodes
     Object.keys(previousNodes).forEach((nodeId) => {
@@ -218,7 +271,7 @@ export const GraphCanvas = ({
           const dim = nodeDimensions[nodeId] || {
             width:
               deletedNode.type === "context"
-                ? 96
+                ? 176
                 : deletedNode.type === "input"
                 ? 400
                 : 200,
@@ -349,7 +402,7 @@ export const GraphCanvas = ({
             })}
           </svg>
 
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence mode="popLayout" initial={false}>
             {nodeArray.map((node) => (
               <motion.div
                 key={node.id}
@@ -362,7 +415,15 @@ export const GraphCanvas = ({
                   top: node.y,
                   transformOrigin: "center center",
                 }}
-                initial={{ scale: 1, opacity: 1 }}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{
+                  scale: 1,
+                  opacity: 1,
+                  transition: {
+                    duration: 0.2,
+                    ease: "easeOut",
+                  },
+                }}
                 exit={{
                   scale: 0,
                   opacity: 0,
@@ -409,6 +470,22 @@ export const GraphCanvas = ({
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* Particle effects for appearing nodes - outside transform container */}
+      {Object.entries(appearingNodes).map(([nodeId, position]) => (
+        <ParticleEffect
+          key={nodeId}
+          x={position.x}
+          y={position.y}
+          onComplete={() => {
+            setAppearingNodes((prev) => {
+              const next = { ...prev };
+              delete next[nodeId];
+              return next;
+            });
+          }}
+        />
+      ))}
 
       {/* Particle effects for deleted nodes - outside transform container */}
       {Object.entries(deletingNodes).map(([nodeId, position]) => (
