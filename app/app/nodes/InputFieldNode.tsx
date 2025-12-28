@@ -2,7 +2,10 @@ import { InputNode } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil } from "lucide-react";
 import { memo, useRef, useState } from "react";
 
-type Mode = "ask" | "display";
+enum Mode {
+  ASK = "ask",
+  DISPLAY = "display",
+}
 
 type InputFieldNodeProps = {
   node: InputNode;
@@ -13,14 +16,14 @@ const arraysEqual = (a: string[], b: string[]) => a.length === b.length && a.eve
 
 export const InputFieldNode = memo(
   function InputFieldNode({ node, onInputSubmit }: InputFieldNodeProps) {
-    const [mode, setMode] = useState<Mode>("ask");
+    const [mode, setMode] = useState<Mode>(Mode.ASK);
     const [query, setQuery] = useState("");
 
     const fuckThisShitTempVar69 = useRef<string>("");
 
     const handleCancel = () => {
       setQuery(fuckThisShitTempVar69.current);
-      setMode("display");
+      setMode(Mode.DISPLAY);
     };
 
     const handleSubmit = () => {
@@ -29,17 +32,18 @@ export const InputFieldNode = memo(
       fuckThisShitTempVar69.current = query;
       onInputSubmit(query);
 
-      setMode("display");
+      setMode(Mode.DISPLAY);
     };
 
     const handleEdit = () => {
-      setMode("ask");
+      // Ask mode allows for free text input
+      setMode(Mode.ASK);
     };
 
     return (
       <div className="w-[400px] group" data-node-id={node.id}>
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
-          {mode === "display" ? (
+          {mode === Mode.DISPLAY ? (
             <div className="py-5 pl-4 pr-4 w-full rounded-3xl border-none bg-[#0a0a0a] text-white flex justify-between items-center gap-2 cursor-move">
               <span className="flex items-center gap-2">
                 <ChevronRight className="size-4" />
@@ -68,6 +72,7 @@ export const InputFieldNode = memo(
                 onWheel={e => {
                   e.stopPropagation();
                 }}
+                onBlur={handleCancel}
                 onKeyDown={e => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
