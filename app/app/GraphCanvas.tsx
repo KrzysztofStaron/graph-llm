@@ -28,7 +28,7 @@ type NodeDimensions = Record<string, { width: number; height: number }>;
 
 const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
-  const width = dim?.width ?? (node.type === "context" ? 96 : 400);
+  const width = dim?.width ?? (node.type === "context" ? 176 : 400);
   const height =
     dim?.height ??
     (node.type === "context" ? 96 : node.type === "input" ? 120 : 80);
