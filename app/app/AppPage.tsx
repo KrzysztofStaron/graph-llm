@@ -8,10 +8,7 @@ import {
   GraphCanvasProvider,
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
-import {
-  findFreePosition,
-  getDefaultNodeDimensions,
-} from "../utils/layout";
+import { findFreePosition, getDefaultNodeDimensions } from "../utils/layout";
 
 const initialNodes: GraphNodes = {
   "context-1": {
@@ -88,12 +85,14 @@ const AppPageContent = () => {
     ) as HTMLElement;
     const width =
       nodeElement?.offsetWidth ?? (fromNode.type === "context" ? 96 : 400);
+    const height = nodeElement?.offsetHeight ?? 96;
 
+    // Prefer below, but offset horizontally
     const offsetX = position === "left" ? -width - 100 : width + 100;
     const targetX = fromNode.x + offsetX;
-    const targetY = fromNode.y;
+    const targetY = fromNode.y + height + 50; // Position below instead of beside
 
-    // Use smart placement to find a free spot
+    // Use smart placement to find a free spot, preferring below
     const newNodeDim = getDefaultNodeDimensions("input");
     const freePos = findFreePosition(
       targetX,
@@ -102,7 +101,7 @@ const AppPageContent = () => {
       newNodeDim.height,
       nodesRef.current,
       nodeDimensionsRef.current,
-      position === "left" ? "left" : "right"
+      "below" // Always prefer below
     );
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
@@ -135,9 +134,9 @@ const AppPageContent = () => {
       for (const file of textFiles) {
         const text = await file.text();
 
-        // Stagger positions: +220px x, +40px y per subsequent file
-        const targetX = canvasPoint.x + nodeIndex * 220;
-        const targetY = canvasPoint.y + nodeIndex * 40;
+        // Stagger positions: prefer stacking vertically below, slight horizontal offset
+        const targetX = canvasPoint.x + nodeIndex * 40;
+        const targetY = canvasPoint.y + nodeIndex * 120;
 
         const newNodeDim = getDefaultNodeDimensions("context");
         const freePos = findFreePosition(
@@ -147,7 +146,7 @@ const AppPageContent = () => {
           newNodeDim.height,
           workingNodes,
           nodeDimensionsRef.current,
-          "right"
+          "below"
         );
 
         const newContextNode = createNode("context", freePos.x, freePos.y);
@@ -165,9 +164,9 @@ const AppPageContent = () => {
           reader.readAsDataURL(file);
         });
 
-        // Stagger positions: +220px x, +40px y per subsequent file
-        const targetX = canvasPoint.x + nodeIndex * 220;
-        const targetY = canvasPoint.y + nodeIndex * 40;
+        // Stagger positions: prefer stacking vertically below, slight horizontal offset
+        const targetX = canvasPoint.x + nodeIndex * 40;
+        const targetY = canvasPoint.y + nodeIndex * 120;
 
         const newNodeDim = getDefaultNodeDimensions("image-context");
         const freePos = findFreePosition(
@@ -177,10 +176,14 @@ const AppPageContent = () => {
           newNodeDim.height,
           workingNodes,
           nodeDimensionsRef.current,
-          "right"
+          "below"
         );
 
-        const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
+        const newImageContextNode = createNode(
+          "image-context",
+          freePos.x,
+          freePos.y
+        );
         const nodeWithValue = { ...newImageContextNode, value: dataUrl };
         treeManager.addNode(nodeWithValue);
         workingNodes[nodeWithValue.id] = nodeWithValue;
