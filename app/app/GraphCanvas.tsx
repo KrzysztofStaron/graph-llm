@@ -22,6 +22,10 @@ interface GraphCanvasProps {
   ) => void;
   onDeleteNode: (nodeId: string) => void;
   onContextNodeDoubleClick?: (nodeId: string) => void;
+  onDropFilesAsContext?: (
+    files: FileList,
+    canvasPoint: { x: number; y: number }
+  ) => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -49,6 +53,7 @@ export const GraphCanvas = ({
   onAddNodeFromContext,
   onDeleteNode,
   onContextNodeDoubleClick,
+  onDropFilesAsContext,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
@@ -355,6 +360,27 @@ export const GraphCanvas = ({
     };
   }, [updateNodeDimension]);
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!onDropFilesAsContext || !e.dataTransfer.files.length) return;
+
+      // Convert screen coordinates to canvas coordinates
+      const canvasX = (e.clientX - transform.x) / transform.k;
+      const canvasY = (e.clientY - transform.y) / transform.k;
+
+      onDropFilesAsContext(e.dataTransfer.files, { x: canvasX, y: canvasY });
+    },
+    [onDropFilesAsContext, transform]
+  );
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <motion.div
@@ -363,6 +389,8 @@ export const GraphCanvas = ({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.2 }}
         className="w-full h-screen overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         <div
           ref={contentRef}

@@ -83,6 +83,34 @@ const AppPageContent = () => {
     treeManager.linkNodes(fromNode.id, newInputNode.id);
   };
 
+  const onDropFilesAsContext = useCallback(
+    async (files: FileList, canvasPoint: { x: number; y: number }) => {
+      const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
+      const fileArray = Array.from(files);
+
+      // Filter files by extension
+      const validFiles = fileArray.filter((file) =>
+        acceptedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+      );
+
+      if (validFiles.length === 0) return;
+
+      // Create one context node per file, staggered to avoid overlap
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        const text = await file.text();
+
+        // Stagger positions: +220px x, +40px y per subsequent file
+        const x = canvasPoint.x + i * 220;
+        const y = canvasPoint.y + i * 40;
+
+        const newContextNode = createNode("context", x, y);
+        treeManager.addNode({ ...newContextNode, value: text });
+      }
+    },
+    [treeManager]
+  );
+
   const onInputSubmit = async (query: string, caller: GraphNode) => {
     // Find the first response child node
     let responseNodeId = caller.childrenIds.find((childId) => {
@@ -220,6 +248,7 @@ const AppPageContent = () => {
         onAddNodeFromContext={onAddInputNode}
         onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
         onContextNodeDoubleClick={handleContextNodeDoubleClick}
+        onDropFilesAsContext={onDropFilesAsContext}
       />
       {editingContextNodeId && (
         <ContextSidebar
