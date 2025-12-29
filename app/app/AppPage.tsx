@@ -88,24 +88,46 @@ const AppPageContent = () => {
       const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
       const fileArray = Array.from(files);
 
-      // Filter files by extension
-      const validFiles = fileArray.filter((file) =>
+      // Separate text files and image files
+      const textFiles = fileArray.filter((file) =>
         acceptedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
       );
+      const imageFiles = fileArray.filter((file) =>
+        file.type.startsWith("image/")
+      );
 
-      if (validFiles.length === 0) return;
+      if (textFiles.length === 0 && imageFiles.length === 0) return;
 
-      // Create one context node per file, staggered to avoid overlap
-      for (let i = 0; i < validFiles.length; i++) {
-        const file = validFiles[i];
+      let nodeIndex = 0;
+
+      // Create text context nodes
+      for (const file of textFiles) {
         const text = await file.text();
 
         // Stagger positions: +220px x, +40px y per subsequent file
-        const x = canvasPoint.x + i * 220;
-        const y = canvasPoint.y + i * 40;
+        const x = canvasPoint.x + nodeIndex * 220;
+        const y = canvasPoint.y + nodeIndex * 40;
 
         const newContextNode = createNode("context", x, y);
         treeManager.addNode({ ...newContextNode, value: text });
+        nodeIndex++;
+      }
+
+      // Create image context nodes
+      for (const file of imageFiles) {
+        const dataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+
+        // Stagger positions: +220px x, +40px y per subsequent file
+        const x = canvasPoint.x + nodeIndex * 220;
+        const y = canvasPoint.y + nodeIndex * 40;
+
+        const newImageContextNode = createNode("image-context", x, y);
+        treeManager.addNode({ ...newImageContextNode, value: dataUrl });
+        nodeIndex++;
       }
     },
     [treeManager]

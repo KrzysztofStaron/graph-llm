@@ -4,6 +4,7 @@ import type {
   Edge,
   GraphNode,
   GraphNodes,
+  ImageContextNode,
   InputNode,
   NodeType,
   ResponseNode,
@@ -116,14 +117,63 @@ export class TreeManager {
     const messages = [];
 
     for (let level = 0; level <= maxLevel; level++) {
-      const mergedNodes = normalizedTree[level].map((node) => node.value);
-      const roleType = normalizedTree[level][0].type;
+      const levelNodes = normalizedTree[level];
+      const roleType = levelNodes[0].type;
 
-      messages.push({
-        role:
-          roleType === "context" || roleType === "input" ? "user" : "assistant",
-        content: mergedNodes.join("<separatorOfContextualData />"),
-      });
+      // Check if there are any image nodes at this level
+      const hasImages = levelNodes.some(
+        (node) => node.type === "image-context"
+      );
+
+      if (hasImages) {
+        // Use OpenAI vision format: content as array
+        const contentArray: Array<
+          | { type: "text"; text: string }
+          | { type: "image_url"; image_url: { url: string } }
+        > = [];
+
+        // Collect all text nodes
+        const textNodes = levelNodes.filter(
+          (node) => node.type !== "image-context"
+        );
+        if (textNodes.length > 0) {
+          const mergedText = textNodes
+            .map((node) => node.value)
+            .join("<separatorOfContextualData />");
+          contentArray.push({ type: "text", text: mergedText });
+        }
+
+        // Add image nodes
+        const imageNodes = levelNodes.filter(
+          (node) => node.type === "image-context"
+        );
+        imageNodes.forEach((node) => {
+          contentArray.push({
+            type: "image_url",
+            image_url: { url: node.value },
+          });
+        });
+
+        messages.push({
+          role:
+            roleType === "context" ||
+            roleType === "input" ||
+            roleType === "image-context"
+              ? "user"
+              : "assistant",
+          content: contentArray,
+        });
+      } else {
+        // Standard text-only format
+        const mergedNodes = levelNodes.map((node) => node.value);
+        messages.push({
+          role:
+            roleType === "context" || roleType === "input"
+              ? "user"
+              : "assistant",
+          content: mergedNodes.join("<separatorOfContextualData />"),
+        });
+      }
     }
 
     const ret = messages.reverse();
@@ -266,6 +316,11 @@ export function createNode(
   y: number
 ): ResponseNode;
 export function createNode(type: "context", x: number, y: number): ContextNode;
+export function createNode(
+  type: "image-context",
+  x: number,
+  y: number
+): ImageContextNode;
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
 
@@ -294,6 +349,16 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
       return {
         id,
         type: "context",
+        x,
+        y,
+        value: "",
+        parentIds: [],
+        childrenIds: [],
+      };
+    case "image-context":
+      return {
+        id,
+        type: "image-context",
         x,
         y,
         value: "",

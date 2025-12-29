@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { InputFieldNode, ResponseNode, ContextNode } from "./nodes";
+import { InputFieldNode, ResponseNode, ContextNode, ImageContextNode } from "./nodes";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
@@ -32,10 +32,22 @@ type NodeDimensions = Record<string, { width: number; height: number }>;
 
 const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
-  const width = dim?.width ?? (node.type === "context" ? 176 : 400);
+  const width =
+    dim?.width ??
+    (node.type === "context"
+      ? 176
+      : node.type === "image-context"
+      ? 232
+      : 400);
   const height =
     dim?.height ??
-    (node.type === "context" ? 96 : node.type === "input" ? 120 : 80);
+    (node.type === "context"
+      ? 96
+      : node.type === "image-context"
+      ? 192
+      : node.type === "input"
+      ? 120
+      : 80);
 
   return {
     x: node.x + width / 2,
@@ -112,9 +124,20 @@ export const GraphCanvas = ({
 
       nodeArray.forEach((node) => {
         const dim = nodeDimensions[node.id] || {
-          width: node.type === "context" ? 96 : 400,
+          width:
+            node.type === "context"
+              ? 176
+              : node.type === "image-context"
+              ? 232
+              : 400,
           height:
-            node.type === "context" ? 96 : node.type === "input" ? 120 : 80,
+            node.type === "context"
+              ? 96
+              : node.type === "image-context"
+              ? 192
+              : node.type === "input"
+              ? 120
+              : 80,
         };
         minX = Math.min(minX, node.x);
         minY = Math.min(minY, node.y);
@@ -234,12 +257,16 @@ export const GraphCanvas = ({
         width:
           addedNode.type === "context"
             ? 176
+            : addedNode.type === "image-context"
+            ? 232
             : addedNode.type === "input"
             ? 400
             : 200,
         height:
           addedNode.type === "context"
             ? 96
+            : addedNode.type === "image-context"
+            ? 192
             : addedNode.type === "input"
             ? 120
             : 80,
@@ -277,12 +304,16 @@ export const GraphCanvas = ({
             width:
               deletedNode.type === "context"
                 ? 176
+                : deletedNode.type === "image-context"
+                ? 232
                 : deletedNode.type === "input"
                 ? 400
                 : 200,
             height:
               deletedNode.type === "context"
                 ? 96
+                : deletedNode.type === "image-context"
+                ? 192
                 : deletedNode.type === "input"
                 ? 120
                 : 80,
@@ -487,6 +518,14 @@ export const GraphCanvas = ({
                 )}
                 {node.type === "context" && (
                   <ContextNode
+                    node={node}
+                    onAddNode={(position) =>
+                      onAddNodeFromContext(node, position)
+                    }
+                  />
+                )}
+                {node.type === "image-context" && (
+                  <ImageContextNode
                     node={node}
                     onAddNode={(position) =>
                       onAddNodeFromContext(node, position)
