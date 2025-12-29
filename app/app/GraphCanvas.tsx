@@ -1,5 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { InputFieldNode, ResponseNode, ContextNode, ImageContextNode } from "./nodes";
+import { InputFieldNode } from "./nodes/InputFieldNode";
+import { ResponseNode } from "./nodes/ResponseNode";
+import { ContextNode } from "./nodes/ContextNode";
+import { ImageContextNode } from "./nodes/ImageContextNode";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
