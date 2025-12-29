@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { Maximize } from "lucide-react";
 import { ParticleEffect } from "../components/ui/ParticleEffect";
+import { resolveLocalCollisions } from "../utils/collisionResolver";
 
 interface GraphCanvasProps {
   nodes: GraphNodes;
@@ -29,6 +30,8 @@ interface GraphCanvasProps {
     files: FileList,
     canvasPoint: { x: number; y: number }
   ) => void;
+  onNodeDimensionsChange?: (dimensions: NodeDimensions) => void;
+  onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -69,6 +72,8 @@ export const GraphCanvas = ({
   onDeleteNode,
   onContextNodeDoubleClick,
   onDropFilesAsContext,
+  onNodeDimensionsChange,
+  onRequestNodeMove,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
@@ -102,10 +107,32 @@ export const GraphCanvas = ({
         ) {
           return prev;
         }
-        return { ...prev, [nodeId]: { width, height } };
+        const updated = { ...prev, [nodeId]: { width, height } };
+
+        // Defer parent state updates and side effects to avoid React warnings
+        requestAnimationFrame(() => {
+          // Notify parent of dimension changes
+          onNodeDimensionsChange?.(updated);
+
+          // If this is a response node that grew significantly, trigger collision resolution
+          const node = nodes[nodeId];
+          if (
+            node?.type === "response" &&
+            existing &&
+            onRequestNodeMove &&
+            (height > existing.height + 10 || width > existing.width + 10)
+          ) {
+            const moves = resolveLocalCollisions(nodeId, nodes, updated);
+            for (const move of moves) {
+              onRequestNodeMove(move.nodeId, move.dx, move.dy);
+            }
+          }
+        });
+
+        return updated;
       });
     },
-    []
+    [onNodeDimensionsChange, onRequestNodeMove, nodes]
   );
 
   const fitView = useCallback(

@@ -11,6 +11,9 @@ export interface BaseNode {
 
   // needed for cascading updates
   childrenIds: string[];
+
+  // true if user has manually dragged this node (prevents auto-layout from moving it)
+  pinned?: boolean;
 }
 
 export interface ResponseNode extends BaseNode {
