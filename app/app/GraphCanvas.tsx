@@ -40,11 +40,7 @@ const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
   const width =
     dim?.width ??
-    (node.type === "context"
-      ? 176
-      : node.type === "image-context"
-      ? 232
-      : 400);
+    (node.type === "context" ? 176 : node.type === "image-context" ? 232 : 400);
   const height =
     dim?.height ??
     (node.type === "context"

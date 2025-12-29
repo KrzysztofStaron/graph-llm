@@ -31,8 +31,14 @@ function calculateSeparationVector(
   gap: number
 ): { dx: number; dy: number } {
   // Calculate overlap on each axis
-  const overlapX = Math.min(a.x + a.width + gap - b.x, b.x + b.width + gap - a.x);
-  const overlapY = Math.min(a.y + a.height + gap - b.y, b.y + b.height + gap - a.y);
+  const overlapX = Math.min(
+    a.x + a.width + gap - b.x,
+    b.x + b.width + gap - a.x
+  );
+  const overlapY = Math.min(
+    a.y + a.height + gap - b.y,
+    b.y + b.height + gap - a.y
+  );
 
   // Move along the axis with smaller overlap (minimal separation)
   if (overlapX < overlapY) {
@@ -49,7 +55,7 @@ function calculateSeparationVector(
 /**
  * Resolve collisions caused by a resizing source node (e.g., streaming response)
  * Returns a list of suggested moves for overlapping nodes
- * 
+ *
  * @param sourceNodeId - The node that is growing (e.g., response node)
  * @param nodes - All current nodes
  * @param dimensions - Measured dimensions
@@ -101,7 +107,7 @@ export function resolveLocalCollisions(
     // Push unpinned neighbors away
     for (const { node, rect } of unpinnedOverlaps) {
       const separation = calculateSeparationVector(rect, sourceRect, gapPx);
-      
+
       // Cap the movement per frame
       const magnitude = Math.sqrt(separation.dx ** 2 + separation.dy ** 2);
       if (magnitude > 0) {
@@ -146,7 +152,7 @@ export function resolveLocalCollisions(
   if (pinnedOverlaps.length > 0 && unpinnedOverlaps.length > 0) {
     for (const { node, rect } of pinnedOverlaps) {
       const separation = calculateSeparationVector(rect, sourceRect, gapPx);
-      
+
       // Very small nudge for pinned nodes
       const magnitude = Math.sqrt(separation.dx ** 2 + separation.dy ** 2);
       if (magnitude > 0) {
