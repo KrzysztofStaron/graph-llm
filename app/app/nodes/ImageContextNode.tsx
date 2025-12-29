@@ -34,16 +34,16 @@ export const ImageContextNode = memo(
             className="invisible group-hover:visible rounded-full border border-white/10"
           />
         </button>
-        <div className="w-48 h-48 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
+        <div className="max-w-96 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
           <div className="w-full h-full flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden">
             {node.value ? (
               <img
                 src={node.value}
                 alt="Context"
-                className="w-full h-full object-cover"
+                className="max-w-full max-h-96 object-contain"
               />
             ) : (
-              <div className="text-white/30">No image</div>
+              <div className="text-white/30 p-8">No image</div>
             )}
           </div>
         </div>

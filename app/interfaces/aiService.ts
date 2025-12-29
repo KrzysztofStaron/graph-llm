@@ -1,8 +1,21 @@
 import { globals } from "../globals";
 
+// Content types for multi-modal messages
+type TextContentPart = { type: "text"; text: string };
+type ImageContentPart = {
+  type: "image_url";
+  image_url: { url: string; detail?: "auto" | "low" | "high" };
+};
+type ContentPart = TextContentPart | ImageContentPart;
+
+type ChatMessage = {
+  role: "user" | "assistant" | "system";
+  content: string | ContentPart[];
+};
+
 export class aiService {
   static async chat(
-    message: string | { role: string; content: string }[],
+    message: string | ChatMessage[],
     options?: {
       model?: string;
       provider?: {
@@ -26,14 +39,18 @@ export class aiService {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("Backend error:", errorText);
+      throw new Error(
+        `HTTP error! status: ${response.status}, message: ${errorText}`
+      );
     }
 
     return response.text();
   }
 
   static async streamChat(
-    message: string | { role: string; content: string }[],
+    message: string | ChatMessage[],
     onChunk: (chunk: string) => void,
     options?: {
       model?: string;
@@ -61,7 +78,11 @@ export class aiService {
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("Backend error:", errorText);
+      throw new Error(
+        `HTTP error! status: ${response.status}, message: ${errorText}`
+      );
     }
 
     if (!response.body) {
