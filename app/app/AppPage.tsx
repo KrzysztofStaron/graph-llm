@@ -8,7 +8,7 @@ import {
   GraphCanvasProvider,
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
-import { findFreePosition, getDefaultNodeDimensions } from "../utils/layout";
+import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 
 const initialNodes: GraphNodes = {
   "context-1": {
