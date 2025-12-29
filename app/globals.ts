@@ -41,5 +41,5 @@ export const LAYOUT_CONFIG = {
    * Maximum pixels to nudge pinned (user-dragged) nodes per frame
    * Keep this small to respect user intent
    */
-  pinnedMaxNudgePx: 3,
+  pinnedMaxNudgePx: 10,
 };
