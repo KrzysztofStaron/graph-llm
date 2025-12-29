@@ -83,14 +83,12 @@ const AppPageContent = () => {
     const nodeElement = document.querySelector(
       `[data-node-id="${fromNode.id}"]`
     ) as HTMLElement;
-    const width =
-      nodeElement?.offsetWidth ?? (fromNode.type === "context" ? 96 : 400);
     const height = nodeElement?.offsetHeight ?? 96;
 
-    // Prefer below, but offset horizontally
-    const offsetX = position === "left" ? -width - 100 : width + 100;
+    // Position directly below parent with minimal offset
+    const offsetX = position === "left" ? -50 : 50; // Small horizontal offset
     const targetX = fromNode.x + offsetX;
-    const targetY = fromNode.y + height + 50; // Position below instead of beside
+    const targetY = fromNode.y + height + 30; // Closer vertical spacing
 
     // Use smart placement to find a free spot, preferring below
     const newNodeDim = getDefaultNodeDimensions("input");
@@ -106,8 +104,12 @@ const AppPageContent = () => {
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
 
+    // Add to tree and update the ref immediately so rapid clicks work
     treeManager.addNode(newInputNode);
     treeManager.linkNodes(fromNode.id, newInputNode.id);
+
+    // Immediately update the ref so the next call sees this node
+    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
   };
 
   const onDropFilesAsContext = useCallback(
@@ -216,9 +218,14 @@ const AppPageContent = () => {
       treeManager.patchNode(responseNodeId, { value: "" });
       responseNode = nodesRef.current[responseNodeId];
     } else {
-      // create a new response node with smart placement
+      // create a new response node with smart placement - close to parent
+      const callerElement = document.querySelector(
+        `[data-node-id="${caller.id}"]`
+      ) as HTMLElement;
+      const callerHeight = callerElement?.offsetHeight ?? 120;
+
       const targetX = caller.x;
-      const targetY = caller.y + 150;
+      const targetY = caller.y + callerHeight + 30; // Tight spacing
 
       const newNodeDim = getDefaultNodeDimensions("response");
       const freePos = findFreePosition(
@@ -264,7 +271,7 @@ const AppPageContent = () => {
       const height = nodeElement?.offsetHeight ?? 80;
 
       const targetX = responseNode.x;
-      const targetY = responseNode.y + height + 50;
+      const targetY = responseNode.y + height + 30; // Tight spacing
 
       const newNodeDim = getDefaultNodeDimensions("input");
       const freePos = findFreePosition(

@@ -24,9 +24,10 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
 /**
  * Get default dimensions for a node type
  */
-export function getDefaultNodeDimensions(
-  nodeType: GraphNode["type"]
-): { width: number; height: number } {
+export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
+  width: number;
+  height: number;
+} {
   switch (nodeType) {
     case "context":
       return { width: 176, height: 96 };
@@ -46,8 +47,7 @@ export function getNodeRect(
   node: GraphNode,
   dimensions: NodeDimensions
 ): Rectangle {
-  const dim =
-    dimensions[node.id] || getDefaultNodeDimensions(node.type);
+  const dim = dimensions[node.id] || getDefaultNodeDimensions(node.type);
   return {
     x: node.x,
     y: node.y,
@@ -74,7 +74,7 @@ export function rectanglesIntersect(
 
 /**
  * Find a free position near a target point using spiral search
- * 
+ *
  * @param targetX - Desired X position
  * @param targetY - Desired Y position
  * @param newNodeWidth - Width of the node to place
@@ -125,25 +125,32 @@ export function findFreePosition(
   }
 
   // Define search offsets based on preferred direction
-  // We'll search in a spiral pattern but bias towards the preferred direction
-  const getSearchOffsets = (ring: number): Array<{ dx: number; dy: number }> => {
+  // We'll search in a spiral pattern but STRONGLY bias towards the preferred direction
+  const getSearchOffsets = (
+    ring: number
+  ): Array<{ dx: number; dy: number }> => {
     const offsets: Array<{ dx: number; dy: number }> = [];
     const step = gridStepPx * ring;
 
     // Generate positions in a ring around the target
-    // Prioritize the preferred direction
+    // STRONGLY prioritize the preferred direction - only check that direction for early rings
+    const strongBiasRings = 10; // Only check preferred direction for first 10 rings
+
     switch (preferredDirection) {
       case "below":
-        // Search below first, then sides, then above
+        // Search below first
         for (let dx = -ring; dx <= ring; dx++) {
           offsets.push({ dx: dx * gridStepPx, dy: step }); // below
         }
-        for (let dy = -ring; dy < ring; dy++) {
-          offsets.push({ dx: step, dy: dy * gridStepPx }); // right
-          offsets.push({ dx: -step, dy: dy * gridStepPx }); // left
-        }
-        for (let dx = -ring; dx <= ring; dx++) {
-          offsets.push({ dx: dx * gridStepPx, dy: -step }); // above
+        // Only add other directions after initial rings
+        if (ring > strongBiasRings) {
+          for (let dy = -ring; dy < ring; dy++) {
+            offsets.push({ dx: step, dy: dy * gridStepPx }); // right
+            offsets.push({ dx: -step, dy: dy * gridStepPx }); // left
+          }
+          for (let dx = -ring; dx <= ring; dx++) {
+            offsets.push({ dx: dx * gridStepPx, dy: -step }); // above
+          }
         }
         break;
 
@@ -152,26 +159,31 @@ export function findFreePosition(
         for (let dy = -ring; dy <= ring; dy++) {
           offsets.push({ dx: step, dy: dy * gridStepPx });
         }
-        for (let dx = -ring; dx < ring; dx++) {
-          offsets.push({ dx: dx * gridStepPx, dy: step });
-          offsets.push({ dx: dx * gridStepPx, dy: -step });
-        }
-        for (let dy = -ring; dy <= ring; dy++) {
-          offsets.push({ dx: -step, dy: dy * gridStepPx });
+        if (ring > strongBiasRings) {
+          for (let dx = -ring; dx < ring; dx++) {
+            offsets.push({ dx: dx * gridStepPx, dy: step });
+            offsets.push({ dx: dx * gridStepPx, dy: -step });
+          }
+          for (let dy = -ring; dy <= ring; dy++) {
+            offsets.push({ dx: -step, dy: dy * gridStepPx });
+          }
         }
         break;
 
       case "left":
-        // Search left first
+        // Search left first - STRONGLY prefer left
         for (let dy = -ring; dy <= ring; dy++) {
           offsets.push({ dx: -step, dy: dy * gridStepPx });
         }
-        for (let dx = -ring + 1; dx <= ring; dx++) {
-          offsets.push({ dx: dx * gridStepPx, dy: step });
-          offsets.push({ dx: dx * gridStepPx, dy: -step });
-        }
-        for (let dy = -ring; dy <= ring; dy++) {
-          offsets.push({ dx: step, dy: dy * gridStepPx });
+        // Only check other directions after exhausting left
+        if (ring > strongBiasRings) {
+          for (let dx = -ring + 1; dx <= ring; dx++) {
+            offsets.push({ dx: dx * gridStepPx, dy: step });
+            offsets.push({ dx: dx * gridStepPx, dy: -step });
+          }
+          for (let dy = -ring; dy <= ring; dy++) {
+            offsets.push({ dx: step, dy: dy * gridStepPx });
+          }
         }
         break;
 
@@ -180,12 +192,14 @@ export function findFreePosition(
         for (let dx = -ring; dx <= ring; dx++) {
           offsets.push({ dx: dx * gridStepPx, dy: -step });
         }
-        for (let dy = -ring + 1; dy <= ring; dy++) {
-          offsets.push({ dx: step, dy: dy * gridStepPx });
-          offsets.push({ dx: -step, dy: dy * gridStepPx });
-        }
-        for (let dx = -ring; dx <= ring; dx++) {
-          offsets.push({ dx: dx * gridStepPx, dy: step });
+        if (ring > strongBiasRings) {
+          for (let dy = -ring + 1; dy <= ring; dy++) {
+            offsets.push({ dx: step, dy: dy * gridStepPx });
+            offsets.push({ dx: -step, dy: dy * gridStepPx });
+          }
+          for (let dx = -ring; dx <= ring; dx++) {
+            offsets.push({ dx: dx * gridStepPx, dy: step });
+          }
         }
         break;
     }

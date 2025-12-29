@@ -114,14 +114,15 @@ export const GraphCanvas = ({
           // Notify parent of dimension changes
           onNodeDimensionsChange?.(updated);
 
-          // If this is a response node that grew significantly, trigger collision resolution
+          // If this is a response node that grew, trigger collision resolution
           const node = nodes[nodeId];
           if (
             node?.type === "response" &&
             existing &&
             onRequestNodeMove &&
-            (height > existing.height + 10 || width > existing.width + 10)
+            (height > existing.height + 5 || width > existing.width + 5)
           ) {
+            // Run collision resolution multiple times for more aggressive push
             const moves = resolveLocalCollisions(nodeId, nodes, updated);
             for (const move of moves) {
               onRequestNodeMove(move.nodeId, move.dx, move.dy);
