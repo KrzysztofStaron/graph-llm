@@ -4,6 +4,8 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useGraphCanvas, type TreeManager } from "./useGraphCanvas";
 import type { GraphNodes } from "../types/graph";
 
+export type NodeDimensions = Record<string, { width: number; height: number }>;
+
 type GraphCanvasContextValue = {
   transform: { x: number; y: number; k: number };
   setTransform: (transform: { x: number; y: number; k: number }) => void;
@@ -11,6 +13,9 @@ type GraphCanvasContextValue = {
   nodesRef: React.MutableRefObject<GraphNodes>;
   treeManager: TreeManager;
   handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
+  nodeDimensions: NodeDimensions;
+  setNodeDimensions: (dimensions: NodeDimensions) => void;
+  nodeDimensionsRef: React.MutableRefObject<NodeDimensions>;
 };
 
 const GraphCanvasContext = createContext<GraphCanvasContextValue | undefined>(
@@ -36,10 +41,32 @@ export const GraphCanvasProvider = ({
   children,
   initialNodes,
 }: GraphCanvasProviderProps) => {
-  const graphCanvasState = useGraphCanvas(initialNodes);
+  const {
+    transform,
+    setTransform,
+    nodes,
+    nodesRef,
+    treeManager,
+    handleMouseDown,
+    nodeDimensions,
+    setNodeDimensions,
+    nodeDimensionsRef,
+  } = useGraphCanvas(initialNodes);
 
   return (
-    <GraphCanvasContext.Provider value={graphCanvasState}>
+    <GraphCanvasContext.Provider
+      value={{
+        transform,
+        setTransform,
+        nodes,
+        nodesRef,
+        treeManager,
+        handleMouseDown,
+        nodeDimensions,
+        setNodeDimensions,
+        nodeDimensionsRef,
+      }}
+    >
       {children}
     </GraphCanvasContext.Provider>
   );

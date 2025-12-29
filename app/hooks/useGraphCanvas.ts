@@ -15,7 +15,13 @@ type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
   | { type: "ADD_NODE"; node: GraphNode }
   | { type: "LINK"; fromId: string; toId: string }
-  | { type: "MOVE_NODE"; id: string; dx: number; dy: number }
+  | {
+      type: "MOVE_NODE";
+      id: string;
+      dx: number;
+      dy: number;
+      setPinned?: boolean;
+    }
   | { type: "DELETE_CASCADE"; id: string };
 
 export class TreeManager {
@@ -199,8 +205,8 @@ export class TreeManager {
     this.dispatch({ type: "LINK", fromId, toId });
   }
 
-  moveNode(id: string, dx: number, dy: number): void {
-    this.dispatch({ type: "MOVE_NODE", id, dx, dy });
+  moveNode(id: string, dx: number, dy: number, setPinned?: boolean): void {
+    this.dispatch({ type: "MOVE_NODE", id, dx, dy, setPinned });
   }
 
   deleteNode(id: string): void {
@@ -242,9 +248,17 @@ function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
     case "MOVE_NODE": {
       const node = nodes[action.id];
       if (!node) return nodes;
+      const updated: GraphNode = {
+        ...node,
+        x: node.x + action.dx,
+        y: node.y + action.dy,
+      };
+      if (action.setPinned !== undefined) {
+        updated.pinned = action.setPinned;
+      }
       return {
         ...nodes,
-        [action.id]: { ...node, x: node.x + action.dx, y: node.y + action.dy },
+        [action.id]: updated,
       };
     }
     case "DELETE_CASCADE": {
@@ -376,6 +390,8 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
   }
 }
 
+export type NodeDimensions = Record<string, { width: number; height: number }>;
+
 export const useGraphCanvas = (initialNodes: GraphNodes) => {
   const [transform, setTransform] = useReducer(
     (
@@ -386,8 +402,17 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   );
   const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
   const nodesRef = useRef(nodes);
+  const [nodeDimensions, setNodeDimensions] = useReducer(
+    (prev: NodeDimensions, next: NodeDimensions) => next,
+    {}
+  );
+  const nodeDimensionsRef = useRef<NodeDimensions>({});
 
-  const draggingRef = useRef<{ type: "node"; nodeId: string } | null>(null);
+  const draggingRef = useRef<{
+    type: "node";
+    nodeId: string;
+    hasMoved: boolean;
+  } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent, nodeId?: string) => {
@@ -395,7 +420,7 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
 
     e.preventDefault();
     lastMousePos.current = { x: e.clientX, y: e.clientY };
-    draggingRef.current = { type: "node", nodeId };
+    draggingRef.current = { type: "node", nodeId, hasMoved: false };
   };
 
   const treeManager = useMemo(() => new TreeManager(dispatch), [dispatch]);
@@ -403,6 +428,10 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    nodeDimensionsRef.current = nodeDimensions;
+  }, [nodeDimensions]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -413,7 +442,10 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
       lastMousePos.current = { x: e.clientX, y: e.clientY };
 
       if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
-        treeManager.moveNode(draggingRef.current.nodeId, dx, dy);
+        // On first move, mark as pinned
+        const setPinned = !draggingRef.current.hasMoved;
+        draggingRef.current.hasMoved = true;
+        treeManager.moveNode(draggingRef.current.nodeId, dx, dy, setPinned);
       }
     };
 
@@ -436,5 +468,8 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     nodesRef,
     treeManager,
     handleMouseDown,
+    nodeDimensions,
+    setNodeDimensions,
+    nodeDimensionsRef,
   };
 };

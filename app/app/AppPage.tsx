@@ -8,6 +8,10 @@ import {
   GraphCanvasProvider,
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
+import {
+  findFreePosition,
+  getDefaultNodeDimensions,
+} from "../utils/layout";
 
 const initialNodes: GraphNodes = {
   "context-1": {
@@ -42,6 +46,8 @@ const AppPageContent = () => {
     nodesRef,
     treeManager,
     handleMouseDown,
+    setNodeDimensions,
+    nodeDimensionsRef,
   } = useGraphCanvasContext();
 
   // Context node editing state
@@ -69,6 +75,13 @@ const AppPageContent = () => {
     [editingContextNodeId, treeManager]
   );
 
+  const handleRequestNodeMove = useCallback(
+    (nodeId: string, dx: number, dy: number) => {
+      treeManager.moveNode(nodeId, dx, dy);
+    },
+    [treeManager]
+  );
+
   const onAddInputNode = (fromNode: GraphNode, position: "left" | "right") => {
     const nodeElement = document.querySelector(
       `[data-node-id="${fromNode.id}"]`
@@ -77,7 +90,22 @@ const AppPageContent = () => {
       nodeElement?.offsetWidth ?? (fromNode.type === "context" ? 96 : 400);
 
     const offsetX = position === "left" ? -width - 100 : width + 100;
-    const newInputNode = createNode("input", fromNode.x + offsetX, fromNode.y);
+    const targetX = fromNode.x + offsetX;
+    const targetY = fromNode.y;
+
+    // Use smart placement to find a free spot
+    const newNodeDim = getDefaultNodeDimensions("input");
+    const freePos = findFreePosition(
+      targetX,
+      targetY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      position === "left" ? "left" : "right"
+    );
+
+    const newInputNode = createNode("input", freePos.x, freePos.y);
 
     treeManager.addNode(newInputNode);
     treeManager.linkNodes(fromNode.id, newInputNode.id);
@@ -100,16 +128,32 @@ const AppPageContent = () => {
 
       let nodeIndex = 0;
 
+      // Keep track of nodes as we create them for collision detection
+      const workingNodes = { ...nodesRef.current };
+
       // Create text context nodes
       for (const file of textFiles) {
         const text = await file.text();
 
         // Stagger positions: +220px x, +40px y per subsequent file
-        const x = canvasPoint.x + nodeIndex * 220;
-        const y = canvasPoint.y + nodeIndex * 40;
+        const targetX = canvasPoint.x + nodeIndex * 220;
+        const targetY = canvasPoint.y + nodeIndex * 40;
 
-        const newContextNode = createNode("context", x, y);
-        treeManager.addNode({ ...newContextNode, value: text });
+        const newNodeDim = getDefaultNodeDimensions("context");
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          newNodeDim.width,
+          newNodeDim.height,
+          workingNodes,
+          nodeDimensionsRef.current,
+          "right"
+        );
+
+        const newContextNode = createNode("context", freePos.x, freePos.y);
+        const nodeWithValue = { ...newContextNode, value: text };
+        treeManager.addNode(nodeWithValue);
+        workingNodes[nodeWithValue.id] = nodeWithValue;
         nodeIndex++;
       }
 
@@ -122,15 +166,28 @@ const AppPageContent = () => {
         });
 
         // Stagger positions: +220px x, +40px y per subsequent file
-        const x = canvasPoint.x + nodeIndex * 220;
-        const y = canvasPoint.y + nodeIndex * 40;
+        const targetX = canvasPoint.x + nodeIndex * 220;
+        const targetY = canvasPoint.y + nodeIndex * 40;
 
-        const newImageContextNode = createNode("image-context", x, y);
-        treeManager.addNode({ ...newImageContextNode, value: dataUrl });
+        const newNodeDim = getDefaultNodeDimensions("image-context");
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          newNodeDim.width,
+          newNodeDim.height,
+          workingNodes,
+          nodeDimensionsRef.current,
+          "right"
+        );
+
+        const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
+        const nodeWithValue = { ...newImageContextNode, value: dataUrl };
+        treeManager.addNode(nodeWithValue);
+        workingNodes[nodeWithValue.id] = nodeWithValue;
         nodeIndex++;
       }
     },
-    [treeManager]
+    [treeManager, nodesRef, nodeDimensionsRef]
   );
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
@@ -156,9 +213,22 @@ const AppPageContent = () => {
       treeManager.patchNode(responseNodeId, { value: "" });
       responseNode = nodesRef.current[responseNodeId];
     } else {
-      // create a new response node
+      // create a new response node with smart placement
+      const targetX = caller.x;
+      const targetY = caller.y + 150;
 
-      const newNode = createNode("response", caller.x, caller.y + 150);
+      const newNodeDim = getDefaultNodeDimensions("response");
+      const freePos = findFreePosition(
+        targetX,
+        targetY,
+        newNodeDim.width,
+        newNodeDim.height,
+        nodesWithQuery,
+        nodeDimensionsRef.current,
+        "below"
+      );
+
+      const newNode = createNode("response", freePos.x, freePos.y);
       responseNodeId = newNode.id;
       treeManager.addNode(newNode);
       treeManager.linkNodes(caller.id, newNode.id);
@@ -190,11 +260,21 @@ const AppPageContent = () => {
       ) as HTMLElement;
       const height = nodeElement?.offsetHeight ?? 80;
 
-      const newInputNode = createNode(
-        "input",
-        responseNode.x,
-        responseNode.y + height + 50
+      const targetX = responseNode.x;
+      const targetY = responseNode.y + height + 50;
+
+      const newNodeDim = getDefaultNodeDimensions("input");
+      const freePos = findFreePosition(
+        targetX,
+        targetY,
+        newNodeDim.width,
+        newNodeDim.height,
+        nodesWithQuery,
+        nodeDimensionsRef.current,
+        "below"
       );
+
+      const newInputNode = createNode("input", freePos.x, freePos.y);
 
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
@@ -271,6 +351,8 @@ const AppPageContent = () => {
         onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
         onContextNodeDoubleClick={handleContextNodeDoubleClick}
         onDropFilesAsContext={onDropFilesAsContext}
+        onNodeDimensionsChange={setNodeDimensions}
+        onRequestNodeMove={handleRequestNodeMove}
       />
       {editingContextNodeId && (
         <ContextSidebar
