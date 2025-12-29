@@ -1,13 +1,28 @@
 import { globals } from "../globals";
 
 export class aiService {
-  static async chat(message: string | { role: string; content: string }[]): Promise<string> {
+  static async chat(
+    message: string | { role: string; content: string }[],
+    options?: {
+      model?: string;
+      provider?: {
+        sort?: "latency" | "price" | "throughput";
+        allow_fallbacks?: boolean;
+      };
+    }
+  ): Promise<string> {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ messages: Array.isArray(message) ? message : [{ role: "user", content: message }] }),
+      body: JSON.stringify({
+        messages: Array.isArray(message)
+          ? message
+          : [{ role: "user", content: message }],
+        ...(options?.model && { model: options.model }),
+        ...(options?.provider && { provider: options.provider }),
+      }),
     });
 
     if (!response.ok) {
@@ -19,15 +34,31 @@ export class aiService {
 
   static async streamChat(
     message: string | { role: string; content: string }[],
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    options?: {
+      model?: string;
+      provider?: {
+        sort?: "latency" | "price" | "throughput";
+        allow_fallbacks?: boolean;
+      };
+    }
   ): Promise<string> {
-    const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat/stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ messages: Array.isArray(message) ? message : [{ role: "user", content: message }] }),
-    });
+    const response = await fetch(
+      `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: Array.isArray(message)
+            ? message
+            : [{ role: "user", content: message }],
+          ...(options?.model && { model: options.model }),
+          ...(options?.provider && { provider: options.provider }),
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
