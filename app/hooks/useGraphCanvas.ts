@@ -9,6 +9,7 @@ import type {
   NodeType,
   ResponseNode,
 } from "../types/graph";
+import type { ChatMessage } from "../interfaces/aiService";
 
 type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -77,7 +78,10 @@ export class TreeManager {
     return result;
   }
 
-  static buildChatML(nodes: GraphNodes, startNode: GraphNode | undefined) {
+  static buildChatML(
+    nodes: GraphNodes,
+    startNode: GraphNode | undefined
+  ): ChatMessage[] {
     if (!startNode) {
       console.warn("buildChatML: startNode is undefined");
       return [];
@@ -120,6 +124,14 @@ export class TreeManager {
       const levelNodes = normalizedTree[level];
       const roleType = levelNodes[0].type;
 
+      // Determine the role based on node type
+      const role: "user" | "assistant" =
+        roleType === "context" ||
+        roleType === "input" ||
+        roleType === "image-context"
+          ? "user"
+          : "assistant";
+
       // Check if there are any image nodes at this level
       const hasImages = levelNodes.some(
         (node) => node.type === "image-context"
@@ -155,22 +167,14 @@ export class TreeManager {
         });
 
         messages.push({
-          role:
-            roleType === "context" ||
-            roleType === "input" ||
-            roleType === "image-context"
-              ? "user"
-              : "assistant",
+          role,
           content: contentArray,
         });
       } else {
         // Standard text-only format
         const mergedNodes = levelNodes.map((node) => node.value);
         messages.push({
-          role:
-            roleType === "context" || roleType === "input"
-              ? "user"
-              : "assistant",
+          role,
           content: mergedNodes.join("<separatorOfContextualData />"),
         });
       }

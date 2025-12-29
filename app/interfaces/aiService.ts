@@ -8,7 +8,7 @@ type ImageContentPart = {
 };
 type ContentPart = TextContentPart | ImageContentPart;
 
-type ChatMessage = {
+export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string | ContentPart[];
 };
