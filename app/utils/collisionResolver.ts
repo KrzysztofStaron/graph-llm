@@ -1,6 +1,6 @@
 import type { GraphNode, GraphNodes } from "../types/graph";
 import type { NodeDimensions } from "../hooks/useGraphCanvas";
-import { getNodeRect, rectanglesIntersect, type Rectangle } from "./layout";
+import { getNodeRect, rectanglesIntersect, type Rectangle } from "./placement";
 import { LAYOUT_CONFIG } from "../globals";
 
 export interface CollisionPushConfig {
