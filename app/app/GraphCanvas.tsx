@@ -6,7 +6,6 @@ import { ImageContextNode } from "./nodes/ImageContextNode";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
-import { Maximize } from "lucide-react";
 import { ParticleEffect } from "../components/ui/ParticleEffect";
 import { resolveLocalCollisions } from "../utils/collisionResolver";
 
@@ -141,7 +140,7 @@ export const GraphCanvas = ({
       )
         return;
 
-      const padding = 100;
+      const padding = 250;
       const { clientWidth, clientHeight } = viewportRef.current;
 
       let minX = Infinity,
