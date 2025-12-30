@@ -1,16 +1,16 @@
 /**
  * Compresses an image file to reduce its size
  * @param file - The image file to compress
- * @param maxWidth - Maximum width (default: 1920)
- * @param maxHeight - Maximum height (default: 1920)
- * @param quality - JPEG quality 0-1 (default: 0.8)
+ * @param maxWidth - Maximum width (default: 1024)
+ * @param maxHeight - Maximum height (default: 1024)
+ * @param quality - JPEG quality 0-1 (default: 0.7)
  * @returns Compressed image as data URL
  */
 export async function compressImage(
   file: File,
-  maxWidth = 1920,
-  maxHeight = 1920,
-  quality = 0.8
+  maxWidth = 1024,
+  maxHeight = 1024,
+  quality = 0.7
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -192,10 +192,36 @@ const AppPageContent = () => {
 
     if (eligibleParentIds.length === 0) return;
 
+    // Calculate target position - if right-clicking on a node, place directly below it
+    let targetX = contextMenu.canvasX;
+    let targetY = contextMenu.canvasY;
+
+    if (contextMenu.target.kind === "node") {
+      const clickedNode = nodes[contextMenu.target.nodeId];
+      if (clickedNode) {
+        const nodeDim =
+          nodeDimensionsRef.current[clickedNode.id] ||
+          getDefaultNodeDimensions(clickedNode.type);
+        
+        // Calculate node center X position
+        const nodeCenterX = clickedNode.x + nodeDim.width / 2;
+        
+        // Determine if click was to the left or right of center
+        const clickOffset = contextMenu.canvasX - nodeCenterX;
+        
+        // Place directly below, but offset slightly based on click position
+        // Use a small offset (e.g., 40px) to the left or right based on click position
+        const horizontalOffset = clickOffset < 0 ? -40 : clickOffset > 0 ? 40 : 0;
+        
+        targetX = clickedNode.x + horizontalOffset;
+        targetY = clickedNode.y + nodeDim.height + 30;
+      }
+    }
+
     const newNodeDim = getDefaultNodeDimensions("input");
     const freePos = findFreePosition(
-      contextMenu.canvasX,
-      contextMenu.canvasY,
+      targetX,
+      targetY,
       newNodeDim.width,
       newNodeDim.height,
       nodesRef.current,
@@ -223,10 +249,25 @@ const AppPageContent = () => {
   const handleAddContext = useCallback(() => {
     if (!contextMenu) return;
 
+    let targetX = contextMenu.canvasX;
+    let targetY = contextMenu.canvasY;
+
+    // If right-clicking on a node, place directly below it
+    if (contextMenu.target.kind === "node") {
+      const clickedNode = nodes[contextMenu.target.nodeId];
+      if (clickedNode) {
+        const nodeDim =
+          nodeDimensionsRef.current[clickedNode.id] ||
+          getDefaultNodeDimensions(clickedNode.type);
+        targetX = clickedNode.x;
+        targetY = clickedNode.y + nodeDim.height + 30;
+      }
+    }
+
     const newNodeDim = getDefaultNodeDimensions("context");
     const freePos = findFreePosition(
-      contextMenu.canvasX,
-      contextMenu.canvasY,
+      targetX,
+      targetY,
       newNodeDim.width,
       newNodeDim.height,
       nodesRef.current,
@@ -240,7 +281,7 @@ const AppPageContent = () => {
       ...nodesRef.current,
       [newContextNode.id]: newContextNode,
     };
-  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
+  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef, nodes]);
 
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
@@ -537,26 +578,15 @@ const AppPageContent = () => {
         (childId) => nodesRef.current[childId].type === "input"
       ) === false
     ) {
-      const nodeElement = document.querySelector(
-        `[data-node-id="${responseNode.id}"]`
-      ) as HTMLElement;
-      const height = nodeElement?.offsetHeight ?? 80;
+      const responseNodeDim =
+        nodeDimensionsRef.current[responseNode.id] ||
+        getDefaultNodeDimensions("response");
 
+      // Place directly below the response node
       const targetX = responseNode.x;
-      const targetY = responseNode.y + height + 30; // Tight spacing
+      const targetY = responseNode.y + responseNodeDim.height + 30;
 
-      const newNodeDim = getDefaultNodeDimensions("input");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        nodesWithQuery,
-        nodeDimensionsRef.current,
-        "below"
-      );
-
-      const newInputNode = createNode("input", freePos.x, freePos.y);
+      const newInputNode = createNode("input", targetX, targetY);
 
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);

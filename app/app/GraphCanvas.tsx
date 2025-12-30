@@ -140,7 +140,6 @@ export const GraphCanvas = ({
       )
         return;
 
-      const padding = 250;
       const { clientWidth, clientHeight } = viewportRef.current;
 
       let minX = Infinity,
@@ -176,11 +175,21 @@ export const GraphCanvas = ({
 
       if (contentWidth <= 0 || contentHeight <= 0) return;
 
+      const preScale = Math.min(
+        (clientWidth - 300 * 2) / contentWidth,
+        (clientHeight - 300 * 2) / contentHeight,
+        1.5 // Max scale when fitting
+      );
+
+      const padding = 200 * preScale;
+
       const scale = Math.min(
         (clientWidth - padding * 2) / contentWidth,
         (clientHeight - padding * 2) / contentHeight,
         1.5 // Max scale when fitting
       );
+
+      console.log(scale, "padding", padding);
 
       const tx = clientWidth / 2 - (minX + contentWidth / 2) * scale;
       const ty = clientHeight / 2 - (minY + contentHeight / 2) * scale;

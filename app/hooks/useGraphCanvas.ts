@@ -128,7 +128,19 @@ export class TreeManager {
     const messages = [];
 
     for (let level = 0; level <= maxLevel; level++) {
-      const levelNodes = normalizedTree[level];
+      const levelNodesRaw = normalizedTree[level];
+      if (!levelNodesRaw || levelNodesRaw.length === 0) continue;
+
+      // Deduplicate nodes by id at this level
+      const seenIds = new Set<string>();
+      const levelNodes = levelNodesRaw.filter((node) => {
+        if (seenIds.has(node.id)) {
+          return false;
+        }
+        seenIds.add(node.id);
+        return true;
+      });
+
       const roleType = levelNodes[0].type;
 
       // Determine the role based on node type
