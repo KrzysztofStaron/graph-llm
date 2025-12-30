@@ -174,12 +174,12 @@ export class TreeManager {
         );
         if (textNodes.length > 0) {
           const mergedText = textNodes
-            .map((node) => node.value)
+            .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
             .join("<separatorOfContextualData />");
 
           contentArray.push({
             type: "text",
-            text: wrapContextMetadata(nodes[textNodes[0].id]),
+            text: mergedText,
           });
         }
 

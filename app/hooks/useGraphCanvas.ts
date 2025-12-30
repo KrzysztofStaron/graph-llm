@@ -354,6 +354,7 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   // Note: dispatchWithHistory is a useCallback that accesses refs, but only when called (not during render)
   // This is safe because refs are only read in response to user actions, not during render
   const treeManager = useMemo(
+    // eslint-disable-next-line react-hooks/refs
     () => new TreeManager(dispatchWithHistory),
     [dispatchWithHistory]
   );

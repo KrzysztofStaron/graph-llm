@@ -4,7 +4,6 @@ import { FaRegFilePdf } from "react-icons/fa";
 import { BsFiletypeDocx } from "react-icons/bs";
 import { BsFileEarmarkSpreadsheet } from "react-icons/bs";
 import { BsFiletypePptx } from "react-icons/bs";
-import { BsFiletypeTxt } from "react-icons/bs";
 import { BsFiletypeMd } from "react-icons/bs";
 import { LuFileJson } from "react-icons/lu";
 import { BsFiletypeCsv } from "react-icons/bs";
