@@ -19,14 +19,18 @@
     "framer-motion": "^12.23.26",
     "katex": "^0.16.27",
     "lucide-react": "^0.562.0",
+    "mammoth": "^1.6.0",
     "next": "16.1.0",
+    "pdfjs-dist": "^4.0.379",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
-    "tsparticles": "^3.9.1"
+    "tsparticles": "^3.9.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

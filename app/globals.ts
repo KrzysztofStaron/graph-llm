@@ -6,6 +6,7 @@ export class globals {
     : "https://api.graphai.one"; //
 }
 
+console.log("local", globals.graphLLMBackendUrl);
 // http://localhost:995
 
 /**

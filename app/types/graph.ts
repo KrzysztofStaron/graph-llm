@@ -1,4 +1,4 @@
-export type NodeType = "input" | "response" | "context" | "image-context";
+export type NodeType = "input" | "response" | "context" | "image-context" | "document";
 
 export interface BaseNode {
   id: string;
@@ -32,7 +32,11 @@ export interface ImageContextNode extends BaseNode {
   type: "image-context";
 }
 
-export type GraphNode = InputNode | ResponseNode | ContextNode | ImageContextNode;
+export interface DocumentNode extends BaseNode {
+  type: "document";
+}
+
+export type GraphNode = InputNode | ResponseNode | ContextNode | ImageContextNode | DocumentNode;
 
 export type GraphNodes = Record<string, GraphNode>;
 
