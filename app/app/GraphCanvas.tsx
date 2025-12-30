@@ -32,6 +32,8 @@ interface GraphCanvasProps {
   ) => void;
   selectedNodeIds?: Set<string>;
   onClearSelection?: () => void;
+  currentWordIndex?: number | null;
+  audioWords?: Array<{ word: string; start: number; end: number }>;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -79,6 +81,8 @@ export const GraphCanvas = ({
   onRequestContextMenu,
   selectedNodeIds,
   onClearSelection,
+  currentWordIndex,
+  audioWords,
 }: GraphCanvasProps) => {
   const { undo } = useGraphCanvasContext();
   const nodeArray = Object.values(nodes);
@@ -639,7 +643,12 @@ export const GraphCanvas = ({
                     />
                   )}
                   {node.type === "response" && (
-                    <ResponseNode node={node} isSelected={isSelected} />
+                    <ResponseNode
+                      node={node}
+                      isSelected={isSelected}
+                      currentWordIndex={currentWordIndex}
+                      audioWords={audioWords}
+                    />
                   )}
                   {node.type === "context" && (
                     <ContextNode node={node} isSelected={isSelected} />

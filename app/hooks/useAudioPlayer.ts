@@ -91,12 +91,18 @@ export const useAudioPlayer = () => {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const [currentWordIndex, setCurrentWordIndex] = useState<number | null>(null);
+  const [words, setWords] = useState<
+    Array<{ word: string; start: number; end: number }>
+  >([]);
 
   const playAudio = useCallback(
-    async (nodeIds: string[], nodes: GraphNodes) => {
+    async (nodeIds: string[], nodes: GraphNodes, includeTimestamps = false) => {
       if (nodeIds.length === 0) return;
 
       setIsLoadingAudio(true);
+      setCurrentWordIndex(null);
+      setWords([]);
 
       // Extract and combine text from nodes (sorted by tree depth)
       const combinedText = extractTextFromNodes(nodeIds, nodes);
@@ -107,17 +113,30 @@ export const useAudioPlayer = () => {
         return;
       }
 
-      // Call TTS service
-      let audioResult: { audio: HTMLAudioElement; audioUrl: string };
+      // Call TTS service with optional timestamps
+      let audioResult: {
+        audio: HTMLAudioElement;
+        audioUrl: string;
+        words?: Array<{ word: string; start: number; end: number }>;
+        duration?: number;
+      };
       try {
-        audioResult = await audioService.textToSpeech(combinedText);
+        audioResult = await audioService.textToSpeech(
+          combinedText,
+          includeTimestamps
+        );
       } catch (error) {
         console.error("Failed to generate speech:", error);
         setIsLoadingAudio(false);
         return;
       }
 
-      const { audio, audioUrl } = audioResult;
+      const { audio, audioUrl, words: wordsData } = audioResult;
+      if (wordsData) {
+        console.log("wordsData", wordsData);
+
+        setWords(wordsData);
+      }
 
       // Store audio reference and URL
       audioRef.current = audio;
@@ -126,9 +145,29 @@ export const useAudioPlayer = () => {
       setIsLoadingAudio(false);
       setIsPlayingAudio(true);
 
+      // Set up word tracking if we have timestamps
+      let updateCurrentWordHandler: (() => void) | null = null;
+      if (wordsData && wordsData.length > 0) {
+        updateCurrentWordHandler = () => {
+          if (!audioRef.current) return;
+          const currentTime = audioRef.current.currentTime;
+          const wordIndex = wordsData.findIndex(
+            (w) => currentTime >= w.start && currentTime <= w.end
+          );
+          setCurrentWordIndex(wordIndex >= 0 ? wordIndex : null);
+        };
+
+        audio.addEventListener("timeupdate", updateCurrentWordHandler);
+      }
+
       const cleanup = () => {
         setIsPlayingAudio(false);
         setIsLoadingAudio(false);
+        setCurrentWordIndex(null);
+        setWords([]);
+        if (updateCurrentWordHandler) {
+          audio.removeEventListener("timeupdate", updateCurrentWordHandler);
+        }
         if (audioUrlRef.current) {
           URL.revokeObjectURL(audioUrlRef.current);
           audioUrlRef.current = null;
@@ -162,6 +201,8 @@ export const useAudioPlayer = () => {
     audioRef.current = null;
     setIsPlayingAudio(false);
     setIsLoadingAudio(false);
+    setCurrentWordIndex(null);
+    setWords([]);
   }, []);
 
   return {
@@ -169,5 +210,7 @@ export const useAudioPlayer = () => {
     isLoadingAudio,
     playAudio,
     stopAudio,
+    currentWordIndex,
+    words,
   };
 };

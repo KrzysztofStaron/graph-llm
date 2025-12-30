@@ -5,10 +5,13 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { memo, useMemo } from "react";
+import React from "react";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
   isSelected?: boolean;
+  currentWordIndex?: number | null;
+  audioWords?: Array<{ word: string; start: number; end: number }>;
 };
 
 const arraysEqual = (a: string[], b: string[]) =>
@@ -46,9 +49,10 @@ const markdownComponents = {
       {children}
     </h6>
   ),
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-2 last:mb-0">{children}</p>
-  ),
+  p: ({ children }: { children?: React.ReactNode }) => {
+    // This will be overridden when highlighting is active
+    return <p className="mb-2 last:mb-0">{children}</p>;
+  },
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
   ),
@@ -125,20 +129,127 @@ const markdownComponents = {
   ),
 };
 
+// Helper to extract plain text and split by spaces for word indexing
+const extractTextWords = (content: string): string[] => {
+  // Strip markdown syntax for word counting (rough approximation)
+  const plainText = content
+    .replace(/```[\s\S]*?```/g, "") // Remove code blocks
+    .replace(/`[^`]+`/g, "") // Remove inline code
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1") // Convert links to text
+    .replace(/#+\s+/g, "") // Remove headers
+    .replace(/\*\*([^\*]+)\*\*/g, "$1") // Remove bold
+    .replace(/\*([^\*]+)\*/g, "$1") // Remove italic
+    .replace(/^\s*[-*+]\s+/gm, "") // Remove list markers
+    .replace(/^\s*\d+\.\s+/gm, ""); // Remove numbered list markers
+
+  // Split by spaces and filter empty strings
+  return plainText.split(/\s+/).filter((word) => word.length > 0);
+};
+
 // Memoized chunk renderer - only re-renders when its specific content changes
 const MarkdownChunk = memo(
-  function MarkdownChunk({ content }: { content: string }) {
+  function MarkdownChunk({
+    content,
+    highlightWordIndices,
+    wordIndexOffset,
+  }: {
+    content: string;
+    highlightWordIndices?: Set<number>;
+    wordIndexOffset: number;
+  }) {
+    // Track current word index within this chunk
+    let currentWordIndex = wordIndexOffset;
+
+    // Helper function to recursively highlight words in React nodes by index
+    const highlightTextInNode = (
+      node: React.ReactNode,
+      key = 0
+    ): React.ReactNode => {
+      if (!highlightWordIndices || highlightWordIndices.size === 0) {
+        return node;
+      }
+
+      if (typeof node === "string") {
+        const parts: React.ReactElement[] = [];
+        const words = node.split(/(\s+)/); // Split by spaces but keep the spaces
+        let partIndex = 0;
+
+        for (const word of words) {
+          if (word.trim() === "") {
+            // This is whitespace, add it with a key
+            parts.push(
+              <React.Fragment key={`${key}-part-${partIndex++}`}>
+                {word}
+              </React.Fragment>
+            );
+          } else {
+            // This is a word - use current index and increment
+            const wordIndex = currentWordIndex++;
+            if (highlightWordIndices.has(wordIndex)) {
+              parts.push(
+                <mark
+                  key={`${key}-highlight-${partIndex++}`}
+                  className="bg-yellow-500/30 text-yellow-200 rounded"
+                >
+                  {word}
+                </mark>
+              );
+            } else {
+              parts.push(
+                <React.Fragment key={`${key}-part-${partIndex++}`}>
+                  {word}
+                </React.Fragment>
+              );
+            }
+          }
+        }
+
+        return parts.length > 0 ? <>{parts}</> : node;
+      }
+
+      if (Array.isArray(node)) {
+        return node.map((item, idx) => highlightTextInNode(item, idx));
+      }
+
+      if (React.isValidElement(node)) {
+        const props = node.props as { children?: React.ReactNode };
+        return React.cloneElement(
+          node as React.ReactElement<{ children?: React.ReactNode }>,
+          { key: node.key || key },
+          props.children
+            ? React.Children.map(props.children, (child, idx) =>
+                highlightTextInNode(child, idx)
+              )
+            : props.children
+        );
+      }
+
+      return node;
+    };
+
+    // Create custom components with highlight
+    const componentsWithHighlight = {
+      ...markdownComponents,
+      // Override paragraph component to highlight words in its children
+      p: ({ children }: { children?: React.ReactNode }) => (
+        <p className="mb-2 last:mb-0">{highlightTextInNode(children)}</p>
+      ),
+    };
+
     return (
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex]}
-        components={markdownComponents}
+        components={componentsWithHighlight}
       >
         {content}
       </ReactMarkdown>
     );
   },
-  (prev, next) => prev.content === next.content
+  (prev, next) =>
+    prev.content === next.content &&
+    prev.highlightWordIndices === next.highlightWordIndices &&
+    prev.wordIndexOffset === next.wordIndexOffset
 );
 
 // Normalize math delimiters in content
@@ -181,7 +292,11 @@ const splitIntoChunks = (content: string): string[] => {
 };
 
 export const ResponseNode = memo(
-  function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {
+  function ResponseNode({
+    node,
+    isSelected = false,
+    currentWordIndex,
+  }: ResponseNodeProps) {
     const rawContent = node.value;
     const isLoading = rawContent.length === 0;
 
@@ -190,6 +305,46 @@ export const ResponseNode = memo(
       const normalized = normalizeMath(rawContent);
       return splitIntoChunks(normalized);
     }, [rawContent]);
+
+    // Calculate word index offsets for each chunk and highlight indices
+    const { chunkWordOffsets, highlightIndices } = useMemo(() => {
+      const normalized = normalizeMath(rawContent);
+      const allWords = extractTextWords(normalized);
+      const offsets: number[] = [0];
+
+      let currentOffset = 0;
+      for (let i = 0; i < chunks.length - 1; i++) {
+        const chunkWords = extractTextWords(chunks[i]);
+        currentOffset += chunkWords.length;
+        offsets.push(currentOffset);
+      }
+
+      // Calculate sliding window of 5 words around currentWordIndex
+      const highlightSet = new Set<number>();
+      if (
+        currentWordIndex !== null &&
+        currentWordIndex !== undefined &&
+        currentWordIndex >= 0 &&
+        currentWordIndex < allWords.length
+      ) {
+        const windowSize = 5;
+        const halfWindow = Math.floor(windowSize / 2); // 2
+        const startIndex = Math.max(0, currentWordIndex - halfWindow);
+        const endIndex = Math.min(
+          allWords.length - 1,
+          currentWordIndex + halfWindow
+        );
+
+        for (let i = startIndex; i <= endIndex; i++) {
+          highlightSet.add(i);
+        }
+      }
+
+      return {
+        chunkWordOffsets: offsets,
+        highlightIndices: highlightSet,
+      };
+    }, [rawContent, chunks, currentWordIndex]);
 
     return (
       <div className="max-w-[808px] min-w-[200px] flex items-center group">
@@ -209,9 +364,16 @@ export const ResponseNode = memo(
                 <p className="text-sm font-mono">Loading…</p>
               </div>
             ) : (
-              chunks.map((chunk, index) => (
-                <MarkdownChunk key={index} content={chunk} />
-              ))
+              chunks.map((chunk, index) => {
+                return (
+                  <MarkdownChunk
+                    key={index}
+                    content={chunk}
+                    highlightWordIndices={highlightIndices}
+                    wordIndexOffset={chunkWordOffsets[index]}
+                  />
+                );
+              })
             )}
           </div>
         </div>
@@ -223,7 +385,9 @@ export const ResponseNode = memo(
       prev.node.value === next.node.value &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
-      prev.isSelected === next.isSelected
+      prev.isSelected === next.isSelected &&
+      prev.currentWordIndex === next.currentWordIndex &&
+      prev.audioWords === next.audioWords
     );
   }
 );

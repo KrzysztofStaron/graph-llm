@@ -75,8 +75,14 @@ const AppPageContent = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Audio playback hook
-  const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } =
-    useAudioPlayer();
+  const {
+    isPlayingAudio,
+    isLoadingAudio,
+    playAudio,
+    stopAudio,
+    currentWordIndex,
+    words: audioWords,
+  } = useAudioPlayer();
 
   const handleContextNodeDoubleClick = useCallback(
     (nodeId: string) => {
@@ -477,7 +483,8 @@ const AppPageContent = () => {
     if (targetNodeIds.length === 0) return;
 
     // Play audio with sorted nodes (nodes lower in tree play last)
-    playAudio(targetNodeIds, nodes);
+    // Include timestamps for word-level highlighting
+    playAudio(targetNodeIds, nodes, true);
   }, [contextMenu, selectedNodeIds, nodes, playAudio]);
 
   // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
@@ -773,6 +780,8 @@ const AppPageContent = () => {
         onRequestContextMenu={handleRequestContextMenu}
         selectedNodeIds={selectedNodeIds}
         onClearSelection={clearSelection}
+        currentWordIndex={currentWordIndex}
+        audioWords={audioWords}
       />
       {editingContextNodeId && (
         <ContextSidebar
