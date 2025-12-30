@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { createNode, TreeManager } from "../hooks/useGraphCanvas";
 import { GraphCanvas } from "./GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
@@ -6,7 +6,6 @@ import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
 import {
   GraphCanvasProvider,
-  GraphCanvasHandlerProvider,
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
@@ -40,11 +39,15 @@ const initialNodes: GraphNodes = {
 const AppPageContent = () => {
   const {
     transform,
+    setTransform,
     nodes,
     nodesRef,
     treeManager,
+    handleMouseDown,
+    setNodeDimensions,
     nodeDimensionsRef,
     selectedNodeIds,
+    clearSelection,
   } = useGraphCanvasContext();
 
   // Context node editing state
@@ -218,7 +221,7 @@ const AppPageContent = () => {
 
   // Build context menu items based on target
   // Note: Handlers use refs but are only called on user interaction, not during render
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+  const contextMenuItems: ContextMenuItem[] = (() => {
     if (!contextMenu) return [];
 
     if (contextMenu.target.kind === "canvas") {
@@ -232,13 +235,9 @@ const AppPageContent = () => {
     const items: ContextMenuItem[] = [];
 
     // Only show "New Question" if node is not an input node
+    // Handlers are callbacks that use refs, but are only invoked on user click, not during render
     if (node && node.type !== "input") {
-      // Wrap handler to avoid false positive React Compiler warning
-      // The handler only accesses refs when called (on user interaction), not during render
-      items.push({
-        label: "> New Question",
-        onClick: (...args) => handleNewQuestion(...args),
-      });
+      items.push({ label: "> New Question", onClick: handleNewQuestion });
     }
 
     items.push(
@@ -247,15 +246,7 @@ const AppPageContent = () => {
     );
 
     return items;
-  }, [
-    contextMenu,
-    nodes,
-    handleAskQuestion,
-    handleAddContext,
-    handleNewQuestion,
-    handleDelete,
-    handleDeleteWithChildren,
-  ]);
+  })();
 
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
@@ -494,63 +485,59 @@ const AppPageContent = () => {
   };
 
   return (
-    <GraphCanvasHandlerProvider
-      onInputSubmit={onInputSubmit}
-      onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
-      onContextNodeDoubleClick={handleContextNodeDoubleClick}
-      onDropFilesAsContext={onDropFilesAsContext}
-      onRequestNodeMove={handleRequestNodeMove}
-      onRequestContextMenu={handleRequestContextMenu}
-    >
-      <div className="relative w-full h-screen">
-        <GraphCanvas />
-        {editingContextNodeId && (
-          <ContextSidebar
-            value={nodes[editingContextNodeId]?.value || ""}
-            onChange={(val) => {
-              treeManager.patchNode(editingContextNodeId, { value: val });
-            }}
-            onClose={handleCloseSidebar}
-          />
-        )}
-        {contextMenu && (
-          <ContextMenu
-            isOpen={contextMenu.isOpen}
-            x={contextMenu.x}
-            y={contextMenu.y}
-            items={contextMenuItems}
-            onClose={closeContextMenu}
-          />
-        )}
-        <div
-          className="dot-grid-background fixed inset-0 -z-20"
-          style={{
-            backgroundSize: `${40 * transform.k}px ${40 * transform.k}px`,
-            backgroundImage:
-              "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
-            backgroundColor: "#0a0a0a",
-            opacity: 0.4,
-            backgroundPosition: `${transform.x}px ${transform.y}px`,
+    <div className="relative w-full h-screen">
+      <GraphCanvas
+        nodes={nodes}
+        transform={transform}
+        setTransform={setTransform}
+        onMouseDown={handleMouseDown}
+        onInputSubmit={onInputSubmit}
+        onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
+        onContextNodeDoubleClick={handleContextNodeDoubleClick}
+        onDropFilesAsContext={onDropFilesAsContext}
+        onNodeDimensionsChange={setNodeDimensions}
+        onRequestNodeMove={handleRequestNodeMove}
+        onRequestContextMenu={handleRequestContextMenu}
+        selectedNodeIds={selectedNodeIds}
+        onClearSelection={clearSelection}
+      />
+      {editingContextNodeId && (
+        <ContextSidebar
+          value={nodes[editingContextNodeId]?.value || ""}
+          onChange={(val) => {
+            treeManager.patchNode(editingContextNodeId, { value: val });
           }}
+          onClose={handleCloseSidebar}
         />
-      </div>
-    </GraphCanvasHandlerProvider>
-  );
-};
-
-const AppPageContentInner = () => {
-  return (
-    <>
-      <GraphCanvas />
-      <AppPageContent />
-    </>
+      )}
+      {contextMenu && (
+        <ContextMenu
+          isOpen={contextMenu.isOpen}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenuItems}
+          onClose={closeContextMenu}
+        />
+      )}
+      <div
+        className="dot-grid-background fixed inset-0 -z-20"
+        style={{
+          backgroundSize: `${40 * transform.k}px ${40 * transform.k}px`,
+          backgroundImage:
+            "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
+          backgroundColor: "#0a0a0a",
+          opacity: 0.4,
+          backgroundPosition: `${transform.x}px ${transform.y}px`,
+        }}
+      />
+    </div>
   );
 };
 
 const AppPage = () => {
   return (
     <GraphCanvasProvider initialNodes={initialNodes}>
-      <AppPageContentInner />
+      <AppPageContent />
     </GraphCanvasProvider>
   );
 };

@@ -9,21 +9,37 @@ import * as d3 from "d3";
 import { Maximize } from "lucide-react";
 import { ParticleEffect } from "../components/ui/ParticleEffect";
 import { resolveLocalCollisions } from "../utils/collisionResolver";
-import {
-  useGraphCanvasContext,
-  type NodeDimensions,
-} from "../hooks/GraphCanvasContext";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface GraphCanvasProps {}
+interface GraphCanvasProps {
+  nodes: GraphNodes;
+  transform: { x: number; y: number; k: number };
+  setTransform: (transform: { x: number; y: number; k: number }) => void;
+  onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
+  onInputSubmit: (query: string, caller: GraphNode) => void;
+  onDeleteNode: (nodeId: string) => void;
+  onContextNodeDoubleClick?: (nodeId: string) => void;
+  onDropFilesAsContext?: (
+    files: FileList,
+    canvasPoint: { x: number; y: number }
+  ) => void;
+  onNodeDimensionsChange?: (dimensions: NodeDimensions) => void;
+  onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
+  onRequestContextMenu?: (
+    clientX: number,
+    clientY: number,
+    nodeId?: string
+  ) => void;
+  selectedNodeIds?: Set<string>;
+  onClearSelection?: () => void;
+}
+
+type NodeDimensions = Record<string, { width: number; height: number }>;
 
 const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
-
   const width =
     dim?.width ??
     (node.type === "context" ? 176 : node.type === "image-context" ? 232 : 400);
-
   const height =
     dim?.height ??
     (node.type === "context"
@@ -40,22 +56,21 @@ const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   };
 };
 
-export const GraphCanvas = ({}: GraphCanvasProps) => {
-  const {
-    nodes,
-    transform,
-    setTransform,
-    handleMouseDown,
-    onInputSubmit,
-    onDeleteNode,
-    onContextNodeDoubleClick,
-    onDropFilesAsContext,
-    setNodeDimensions: setNodeDimensionsContext,
-    onRequestNodeMove,
-    onRequestContextMenu,
-    selectedNodeIds,
-    clearSelection,
-  } = useGraphCanvasContext();
+export const GraphCanvas = ({
+  nodes,
+  transform,
+  setTransform,
+  onMouseDown,
+  onInputSubmit,
+  onDeleteNode,
+  onContextNodeDoubleClick,
+  onDropFilesAsContext,
+  onNodeDimensionsChange,
+  onRequestNodeMove,
+  onRequestContextMenu,
+  selectedNodeIds,
+  onClearSelection,
+}: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
     node.childrenIds.map((to) => ({ from: node.id, to }))
@@ -79,7 +94,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
 
   const updateNodeDimension = useCallback(
     (nodeId: string, width: number, height: number) => {
-      setNodeDimensions((prev: NodeDimensions) => {
+      setNodeDimensions((prev) => {
         const existing = prev[nodeId];
         if (
           existing &&
@@ -93,7 +108,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
         // Defer parent state updates and side effects to avoid React warnings
         requestAnimationFrame(() => {
           // Notify parent of dimension changes
-          setNodeDimensionsContext(updated);
+          onNodeDimensionsChange?.(updated);
 
           // If this is a response node that grew, trigger collision resolution
           const node = nodes[nodeId];
@@ -114,7 +129,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
         return updated;
       });
     },
-    [setNodeDimensionsContext, onRequestNodeMove, nodes]
+    [onNodeDimensionsChange, onRequestNodeMove, nodes]
   );
 
   const fitView = useCallback(
@@ -184,7 +199,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
   // Handle canvas clicks to clear selection (before d3-zoom processes them)
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    if (!viewport || !onClearSelection) return;
 
     const handleCanvasMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -192,7 +207,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
       // Only handle if clicking on canvas background (not on a node)
       const closestNode = target.closest("[data-node-id]");
       if (!closestNode && !e.shiftKey) {
-        clearSelection();
+        onClearSelection();
       }
     };
 
@@ -202,7 +217,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
     return () => {
       viewport.removeEventListener("mousedown", handleCanvasMouseDown, true);
     };
-  }, [clearSelection]);
+  }, [onClearSelection]);
 
   // Initialize zoom behavior
   useEffect(() => {
@@ -273,12 +288,12 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
           e.target instanceof HTMLInputElement
         )
       ) {
-        clearSelection();
+        onClearSelection?.();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [fitView, clearSelection]);
+  }, [fitView, onClearSelection]);
 
   // Track node appear/delete to show particle effects
   useEffect(() => {
@@ -492,7 +507,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
             "[data-node-id]"
           ) as HTMLElement | null;
           if (!closestNode) {
-            handleMouseDown(e);
+            onMouseDown(e);
           }
         }}
       >
@@ -545,7 +560,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
 
           <AnimatePresence mode="popLayout" initial={false}>
             {nodeArray.map((node) => {
-              const isSelected = selectedNodeIds.has(node.id);
+              const isSelected = selectedNodeIds?.has(node.id) ?? false;
               return (
                 <motion.div
                   key={node.id}
@@ -580,7 +595,7 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
                     },
                   }}
                   onMouseDown={(e) => {
-                    handleMouseDown(e, node.id);
+                    onMouseDown(e, node.id);
                   }}
                   onDoubleClick={(e) => {
                     if (node.type === "context" && onContextNodeDoubleClick) {
@@ -592,8 +607,8 @@ export const GraphCanvas = ({}: GraphCanvasProps) => {
                   {node.type === "input" && (
                     <InputFieldNode
                       node={node}
-                      onInputSubmit={(query) => onInputSubmit?.(query, node)}
-                      onDelete={() => onDeleteNode?.(node.id)}
+                      onInputSubmit={(query) => onInputSubmit(query, node)}
+                      onDelete={() => onDeleteNode(node.id)}
                     />
                   )}
                   {node.type === "response" && <ResponseNode node={node} />}
