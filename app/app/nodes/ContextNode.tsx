@@ -4,6 +4,7 @@ import { FileText } from "lucide-react";
 
 type ContextNodeProps = {
   node: ContextNodeType;
+  isSelected?: boolean;
 };
 
 function arraysEqual(a: string[], b: string[]) {
@@ -13,10 +14,21 @@ function arraysEqual(a: string[], b: string[]) {
   return true;
 }
 
-const ContextNodeContent = ({ node }: ContextNodeProps) => {
+const ContextNodeContent = ({
+  node: _node,
+  isSelected = false,
+}: ContextNodeProps) => {
   return (
     <div className="flex items-center group">
-      <div className="w-24 h-24 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
+      <div
+        className="w-24 h-24 flex items-center justify-center overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
+        style={{
+          boxShadow: isSelected
+            ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
+            : undefined,
+          transition: "box-shadow 0.2s ease",
+        }}
+      >
         <div className="w-full h-full flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] text-white">
           <FileText className="size-8" />
         </div>
@@ -30,7 +42,8 @@ export const ContextNode = memo(
   (prev, next) =>
     prev.node.value === next.node.value &&
     arraysEqual(prev.node.parentIds, next.node.parentIds) &&
-    arraysEqual(prev.node.childrenIds, next.node.childrenIds)
+    arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
+    prev.isSelected === next.isSelected
 );
 
 ContextNode.displayName = "ContextNode";

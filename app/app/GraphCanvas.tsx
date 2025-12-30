@@ -590,10 +590,6 @@ export const GraphCanvas = ({
                     left: node.x,
                     top: node.y,
                     transformOrigin: "center center",
-                    boxShadow: isSelected
-                      ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
-                      : undefined,
-                    transition: "box-shadow 0.2s ease",
                   }}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{
@@ -625,14 +621,19 @@ export const GraphCanvas = ({
                   {node.type === "input" && (
                     <InputFieldNode
                       node={node}
+                      isSelected={isSelected}
                       onInputSubmit={(query) => onInputSubmit(query, node)}
                       onDelete={() => onDeleteNode(node.id)}
                     />
                   )}
-                  {node.type === "response" && <ResponseNode node={node} />}
-                  {node.type === "context" && <ContextNode node={node} />}
+                  {node.type === "response" && (
+                    <ResponseNode node={node} isSelected={isSelected} />
+                  )}
+                  {node.type === "context" && (
+                    <ContextNode node={node} isSelected={isSelected} />
+                  )}
                   {node.type === "image-context" && (
-                    <ImageContextNode node={node} />
+                    <ImageContextNode node={node} isSelected={isSelected} />
                   )}
                 </motion.div>
               );

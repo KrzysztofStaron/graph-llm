@@ -10,6 +10,7 @@ enum Mode {
 
 type InputFieldNodeProps = {
   node: InputNode;
+  isSelected: boolean;
   onInputSubmit: (query: string) => void;
   onDelete: () => void;
 };
@@ -20,6 +21,7 @@ const arraysEqual = (a: string[], b: string[]) =>
 export const InputFieldNode = memo(
   function InputFieldNode({
     node,
+    isSelected,
     onInputSubmit,
     onDelete,
   }: InputFieldNodeProps) {
@@ -113,6 +115,12 @@ export const InputFieldNode = memo(
           className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-200 ${
             isDeleteHovered && "rounded-3xl rounded-tr-xl"
           }`}
+          style={{
+            boxShadow: isSelected
+              ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
+              : undefined,
+            transition: "box-shadow 0.2s ease",
+          }}
         >
           {mode === Mode.DISPLAY ? (
             <div className="py-5 pl-4 pr-4 w-full rounded-3xl border-none bg-[#0a0a0a] text-white flex justify-between items-center gap-2 cursor-move">
@@ -200,11 +208,12 @@ export const InputFieldNode = memo(
     );
   },
   (prev, next) => {
-    // Only re-render when value, parentIds, or childrenIds change
+    // Only re-render when value, parentIds, childrenIds, or isSelected change
     return (
       prev.node.value === next.node.value &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
-      arraysEqual(prev.node.childrenIds, next.node.childrenIds)
+      arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
+      prev.isSelected === next.isSelected
     );
   }
 );
