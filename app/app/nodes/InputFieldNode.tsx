@@ -132,7 +132,7 @@ export const InputFieldNode = memo(
               {/* Edit Icon */}
               <button
                 onClick={handleEdit}
-                className="cursor-pointer"
+                className="cursor-pointer absolute right-4 top-1/2 -translate-y-1/2"
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <Pencil className="size-4 hidden group-hover:block opacity-50 hover:opacity-100 transition-opacity" />
