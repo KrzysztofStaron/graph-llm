@@ -32,7 +32,7 @@ export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
     case "context":
       return { width: 176, height: 96 };
     case "image-context":
-      return { width: 232, height: 192 };
+      return { width: 464, height: 384 };
     case "input":
       return { width: 400, height: 120 };
     case "response":

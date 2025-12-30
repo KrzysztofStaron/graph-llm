@@ -38,13 +38,13 @@ const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
   const width =
     dim?.width ??
-    (node.type === "context" ? 176 : node.type === "image-context" ? 232 : 400);
+    (node.type === "context" ? 176 : node.type === "image-context" ? 464 : 400);
   const height =
     dim?.height ??
     (node.type === "context"
       ? 96
       : node.type === "image-context"
-      ? 192
+      ? 384
       : node.type === "input"
       ? 120
       : 80);
@@ -109,18 +109,22 @@ export const GraphCanvas = ({
           // Notify parent of dimension changes
           onNodeDimensionsChange?.(updated);
 
-          // If this is a response node that grew, trigger collision resolution
           const node = nodes[nodeId];
-          if (
-            node?.type === "response" &&
-            existing &&
-            onRequestNodeMove &&
-            (height > existing.height + 5 || width > existing.width + 5)
-          ) {
-            // Run collision resolution multiple times for more aggressive push
-            const moves = resolveLocalCollisions(nodeId, nodes, updated);
-            for (const move of moves) {
-              onRequestNodeMove(move.nodeId, move.dx, move.dy);
+          if (node?.type === "response" && existing && onRequestNodeMove) {
+            // If width changed, move node left by half of the change
+            if (width !== existing.width) {
+              const widthChange = width - existing.width;
+              const dx = -widthChange / 6;
+              onRequestNodeMove(nodeId, dx, 0);
+            }
+
+            // If this is a response node that grew, trigger collision resolution
+            if (height > existing.height + 5 || width > existing.width + 5) {
+              // Run collision resolution multiple times for more aggressive push
+              const moves = resolveLocalCollisions(nodeId, nodes, updated);
+              for (const move of moves) {
+                onRequestNodeMove(move.nodeId, move.dx, move.dy);
+              }
             }
           }
         });
@@ -153,13 +157,13 @@ export const GraphCanvas = ({
             node.type === "context"
               ? 176
               : node.type === "image-context"
-              ? 232
+              ? 464
               : 400,
           height:
             node.type === "context"
               ? 96
               : node.type === "image-context"
-              ? 192
+              ? 384
               : node.type === "input"
               ? 120
               : 80,
@@ -328,7 +332,7 @@ export const GraphCanvas = ({
           addedNode.type === "context"
             ? 176
             : addedNode.type === "image-context"
-            ? 232
+            ? 464
             : addedNode.type === "input"
             ? 400
             : 200,
@@ -336,7 +340,7 @@ export const GraphCanvas = ({
           addedNode.type === "context"
             ? 96
             : addedNode.type === "image-context"
-            ? 192
+            ? 384
             : addedNode.type === "input"
             ? 120
             : 80,
@@ -375,7 +379,7 @@ export const GraphCanvas = ({
               deletedNode.type === "context"
                 ? 176
                 : deletedNode.type === "image-context"
-                ? 232
+                ? 464
                 : deletedNode.type === "input"
                 ? 400
                 : 200,
@@ -383,7 +387,7 @@ export const GraphCanvas = ({
               deletedNode.type === "context"
                 ? 96
                 : deletedNode.type === "image-context"
-                ? 192
+                ? 384
                 : deletedNode.type === "input"
                 ? 120
                 : 80,

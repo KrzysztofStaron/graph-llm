@@ -202,17 +202,18 @@ const AppPageContent = () => {
         const nodeDim =
           nodeDimensionsRef.current[clickedNode.id] ||
           getDefaultNodeDimensions(clickedNode.type);
-        
+
         // Calculate node center X position
         const nodeCenterX = clickedNode.x + nodeDim.width / 2;
-        
+
         // Determine if click was to the left or right of center
         const clickOffset = contextMenu.canvasX - nodeCenterX;
-        
+
         // Place directly below, but offset slightly based on click position
         // Use a small offset (e.g., 40px) to the left or right based on click position
-        const horizontalOffset = clickOffset < 0 ? -40 : clickOffset > 0 ? 40 : 0;
-        
+        const horizontalOffset =
+          clickOffset < 0 ? -80 : clickOffset > 0 ? 80 : 0;
+
         targetX = clickedNode.x + horizontalOffset;
         targetY = clickedNode.y + nodeDim.height + 30;
       }
@@ -509,8 +510,11 @@ const AppPageContent = () => {
   })();
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
+    // Get the current node from nodesRef to use up-to-date position (may have been moved by collision resolution)
+    const currentCaller = nodesRef.current[caller.id] || caller;
+
     // Find the first response child node
-    let responseNodeId = caller.childrenIds.find((childId) => {
+    let responseNodeId = currentCaller.childrenIds.find((childId) => {
       const childNode = nodesRef.current[childId];
       return childNode?.type === "response";
     });
@@ -518,7 +522,7 @@ const AppPageContent = () => {
     let responseNode: GraphNode;
 
     // Create updated nodes object with the query value set - this will be mutated as we stream responses
-    const updatedCaller = { ...caller, value: query };
+    const updatedCaller = { ...currentCaller, value: query };
     const nodesWithQuery = { ...nodesRef.current, [caller.id]: updatedCaller };
 
     // Set the value to query of the InputFieldNode
@@ -532,13 +536,12 @@ const AppPageContent = () => {
       responseNode = nodesRef.current[responseNodeId];
     } else {
       // create a new response node with smart placement - close to parent
-      const callerElement = document.querySelector(
-        `[data-node-id="${caller.id}"]`
-      ) as HTMLElement;
-      const callerHeight = callerElement?.offsetHeight ?? 120;
+      const callerDim =
+        nodeDimensionsRef.current[caller.id] ||
+        getDefaultNodeDimensions(caller.type);
 
-      const targetX = caller.x;
-      const targetY = caller.y + callerHeight + 30; // Tight spacing
+      const targetX = currentCaller.x + callerDim.width / 4;
+      const targetY = currentCaller.y + 90;
 
       const newNodeDim = getDefaultNodeDimensions("response");
       const freePos = findFreePosition(
@@ -584,9 +587,20 @@ const AppPageContent = () => {
 
       // Place directly below the response node
       const targetX = responseNode.x;
-      const targetY = responseNode.y + responseNodeDim.height + 30;
+      const targetY = responseNode.y + responseNodeDim.height + 90;
 
-      const newInputNode = createNode("input", targetX, targetY);
+      const newNodeDim = getDefaultNodeDimensions("input");
+      const freePos = findFreePosition(
+        targetX,
+        targetY,
+        newNodeDim.width,
+        newNodeDim.height,
+        nodesWithQuery,
+        nodeDimensionsRef.current,
+        "below"
+      );
+
+      const newInputNode = createNode("input", freePos.x, freePos.y);
 
       treeManager.addNode(newInputNode);
       treeManager.linkNodes(responseNodeId, newInputNode.id);
