@@ -9,6 +9,7 @@ import {
   ImageUp,
   Minus,
   Delete,
+  Headphones,
 } from "lucide-react";
 import MonoLabel from "./MonoLabel";
 
@@ -91,6 +92,8 @@ export const ContextMenu = ({
                 Icon = MessageCircle;
               } else if (item.label.includes("Upload Context")) {
                 Icon = ImageUp;
+              } else if (item.label.includes("Listen")) {
+                Icon = Headphones;
               }
 
               // Parse label to extract "[ with children ]" part

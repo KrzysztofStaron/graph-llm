@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { AnimatePresence } from "framer-motion";
 import { createNode } from "../hooks/useGraphCanvas";
 import { TreeManager } from "../interfaces/TreeManager";
 import { GraphCanvas } from "./GraphCanvas";
@@ -13,6 +14,8 @@ import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { compressImage } from "../utils/imageCompression";
 import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
+import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
+import { useAudioPlayer } from "../hooks/useAudioPlayer";
 
 const initialNodes: GraphNodes = {
   "context-1": {
@@ -70,6 +73,10 @@ const AppPageContent = () => {
 
   // File input ref for upload context
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Audio playback hook
+  const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } =
+    useAudioPlayer();
 
   const handleContextNodeDoubleClick = useCallback(
     (nodeId: string) => {
@@ -452,6 +459,27 @@ const AppPageContent = () => {
     [onDropFilesAsContext]
   );
 
+  // Handle Listen action - convert selected nodes' text to speech
+  const handleListen = useCallback(() => {
+    if (!contextMenu) return;
+
+    // Get nodes to process
+    let targetNodeIds: string[] = [];
+
+    if (selectedNodeIds.size > 0) {
+      // Use selected nodes
+      targetNodeIds = Array.from(selectedNodeIds);
+    } else if (contextMenu.target.kind === "node") {
+      // Use the clicked node
+      targetNodeIds = [contextMenu.target.nodeId];
+    }
+
+    if (targetNodeIds.length === 0) return;
+
+    // Play audio with sorted nodes (nodes lower in tree play last)
+    playAudio(targetNodeIds, nodes);
+  }, [contextMenu, selectedNodeIds, nodes, playAudio]);
+
   // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
   // Note: Handlers use refs but are only called on user interaction, not during render
   const contextMenuItems: ContextMenuItem[] = (() => {
@@ -473,6 +501,15 @@ const AppPageContent = () => {
       if (hasNonInputSelected) {
         // eslint-disable-next-line react-hooks/refs
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
+      }
+
+      // Show "Listen" for any selected nodes that have text content
+      const hasTextContent = Array.from(selectedNodeIds).some((nodeId) => {
+        const node = nodes[nodeId];
+        return node && node.value && node.value.trim().length > 0;
+      });
+      if (hasTextContent) {
+        items.push({ label: "Listen", onClick: handleListen });
       }
 
       // Determine delete options based on selection count
@@ -541,6 +578,11 @@ const AppPageContent = () => {
     if (node.type !== "input") {
       // eslint-disable-next-line react-hooks/refs
       items.push({ label: "Ask Question", onClick: handleAskQuestion });
+    }
+
+    // Show "Listen" if node has text content
+    if (node.value && node.value.trim().length > 0) {
+      items.push({ label: "Listen", onClick: handleListen });
     }
 
     // Always show "Delete"
@@ -751,6 +793,11 @@ const AppPageContent = () => {
           selectedNodeCount={selectedNodeIds.size}
         />
       )}
+      <AnimatePresence>
+        {(isPlayingAudio || isLoadingAudio) && (
+          <AudioPlayerIndicator onStop={stopAudio} isLoading={isLoadingAudio} />
+        )}
+      </AnimatePresence>
       <input
         ref={fileInputRef}
         type="file"
