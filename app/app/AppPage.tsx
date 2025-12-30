@@ -9,6 +9,7 @@ import {
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
 
 const initialNodes: GraphNodes = {
   "context-1": {
@@ -52,6 +53,16 @@ const AppPageContent = () => {
     string | null
   >(null);
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    target: { kind: "canvas" } | { kind: "node"; nodeId: string };
+    canvasX: number;
+    canvasY: number;
+  } | null>(null);
+
   const handleContextNodeDoubleClick = useCallback(
     (nodeId: string) => {
       const node = nodes[nodeId];
@@ -78,6 +89,139 @@ const AppPageContent = () => {
     },
     [treeManager]
   );
+
+  const handleRequestContextMenu = useCallback(
+    (clientX: number, clientY: number, nodeId?: string) => {
+      // Convert client coordinates to canvas coordinates
+      const canvasX = (clientX - transform.x) / transform.k;
+      const canvasY = (clientY - transform.y) / transform.k;
+
+      setContextMenu({
+        isOpen: true,
+        x: clientX,
+        y: clientY,
+        target: nodeId ? { kind: "node", nodeId } : { kind: "canvas" },
+        canvasX,
+        canvasY,
+      });
+    },
+    [transform]
+  );
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  // Context menu actions
+  const handleAskQuestion = useCallback(() => {
+    if (!contextMenu) return;
+
+    const newNodeDim = getDefaultNodeDimensions("input");
+    const freePos = findFreePosition(
+      contextMenu.canvasX,
+      contextMenu.canvasY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const newInputNode = createNode("input", freePos.x, freePos.y);
+    treeManager.addNode(newInputNode);
+    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
+  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
+
+  const handleAddContext = useCallback(() => {
+    if (!contextMenu) return;
+
+    const newNodeDim = getDefaultNodeDimensions("context");
+    const freePos = findFreePosition(
+      contextMenu.canvasX,
+      contextMenu.canvasY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const newContextNode = createNode("context", freePos.x, freePos.y);
+    treeManager.addNode(newContextNode);
+    nodesRef.current = {
+      ...nodesRef.current,
+      [newContextNode.id]: newContextNode,
+    };
+  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
+
+  const handleNewQuestion = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "node") return;
+
+    const clickedNode = nodes[contextMenu.target.nodeId];
+    if (!clickedNode) return;
+
+    const targetX = contextMenu.canvasX;
+    const targetY = contextMenu.canvasY;
+
+    const newNodeDim = getDefaultNodeDimensions("input");
+    const freePos = findFreePosition(
+      targetX,
+      targetY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const newInputNode = createNode("input", freePos.x, freePos.y);
+    treeManager.addNode(newInputNode);
+    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
+  }, [contextMenu, nodes, treeManager, nodesRef, nodeDimensionsRef]);
+
+  const handleDelete = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "node") return;
+
+    // Use deleteNodeDetach when implemented, for now use deleteNode
+    // treeManager.deleteNodeDetach(contextMenu.target.nodeId);
+    // For now, we'll implement this in the next todo
+    treeManager.deleteNodeDetach(contextMenu.target.nodeId);
+  }, [contextMenu, treeManager]);
+
+  const handleDeleteWithChildren = useCallback(() => {
+    if (!contextMenu || contextMenu.target.kind !== "node") return;
+
+    treeManager.deleteNode(contextMenu.target.nodeId);
+  }, [contextMenu, treeManager]);
+
+  // Build context menu items based on target
+  // Note: Handlers use refs but are only called on user interaction, not during render
+  const contextMenuItems: ContextMenuItem[] = (() => {
+    if (!contextMenu) return [];
+
+    if (contextMenu.target.kind === "canvas") {
+      return [
+        { label: "> Ask Question", onClick: handleAskQuestion },
+        { label: "> Add Context", onClick: handleAddContext },
+      ];
+    }
+
+    const node = nodes[contextMenu.target.nodeId];
+    const items: ContextMenuItem[] = [];
+
+    // Only show "New Question" if node is not an input node
+    // Handlers are callbacks that use refs, but are only invoked on user click, not during render
+    if (node && node.type !== "input") {
+      items.push({ label: "> New Question", onClick: handleNewQuestion });
+    }
+
+    items.push(
+      { label: "> Delete", onClick: handleDelete },
+      { label: "> Delete [ and children ]", onClick: handleDeleteWithChildren }
+    );
+
+    return items;
+  })();
 
   const onAddInputNode = (fromNode: GraphNode, position: "left" | "right") => {
     const nodeElement = document.querySelector(
@@ -363,6 +507,7 @@ const AppPageContent = () => {
         onDropFilesAsContext={onDropFilesAsContext}
         onNodeDimensionsChange={setNodeDimensions}
         onRequestNodeMove={handleRequestNodeMove}
+        onRequestContextMenu={handleRequestContextMenu}
       />
       {editingContextNodeId && (
         <ContextSidebar
@@ -371,6 +516,15 @@ const AppPageContent = () => {
             treeManager.patchNode(editingContextNodeId, { value: val });
           }}
           onClose={handleCloseSidebar}
+        />
+      )}
+      {contextMenu && (
+        <ContextMenu
+          isOpen={contextMenu.isOpen}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenuItems}
+          onClose={closeContextMenu}
         />
       )}
       <div

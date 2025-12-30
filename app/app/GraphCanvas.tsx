@@ -32,6 +32,11 @@ interface GraphCanvasProps {
   ) => void;
   onNodeDimensionsChange?: (dimensions: NodeDimensions) => void;
   onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
+  onRequestContextMenu?: (
+    clientX: number,
+    clientY: number,
+    nodeId?: string
+  ) => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -70,6 +75,7 @@ export const GraphCanvas = ({
   onDropFilesAsContext,
   onNodeDimensionsChange,
   onRequestNodeMove,
+  onRequestContextMenu,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
@@ -439,6 +445,24 @@ export const GraphCanvas = ({
     [onDropFilesAsContext, transform]
   );
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onRequestContextMenu) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Check if click was on a node
+      const nodeElement = (e.target as HTMLElement).closest(
+        "[data-node-id]"
+      ) as HTMLElement | null;
+      const nodeId = nodeElement?.dataset.nodeId;
+
+      onRequestContextMenu(e.clientX, e.clientY, nodeId);
+    },
+    [onRequestContextMenu]
+  );
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <motion.div
@@ -449,6 +473,7 @@ export const GraphCanvas = ({
         className="w-full h-screen overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        onContextMenu={handleContextMenu}
       >
         <div
           ref={contentRef}

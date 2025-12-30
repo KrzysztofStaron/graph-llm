@@ -22,7 +22,8 @@ type GraphAction =
       dy: number;
       setPinned?: boolean;
     }
-  | { type: "DELETE_CASCADE"; id: string };
+  | { type: "DELETE_CASCADE"; id: string }
+  | { type: "DELETE_NODE_DETACH"; id: string };
 
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
@@ -212,6 +213,10 @@ export class TreeManager {
   deleteNode(id: string): void {
     this.dispatch({ type: "DELETE_CASCADE", id });
   }
+
+  deleteNodeDetach(id: string): void {
+    this.dispatch({ type: "DELETE_NODE_DETACH", id });
+  }
 }
 
 function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
@@ -314,6 +319,31 @@ function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
           ...node,
           parentIds: node.parentIds.filter((id) => !toDelete.has(id)),
           childrenIds: node.childrenIds.filter((id) => !toDelete.has(id)),
+        };
+      }
+
+      return updatedNodes;
+    }
+    case "DELETE_NODE_DETACH": {
+      const nodeToDelete = nodes[action.id];
+      if (!nodeToDelete) return nodes;
+
+      // Build updated nodes object
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        // Skip the node being deleted
+        if (nodeId === action.id) continue;
+
+        // Remove the deleted node from parentIds and childrenIds
+        updatedNodes[nodeId] = {
+          ...node,
+          parentIds: node.parentIds.filter(
+            (parentId) => parentId !== action.id
+          ),
+          childrenIds: node.childrenIds.filter(
+            (childId) => childId !== action.id
+          ),
         };
       }
 
