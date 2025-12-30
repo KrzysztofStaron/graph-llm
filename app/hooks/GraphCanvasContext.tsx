@@ -16,6 +16,11 @@ type GraphCanvasContextValue = {
   nodeDimensions: NodeDimensions;
   setNodeDimensions: (dimensions: NodeDimensions) => void;
   nodeDimensionsRef: React.MutableRefObject<NodeDimensions>;
+  selectedNodeIds: Set<string>;
+  selectNode: (nodeId: string) => void;
+  deselectNode: (nodeId: string) => void;
+  toggleNodeSelection: (nodeId: string) => void;
+  clearSelection: () => void;
 };
 
 const GraphCanvasContext = createContext<GraphCanvasContextValue | undefined>(
@@ -51,6 +56,11 @@ export const GraphCanvasProvider = ({
     nodeDimensions,
     setNodeDimensions,
     nodeDimensionsRef,
+    selectedNodeIds,
+    selectNode,
+    deselectNode,
+    toggleNodeSelection,
+    clearSelection,
   } = useGraphCanvas(initialNodes);
 
   return (
@@ -65,6 +75,11 @@ export const GraphCanvasProvider = ({
         nodeDimensions,
         setNodeDimensions,
         nodeDimensionsRef,
+        selectedNodeIds,
+        selectNode,
+        deselectNode,
+        toggleNodeSelection,
+        clearSelection,
       }}
     >
       {children}

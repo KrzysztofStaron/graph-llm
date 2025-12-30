@@ -1,4 +1,4 @@
-import { useReducer, useRef, useEffect, useMemo } from "react";
+import { useReducer, useRef, useEffect, useMemo, useState } from "react";
 import type {
   ContextNode,
   Edge,
@@ -445,9 +445,62 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
-  const handleMouseDown = (e: React.MouseEvent, nodeId?: string) => {
-    if (!nodeId) return; // d3-zoom will handle canvas panning
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
+    new Set()
+  );
 
+  const selectNode = (nodeId: string) => {
+    setSelectedNodeIds((prev) => new Set(prev).add(nodeId));
+  };
+
+  const deselectNode = (nodeId: string) => {
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  };
+
+  const toggleNodeSelection = (nodeId: string) => {
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedNodeIds(new Set());
+  };
+
+  const handleMouseDown = (e: React.MouseEvent, nodeId?: string) => {
+    if (!nodeId) {
+      // Click on canvas - clear selection if shift not held
+      if (!e.shiftKey) {
+        clearSelection();
+      }
+      return; // d3-zoom will handle canvas panning
+    }
+
+    // If shift is held, toggle selection instead of starting drag
+    if (e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleNodeSelection(nodeId);
+      return;
+    }
+
+    // Click on node without shift
+    const isNodeSelected = selectedNodeIds.has(nodeId);
+    if (!isNodeSelected) {
+      // Node is not selected - clear all selections and drag just this node
+      clearSelection();
+    }
+    // If node is selected, keep the selection and drag all selected nodes
     e.preventDefault();
     lastMousePos.current = { x: e.clientX, y: e.clientY };
     draggingRef.current = { type: "node", nodeId, hasMoved: false };
@@ -475,7 +528,16 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
         // On first move, mark as pinned
         const setPinned = !draggingRef.current.hasMoved;
         draggingRef.current.hasMoved = true;
-        treeManager.moveNode(draggingRef.current.nodeId, dx, dy, setPinned);
+
+        // If the dragged node is selected, move all selected nodes together
+        if (selectedNodeIds.has(draggingRef.current.nodeId)) {
+          selectedNodeIds.forEach((nodeId) => {
+            treeManager.moveNode(nodeId, dx, dy, setPinned);
+          });
+        } else {
+          // Move only the dragged node
+          treeManager.moveNode(draggingRef.current.nodeId, dx, dy, setPinned);
+        }
       }
     };
 
@@ -489,7 +551,7 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [treeManager, transform.k]);
+  }, [treeManager, transform.k, selectedNodeIds]);
 
   return {
     transform,
@@ -501,5 +563,10 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     nodeDimensions,
     setNodeDimensions,
     nodeDimensionsRef,
+    selectedNodeIds,
+    selectNode,
+    deselectNode,
+    toggleNodeSelection,
+    clearSelection,
   };
 };

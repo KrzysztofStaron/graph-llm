@@ -37,6 +37,8 @@ interface GraphCanvasProps {
     clientY: number,
     nodeId?: string
   ) => void;
+  selectedNodeIds?: Set<string>;
+  onClearSelection?: () => void;
 }
 
 type NodeDimensions = Record<string, { width: number; height: number }>;
@@ -76,6 +78,8 @@ export const GraphCanvas = ({
   onNodeDimensionsChange,
   onRequestNodeMove,
   onRequestContextMenu,
+  selectedNodeIds,
+  onClearSelection,
 }: GraphCanvasProps) => {
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
@@ -85,9 +89,7 @@ export const GraphCanvas = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nodeDimensions, setNodeDimensions] = useState<NodeDimensions>({});
-  const [appearingNodes, setAppearingNodes] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
+  const [appearingNodes, setAppearingNodes] = useState<Record<string, { x: number; y: number }>>({});
   const [deletingNodes, setDeletingNodes] = useState<
     Record<string, { x: number; y: number }>
   >({});
@@ -202,6 +204,29 @@ export const GraphCanvas = ({
     [nodeArray, nodeDimensions]
   );
 
+  // Handle canvas clicks to clear selection (before d3-zoom processes them)
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !onClearSelection) return;
+
+    const handleCanvasMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      // Only handle if clicking on canvas background (not on a node)
+      const closestNode = target.closest("[data-node-id]");
+      if (!closestNode && !e.shiftKey) {
+        onClearSelection();
+      }
+    };
+
+    // Use capture phase to fire before d3-zoom
+    viewport.addEventListener("mousedown", handleCanvasMouseDown, true);
+
+    return () => {
+      viewport.removeEventListener("mousedown", handleCanvasMouseDown, true);
+    };
+  }, [onClearSelection]);
+
   // Initialize zoom behavior
   useEffect(() => {
     if (!viewportRef.current) return;
@@ -264,10 +289,19 @@ export const GraphCanvas = ({
       ) {
         fitView();
       }
+      if (
+        e.key === "Escape" &&
+        !(
+          e.target instanceof HTMLTextAreaElement ||
+          e.target instanceof HTMLInputElement
+        )
+      ) {
+        onClearSelection?.();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [fitView]);
+  }, [fitView, onClearSelection]);
 
   // Track node appear/delete to show particle effects
   useEffect(() => {
@@ -474,6 +508,16 @@ export const GraphCanvas = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
+        onMouseDown={(e) => {
+          // Only handle if clicking directly on the viewport (not on a node)
+          const target = e.target as HTMLElement;
+          const closestNode = target.closest(
+            "[data-node-id]"
+          ) as HTMLElement | null;
+          if (!closestNode) {
+            onMouseDown(e);
+          }
+        }}
       >
         <div
           ref={contentRef}
@@ -523,78 +567,85 @@ export const GraphCanvas = ({
           </svg>
 
           <AnimatePresence mode="popLayout" initial={false}>
-            {nodeArray.map((node) => (
-              <motion.div
-                key={node.id}
-                className={`absolute cursor-move ${
-                  node.type === "response" ? "w-max" : ""
-                }`}
-                data-node-id={node.id}
-                style={{
-                  left: node.x,
-                  top: node.y,
-                  transformOrigin: "center center",
-                }}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{
-                  scale: 1,
-                  opacity: 1,
-                  transition: {
-                    duration: 0.2,
-                    ease: "easeOut",
-                  },
-                }}
-                exit={{
-                  scale: 0,
-                  opacity: 0,
-                  transition: {
-                    duration: 0.2,
-                    ease: "easeIn",
-                  },
-                }}
-                onMouseDown={(e) => {
-                  onMouseDown(e, node.id);
-                }}
-                onDoubleClick={(e) => {
-                  if (node.type === "context" && onContextNodeDoubleClick) {
-                    e.stopPropagation();
-                    onContextNodeDoubleClick(node.id);
-                  }
-                }}
-              >
-                {node.type === "input" && (
-                  <InputFieldNode
-                    node={node}
-                    onInputSubmit={(query) => onInputSubmit(query, node)}
-                    onDelete={() => onDeleteNode(node.id)}
-                  />
-                )}
-                {node.type === "response" && (
-                  <ResponseNode
-                    node={node}
-                    onAddNode={(position) =>
-                      onAddNodeFromResponse(node, position)
+            {nodeArray.map((node) => {
+              const isSelected = selectedNodeIds?.has(node.id) ?? false;
+              return (
+                <motion.div
+                  key={node.id}
+                  className={`absolute cursor-move ${
+                    node.type === "response" ? "w-max" : ""
+                  }`}
+                  data-node-id={node.id}
+                  style={{
+                    left: node.x,
+                    top: node.y,
+                    transformOrigin: "center center",
+                    boxShadow: isSelected
+                      ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
+                      : undefined,
+                    transition: "box-shadow 0.2s ease",
+                  }}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{
+                    scale: 1,
+                    opacity: 1,
+                    transition: {
+                      duration: 0.2,
+                      ease: "easeOut",
+                    },
+                  }}
+                  exit={{
+                    scale: 0,
+                    opacity: 0,
+                    transition: {
+                      duration: 0.2,
+                      ease: "easeIn",
+                    },
+                  }}
+                  onMouseDown={(e) => {
+                    onMouseDown(e, node.id);
+                  }}
+                  onDoubleClick={(e) => {
+                    if (node.type === "context" && onContextNodeDoubleClick) {
+                      e.stopPropagation();
+                      onContextNodeDoubleClick(node.id);
                     }
-                  />
-                )}
-                {node.type === "context" && (
-                  <ContextNode
-                    node={node}
-                    onAddNode={(position) =>
-                      onAddNodeFromContext(node, position)
-                    }
-                  />
-                )}
-                {node.type === "image-context" && (
-                  <ImageContextNode
-                    node={node}
-                    onAddNode={(position) =>
-                      onAddNodeFromContext(node, position)
-                    }
-                  />
-                )}
-              </motion.div>
-            ))}
+                  }}
+                >
+                  {node.type === "input" && (
+                    <InputFieldNode
+                      node={node}
+                      onInputSubmit={(query) => onInputSubmit(query, node)}
+                      onDelete={() => onDeleteNode(node.id)}
+                    />
+                  )}
+                  {node.type === "response" && (
+                    <ResponseNode
+                      node={node}
+                      onAddNode={(position) =>
+                        onAddNodeFromResponse(node, position)
+                      }
+                    />
+                  )}
+                  {node.type === "context" && (
+                    <ContextNode
+                      node={node}
+                      onAddNode={(position) =>
+                        onAddNodeFromContext(node, position)
+                      }
+                    />
+                  )}
+                  {node.type === "image-context" && (
+                    <ImageContextNode
+                      node={node}
+                      onAddNode={(position) =>
+                        onAddNodeFromContext(node, position)
+                      }
+                    />
+                  )}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       </motion.div>

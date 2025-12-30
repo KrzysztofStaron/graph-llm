@@ -46,6 +46,8 @@ const AppPageContent = () => {
     handleMouseDown,
     setNodeDimensions,
     nodeDimensionsRef,
+    selectedNodeIds,
+    clearSelection,
   } = useGraphCanvasContext();
 
   // Context node editing state
@@ -176,9 +178,31 @@ const AppPageContent = () => {
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
-    treeManager.linkNodes(clickedNode.id, newInputNode.id);
     nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
-  }, [contextMenu, nodes, treeManager, nodesRef, nodeDimensionsRef]);
+
+    // If 2+ nodes are selected, link all selected nodes (excluding InputFieldNodes) as parents
+    if (selectedNodeIds.size >= 2) {
+      const eligibleParentIds = Array.from(selectedNodeIds).filter((nodeId) => {
+        const node = nodes[nodeId];
+        return node && node.type !== "input";
+      });
+
+      // Link all eligible selected nodes as parents
+      eligibleParentIds.forEach((parentId) => {
+        treeManager.linkNodes(parentId, newInputNode.id);
+      });
+    } else {
+      // Default behavior: link clicked node as parent
+      treeManager.linkNodes(clickedNode.id, newInputNode.id);
+    }
+  }, [
+    contextMenu,
+    nodes,
+    treeManager,
+    nodesRef,
+    nodeDimensionsRef,
+    selectedNodeIds,
+  ]);
 
   const handleDelete = useCallback(() => {
     if (!contextMenu || contextMenu.target.kind !== "node") return;
@@ -509,6 +533,8 @@ const AppPageContent = () => {
         onNodeDimensionsChange={setNodeDimensions}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
+        selectedNodeIds={selectedNodeIds}
+        onClearSelection={clearSelection}
       />
       {editingContextNodeId && (
         <ContextSidebar
