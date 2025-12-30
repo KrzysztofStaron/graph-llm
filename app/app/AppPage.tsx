@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
-import { createNode, TreeManager } from "../hooks/useGraphCanvas";
+import { createNode } from "../hooks/useGraphCanvas";
+import { TreeManager } from "../interfaces/TreeManager";
 import { GraphCanvas } from "./GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
 import { GraphNode, GraphNodes } from "../types/graph";

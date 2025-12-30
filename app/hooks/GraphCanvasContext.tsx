@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { useGraphCanvas, type TreeManager } from "./useGraphCanvas";
+import { useGraphCanvas } from "./useGraphCanvas";
+import type { TreeManager } from "../interfaces/TreeManager";
 import type { GraphNodes } from "../types/graph";
 
 export type NodeDimensions = Record<string, { width: number; height: number }>;
