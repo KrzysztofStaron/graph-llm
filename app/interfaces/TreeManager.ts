@@ -178,7 +178,15 @@ export class TreeManager {
           const mergedText = textNodes
             .map((node) => node.value)
             .join("<separatorOfContextualData />");
-          contentArray.push({ type: "text", text: mergedText });
+
+          contentArray.push({
+            type: "text",
+            text: wrapContextMetadata({
+              id: textNodes[0].id,
+              value: mergedText,
+              parentIds: nodes[textNodes[0].id]?.parentIds || [],
+            }),
+          });
         }
 
         // Add image nodes
