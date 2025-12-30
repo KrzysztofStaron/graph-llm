@@ -12,6 +12,7 @@ import {
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { compressImage } from "../utils/imageCompression";
 import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
+import { parseDocumentWithFallback } from "../utils/documentParserClient";
 
 const initialNodes: GraphNodes = {
   "context-1": {
@@ -288,17 +289,44 @@ const AppPageContent = () => {
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
       const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
+      const documentExtensions = [
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".xlsx",
+        ".html",
+        ".htm",
+      ];
       const fileArray = Array.from(files);
 
-      // Separate text files and image files
+      // Separate file types
       const textFiles = fileArray.filter((file) =>
         acceptedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
       );
       const imageFiles = fileArray.filter((file) =>
         file.type.startsWith("image/")
       );
+      const documentFiles = fileArray.filter(
+        (file) =>
+          documentExtensions.some((ext) =>
+            file.name.toLowerCase().endsWith(ext)
+          ) ||
+          file.type === "application/pdf" ||
+          file.type ===
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          file.type ===
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+          file.type ===
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+          file.type === "text/html"
+      );
 
-      if (textFiles.length === 0 && imageFiles.length === 0) return;
+      if (
+        textFiles.length === 0 &&
+        imageFiles.length === 0 &&
+        documentFiles.length === 0
+      )
+        return;
 
       let nodeIndex = 0;
 
@@ -357,6 +385,40 @@ const AppPageContent = () => {
           freePos.y
         );
         const nodeWithValue = { ...newImageContextNode, value: dataUrl };
+        treeManager.addNode(nodeWithValue);
+        workingNodes[nodeWithValue.id] = nodeWithValue;
+        nodeIndex++;
+      }
+
+      // Create document nodes
+      for (const file of documentFiles) {
+        const parseResult = await parseDocumentWithFallback(file);
+
+        if (parseResult.error) {
+          console.error(`Failed to parse ${file.name}:`, parseResult.error);
+          continue;
+        }
+
+        // Stagger positions: prefer stacking vertically below, slight horizontal offset
+        const targetX = canvasPoint.x + nodeIndex * 40;
+        const targetY = canvasPoint.y + nodeIndex * 120;
+
+        const newNodeDim = getDefaultNodeDimensions("document");
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          newNodeDim.width,
+          newNodeDim.height,
+          workingNodes,
+          nodeDimensionsRef.current,
+          "below"
+        );
+
+        const newDocumentNode = createNode("document", freePos.x, freePos.y);
+        const nodeWithValue = {
+          ...newDocumentNode,
+          value: parseResult.text,
+        };
         treeManager.addNode(nodeWithValue);
         workingNodes[nodeWithValue.id] = nodeWithValue;
         nodeIndex++;

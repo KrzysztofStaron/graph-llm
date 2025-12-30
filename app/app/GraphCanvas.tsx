@@ -3,6 +3,7 @@ import { InputFieldNode } from "./nodes/InputFieldNode";
 import { ResponseNode } from "./nodes/ResponseNode";
 import { ContextNode } from "./nodes/ContextNode";
 import { ImageContextNode } from "./nodes/ImageContextNode";
+import { DocumentNode } from "./nodes/DocumentNode";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
@@ -39,13 +40,21 @@ const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
   const width =
     dim?.width ??
-    (node.type === "context" ? 176 : node.type === "image-context" ? 464 : 400);
+    (node.type === "context"
+      ? 176
+      : node.type === "image-context"
+      ? 464
+      : node.type === "document"
+      ? 176
+      : 400);
   const height =
     dim?.height ??
     (node.type === "context"
       ? 96
       : node.type === "image-context"
       ? 384
+      : node.type === "document"
+      ? 96
       : node.type === "input"
       ? 120
       : 80);
@@ -637,6 +646,9 @@ export const GraphCanvas = ({
                   )}
                   {node.type === "image-context" && (
                     <ImageContextNode node={node} isSelected={isSelected} />
+                  )}
+                  {node.type === "document" && (
+                    <DocumentNode node={node} isSelected={isSelected} />
                   )}
                 </motion.div>
               );

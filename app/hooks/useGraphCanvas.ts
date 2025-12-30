@@ -8,6 +8,7 @@ import {
 } from "react";
 import type {
   ContextNode,
+  DocumentNode,
   Edge,
   GraphNode,
   GraphNodes,
@@ -184,6 +185,11 @@ export function createNode(
   x: number,
   y: number
 ): ImageContextNode;
+export function createNode(
+  type: "document",
+  x: number,
+  y: number
+): DocumentNode;
 
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
