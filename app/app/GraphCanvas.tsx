@@ -202,6 +202,9 @@ export const GraphCanvas = ({
     if (!viewport || !onClearSelection) return;
 
     const handleCanvasMouseDown = (e: MouseEvent) => {
+      // Don't clear selection on right-click (button 2)
+      if (e.button === 2) return;
+
       const target = e.target as HTMLElement;
 
       // Only handle if clicking on canvas background (not on a node)
@@ -501,6 +504,9 @@ export const GraphCanvas = ({
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
         onMouseDown={(e) => {
+          // Don't handle right-clicks
+          if (e.button === 2) return;
+
           // Only handle if clicking directly on the viewport (not on a node)
           const target = e.target as HTMLElement;
           const closestNode = target.closest(

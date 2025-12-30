@@ -114,8 +114,41 @@ const AppPageContent = () => {
     setContextMenu(null);
   }, []);
 
-  // Context menu actions
-  const handleAskQuestion = useCallback(() => {
+  // Context menu actions - Delete handlers
+  const handleDeleteSingle = useCallback(
+    (nodeId: string) => {
+      treeManager.deleteNodeDetach(nodeId);
+    },
+    [treeManager]
+  );
+
+  const handleDeleteSingleWithChildren = useCallback(
+    (nodeId: string) => {
+      treeManager.deleteNode(nodeId);
+    },
+    [treeManager]
+  );
+
+  const handleDeleteAll = useCallback(
+    (selectedNodeIds: Set<string>) => {
+      selectedNodeIds.forEach((nodeId) => {
+        treeManager.deleteNodeDetach(nodeId);
+      });
+    },
+    [treeManager]
+  );
+
+  const handleDeleteAllWithChildren = useCallback(
+    (selectedNodeIds: Set<string>) => {
+      selectedNodeIds.forEach((nodeId) => {
+        treeManager.deleteNode(nodeId);
+      });
+    },
+    [treeManager]
+  );
+
+  // Context menu actions - Creation handlers
+  const handleNewQuestionOnCanvas = useCallback(() => {
     if (!contextMenu) return;
 
     const newNodeDim = getDefaultNodeDimensions("input");
@@ -133,6 +166,55 @@ const AppPageContent = () => {
     treeManager.addNode(newInputNode);
     nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
   }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
+
+  const handleAskQuestion = useCallback(() => {
+    if (!contextMenu) return;
+
+    let eligibleParentIds: string[] = [];
+
+    // If nodes are selected, use selected nodes
+    if (selectedNodeIds.size > 0) {
+      eligibleParentIds = Array.from(selectedNodeIds).filter((nodeId) => {
+        const node = nodes[nodeId];
+        return node && node.type !== "input";
+      });
+    } else if (contextMenu.target.kind === "node") {
+      // If no nodes selected but right-clicking a node, use that node if it's non-input
+      const clickedNode = nodes[contextMenu.target.nodeId];
+      if (clickedNode && clickedNode.type !== "input") {
+        eligibleParentIds = [clickedNode.id];
+      }
+    }
+
+    if (eligibleParentIds.length === 0) return;
+
+    const newNodeDim = getDefaultNodeDimensions("input");
+    const freePos = findFreePosition(
+      contextMenu.canvasX,
+      contextMenu.canvasY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const newInputNode = createNode("input", freePos.x, freePos.y);
+    treeManager.addNode(newInputNode);
+    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
+
+    // Link all eligible parent nodes
+    eligibleParentIds.forEach((parentId) => {
+      treeManager.linkNodes(parentId, newInputNode.id);
+    });
+  }, [
+    contextMenu,
+    treeManager,
+    nodesRef,
+    nodeDimensionsRef,
+    selectedNodeIds,
+    nodes,
+  ]);
 
   const handleAddContext = useCallback(() => {
     if (!contextMenu) return;
@@ -156,94 +238,109 @@ const AppPageContent = () => {
     };
   }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
 
-  const handleNewQuestion = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "node") return;
-
-    const clickedNode = nodes[contextMenu.target.nodeId];
-    if (!clickedNode) return;
-
-    const targetX = contextMenu.canvasX;
-    const targetY = contextMenu.canvasY;
-
-    const newNodeDim = getDefaultNodeDimensions("input");
-    const freePos = findFreePosition(
-      targetX,
-      targetY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below"
-    );
-
-    const newInputNode = createNode("input", freePos.x, freePos.y);
-    treeManager.addNode(newInputNode);
-    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
-
-    // If 2+ nodes are selected, link all selected nodes (excluding InputFieldNodes) as parents
-    if (selectedNodeIds.size >= 2) {
-      const eligibleParentIds = Array.from(selectedNodeIds).filter((nodeId) => {
-        const node = nodes[nodeId];
-        return node && node.type !== "input";
-      });
-
-      // Link all eligible selected nodes as parents
-      eligibleParentIds.forEach((parentId) => {
-        treeManager.linkNodes(parentId, newInputNode.id);
-      });
-    } else {
-      // Default behavior: link clicked node as parent
-      treeManager.linkNodes(clickedNode.id, newInputNode.id);
-    }
-  }, [
-    contextMenu,
-    nodes,
-    treeManager,
-    nodesRef,
-    nodeDimensionsRef,
-    selectedNodeIds,
-  ]);
-
-  const handleDelete = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "node") return;
-
-    // Use deleteNodeDetach when implemented, for now use deleteNode
-    // treeManager.deleteNodeDetach(contextMenu.target.nodeId);
-    // For now, we'll implement this in the next todo
-    treeManager.deleteNodeDetach(contextMenu.target.nodeId);
-  }, [contextMenu, treeManager]);
-
-  const handleDeleteWithChildren = useCallback(() => {
-    if (!contextMenu || contextMenu.target.kind !== "node") return;
-
-    treeManager.deleteNode(contextMenu.target.nodeId);
-  }, [contextMenu, treeManager]);
-
-  // Build context menu items based on target
+  // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
   // Note: Handlers use refs but are only called on user interaction, not during render
   const contextMenuItems: ContextMenuItem[] = (() => {
     if (!contextMenu) return [];
 
+    const isActingUponNodes = selectedNodeIds.size > 0;
+
+    // State 1: Acting upon nodes (when nodes are selected)
+    if (isActingUponNodes) {
+      const items: ContextMenuItem[] = [];
+
+      // Check if at least one selected node is non-input
+      const hasNonInputSelected = Array.from(selectedNodeIds).some((nodeId) => {
+        const node = nodes[nodeId];
+        return node && node.type !== "input";
+      });
+
+      // Show "Ask Question" only if at least one selected node is non-input
+      if (hasNonInputSelected) {
+        // eslint-disable-next-line react-hooks/refs
+        items.push({ label: "Ask Question", onClick: handleAskQuestion });
+      }
+
+      // Determine delete options based on selection count
+      if (selectedNodeIds.size <= 1) {
+        // Single selection: use single node delete handlers
+        const nodeId = Array.from(selectedNodeIds)[0];
+        const node = nodes[nodeId];
+
+        if (node) {
+          // Always show "Delete"
+          items.push({
+            label: "Delete",
+            onClick: () => handleDeleteSingle(nodeId),
+          });
+
+          // Show "Delete [ with children ]" if node has children
+          if (node.childrenIds.length > 0) {
+            items.push({
+              label: "Delete [ with children ]",
+              onClick: () => handleDeleteSingleWithChildren(nodeId),
+            });
+          }
+        }
+      } else {
+        // Multiple selection: use delete all handlers
+        // Check if at least one selected node has children
+        const hasAnyChildren = Array.from(selectedNodeIds).some((nodeId) => {
+          const node = nodes[nodeId];
+          return node && node.childrenIds.length > 0;
+        });
+
+        // Always show "Delete All"
+        items.push({
+          label: "Delete All",
+          onClick: () => handleDeleteAll(selectedNodeIds),
+        });
+
+        // Show "Delete All [ with children ]" if at least one node has children
+        if (hasAnyChildren) {
+          items.push({
+            label: "Delete All [ with children ]",
+            onClick: () => handleDeleteAllWithChildren(selectedNodeIds),
+          });
+        }
+      }
+
+      return items;
+    }
+
+    // State 2: Not acting upon nodes (when no nodes are selected)
     if (contextMenu.target.kind === "canvas") {
       return [
-        { label: "> Ask Question", onClick: handleAskQuestion },
-        { label: "> Add Context", onClick: handleAddContext },
+        { label: "New Question", onClick: handleNewQuestionOnCanvas },
+        { label: "New Context", onClick: handleAddContext },
       ];
     }
 
+    // Not acting upon nodes, but clicking on a specific node
     const node = nodes[contextMenu.target.nodeId];
+    if (!node) return [];
+
     const items: ContextMenuItem[] = [];
 
-    // Only show "New Question" if node is not an input node
-    // Handlers are callbacks that use refs, but are only invoked on user click, not during render
-    if (node && node.type !== "input") {
-      items.push({ label: "> New Question", onClick: handleNewQuestion });
+    // Show "Ask Question" for non-input nodes (creates and links)
+    if (node.type !== "input") {
+      // eslint-disable-next-line react-hooks/refs
+      items.push({ label: "Ask Question", onClick: handleAskQuestion });
     }
 
-    items.push(
-      { label: "> Delete", onClick: handleDelete },
-      { label: "> Delete [ and children ]", onClick: handleDeleteWithChildren }
-    );
+    // Always show "Delete"
+    items.push({
+      label: "Delete",
+      onClick: () => handleDeleteSingle(node.id),
+    });
+
+    // Show "Delete [ with children ]" if node has children
+    if (node.childrenIds.length > 0) {
+      items.push({
+        label: "Delete [ with children ]",
+        onClick: () => handleDeleteSingleWithChildren(node.id),
+      });
+    }
 
     return items;
   })();

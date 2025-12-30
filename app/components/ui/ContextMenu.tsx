@@ -74,7 +74,7 @@ export const ContextMenu = ({
                 }}
                 className="w-full px-4 py-2 text-left text-sm font-mono text-white bg-transparent hover:bg-white hover:text-black transition-all duration-200"
               >
-                {item.label}
+                {"> " + item.label}
               </button>
             ))}
           </div>
