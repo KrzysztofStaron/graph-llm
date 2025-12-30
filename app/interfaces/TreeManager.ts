@@ -124,14 +124,10 @@ export class TreeManager {
     const maxLevel = Math.max(...Object.keys(normalizedTree).map(Number));
     const messages = [];
 
-    const wrapContextMetadata = (node: {
-      id: string;
-      value: string;
-      parentIds: string[];
-    }) => {
-      return `<metadata id="${node.id}" parentIds="${node.parentIds.join(
+    const wrapContextMetadata = (node: GraphNode) => {
+      return `<node id="${node.id}" parentIds="${node.parentIds.join(
         ","
-      )}">${node.value}</metadata>`;
+      )}" type="${node.type}">${node.value}</node>`;
     };
 
     for (let level = 0; level <= maxLevel; level++) {
@@ -181,11 +177,7 @@ export class TreeManager {
 
           contentArray.push({
             type: "text",
-            text: wrapContextMetadata({
-              id: textNodes[0].id,
-              value: mergedText,
-              parentIds: nodes[textNodes[0].id]?.parentIds || [],
-            }),
+            text: wrapContextMetadata(nodes[textNodes[0].id]),
           });
         }
 
@@ -207,11 +199,7 @@ export class TreeManager {
       } else {
         // Standard text-only format
         const mergedNodes = levelNodes.map((node) =>
-          wrapContextMetadata({
-            id: node.id,
-            value: node.value,
-            parentIds: nodes[node.id]?.parentIds || [],
-          })
+          wrapContextMetadata(nodes[node.id] as GraphNode)
         );
 
         messages.push({
@@ -228,12 +216,16 @@ export class TreeManager {
           and the connections between the nodes are the edges. When responding don't include metadata tags, 
           only the content of the nodes. As metadata is only for the LLM to understand the connections between the nodes, 
           it's not part of the response. You can use markdown and latex for formatting purposes. Try not to send walls of text.
+
+          Don't leak <separatorOfContextualData /> in your responses.
+          Don't leak <node id="..." parentIds="..." type="...">...</node> in your responses.
           
           CRUCIAL:
-          - don't include metadata tags in your responses
-          - don't include the metadata in your responses
-          - don't include the metadata in your responses
-          
+          - don't include internal tags in your responses
+          - don't include internal tags in your responses
+          - don't include internal tags in your responses
+
+          Core rule:  Responses = content only. Tags/metadata stay invisible (backend graph only). No more leaks. Clean slate!
           `,
       },
       ...messages.reverse(),
