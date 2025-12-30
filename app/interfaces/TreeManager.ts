@@ -151,7 +151,8 @@ export class TreeManager {
       const role: "user" | "assistant" =
         roleType === "context" ||
         roleType === "input" ||
-        roleType === "image-context"
+        roleType === "image-context" ||
+        roleType === "document"
           ? "user"
           : "assistant";
 
@@ -227,6 +228,20 @@ export class TreeManager {
           - don't include internal tags in your responses
 
           Core rule:  Responses = content only. Tags/metadata stay invisible (backend graph only). No more leaks. Clean slate!
+
+          Supported Document Types:
+          The system can parse and process various document formats:
+          - PDF files (.pdf) - Text-based and scanned PDFs
+          - Microsoft Word documents (.docx)
+          - Microsoft Excel spreadsheets (.xlsx) - Converted to CSV format
+          - Microsoft PowerPoint presentations (.pptx)
+          - HTML files (.html, .htm)
+          - Plain text files (.txt)
+          - Markdown files (.md)
+          - JSON files (.json)
+          - CSV files (.csv)
+          
+          When document nodes are provided, they contain parsed text content from these file formats. Use the content as context for your responses.
           `,
       },
       ...messages.reverse(),
