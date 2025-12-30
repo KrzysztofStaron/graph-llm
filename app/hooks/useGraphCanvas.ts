@@ -161,55 +161,19 @@ export function createNode(
   x: number,
   y: number
 ): ImageContextNode;
+
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
 
-  switch (type) {
-    case "input":
-      return {
-        id,
-        type: "input",
-        x,
-        y,
-        value: "",
-        parentIds: [],
-        childrenIds: [],
-      };
-    case "response":
-      return {
-        id,
-        type: "response",
-        x,
-        y,
-        value: "",
-        parentIds: [],
-        childrenIds: [],
-      };
-    case "context":
-      return {
-        id,
-        type: "context",
-        x,
-        y,
-        value: "",
-        parentIds: [],
-        childrenIds: [],
-      };
-    case "image-context":
-      return {
-        id,
-        type: "image-context",
-        x,
-        y,
-        value: "",
-        parentIds: [],
-        childrenIds: [],
-      };
-    default: {
-      const _exhaustive: never = type;
-      return _exhaustive;
-    }
-  }
+  return {
+    id,
+    type,
+    x,
+    y,
+    value: "",
+    parentIds: [],
+    childrenIds: [],
+  };
 }
 
 export type NodeDimensions = Record<string, { width: number; height: number }>;
