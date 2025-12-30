@@ -493,24 +493,33 @@ export const GraphCanvas = ({
               height: 1,
             }}
           >
-            {edges.map((edge) => {
-              const fromNode = nodes[edge.from];
-              const toNode = nodes[edge.to];
-              if (!fromNode || !toNode) return null;
-              const from = getNodeCenter(fromNode, nodeDimensions);
-              const to = getNodeCenter(toNode, nodeDimensions);
-              return (
-                <line
-                  key={`${edge.from}-${edge.to}`}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
-                  stroke="rgba(255, 255, 255, 0.2)"
-                  strokeWidth={2}
-                />
-              );
-            })}
+            <AnimatePresence>
+              {edges.map((edge) => {
+                const fromNode = nodes[edge.from];
+                const toNode = nodes[edge.to];
+                if (!fromNode || !toNode) return null;
+                const from = getNodeCenter(fromNode, nodeDimensions);
+                const to = getNodeCenter(toNode, nodeDimensions);
+                const isAppearing = edge.to in appearingNodes;
+                return (
+                  <motion.line
+                    key={`${edge.from}-${edge.to}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke="white"
+                    strokeWidth={2}
+                    initial={isAppearing ? { opacity: 0 } : { opacity: 0.2 }}
+                    animate={{ opacity: 0.2 }}
+                    transition={{
+                      duration: 0.2,
+                      ease: "easeOut",
+                    }}
+                  />
+                );
+              })}
+            </AnimatePresence>
           </svg>
 
           <AnimatePresence mode="popLayout" initial={false}>

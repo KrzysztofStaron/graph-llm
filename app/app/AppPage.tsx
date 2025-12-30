@@ -176,6 +176,7 @@ const AppPageContent = () => {
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
+    treeManager.linkNodes(clickedNode.id, newInputNode.id);
     nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
   }, [contextMenu, nodes, treeManager, nodesRef, nodeDimensionsRef]);
 
