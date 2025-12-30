@@ -300,14 +300,15 @@ const AppPageContent = () => {
       const fileArray = Array.from(files);
 
       // Separate file types
-      const textFiles = fileArray.filter((file) =>
-        acceptedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
-      );
       const imageFiles = fileArray.filter((file) =>
         file.type.startsWith("image/")
       );
+      // Include plain text files in document files now
       const documentFiles = fileArray.filter(
         (file) =>
+          acceptedExtensions.some((ext) =>
+            file.name.toLowerCase().endsWith(ext)
+          ) ||
           documentExtensions.some((ext) =>
             file.name.toLowerCase().endsWith(ext)
           ) ||
@@ -318,46 +319,16 @@ const AppPageContent = () => {
             "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
           file.type ===
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-          file.type === "text/html"
+          file.type === "text/html" ||
+          file.type.startsWith("text/")
       );
 
-      if (
-        textFiles.length === 0 &&
-        imageFiles.length === 0 &&
-        documentFiles.length === 0
-      )
-        return;
+      if (imageFiles.length === 0 && documentFiles.length === 0) return;
 
       let nodeIndex = 0;
 
       // Keep track of nodes as we create them for collision detection
       const workingNodes = { ...nodesRef.current };
-
-      // Create text context nodes
-      for (const file of textFiles) {
-        const text = await file.text();
-
-        // Stagger positions: prefer stacking vertically below, slight horizontal offset
-        const targetX = canvasPoint.x + nodeIndex * 40;
-        const targetY = canvasPoint.y + nodeIndex * 120;
-
-        const newNodeDim = getDefaultNodeDimensions("context");
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          newNodeDim.width,
-          newNodeDim.height,
-          workingNodes,
-          nodeDimensionsRef.current,
-          "below"
-        );
-
-        const newContextNode = createNode("context", freePos.x, freePos.y);
-        const nodeWithValue = { ...newContextNode, value: text };
-        treeManager.addNode(nodeWithValue);
-        workingNodes[nodeWithValue.id] = nodeWithValue;
-        nodeIndex++;
-      }
 
       // Create image context nodes
       for (const file of imageFiles) {
@@ -390,9 +361,26 @@ const AppPageContent = () => {
         nodeIndex++;
       }
 
-      // Create document nodes
+      // Create document nodes (includes plain text files now)
       for (const file of documentFiles) {
-        const parseResult = await parseDocumentWithFallback(file);
+        // For plain text files (.txt, .md, .json, .csv), parse directly
+        // For other document types, use the parser with fallback
+        let parseResult;
+        const isPlainText = acceptedExtensions.some((ext) =>
+          file.name.toLowerCase().endsWith(ext)
+        );
+
+        if (isPlainText) {
+          // Parse plain text files directly and format with filename
+          const text = await file.text();
+          parseResult = {
+            text: `FILENAME:${file.name}\n\n${text}`,
+            filename: file.name,
+          };
+        } else {
+          // Use parser with fallback for other document types
+          parseResult = await parseDocumentWithFallback(file);
+        }
 
         if (parseResult.error) {
           console.error(`Failed to parse ${file.name}:`, parseResult.error);

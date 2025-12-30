@@ -2,10 +2,15 @@ import { memo } from "react";
 import { DocumentNode as DocumentNodeType } from "@/app/types/graph";
 import { FaRegFilePdf } from "react-icons/fa";
 import { BsFiletypeDocx } from "react-icons/bs";
-import { BsFiletypeXlsx } from "react-icons/bs";
+import { BsFileEarmarkSpreadsheet } from "react-icons/bs";
 import { BsFiletypePptx } from "react-icons/bs";
+import { BsFiletypeTxt } from "react-icons/bs";
+import { BsFiletypeMd } from "react-icons/bs";
+import { LuFileJson } from "react-icons/lu";
+import { BsFiletypeCsv } from "react-icons/bs";
 import { FaHtml5 } from "react-icons/fa";
 import { FileText } from "lucide-react";
+import { FiFileText } from "react-icons/fi";
 
 type DocumentNodeProps = {
   node: DocumentNodeType;
@@ -40,7 +45,7 @@ const truncateFilename = (filename: string, maxLength: number = 30): string => {
 // Get icon component based on file extension
 const getFileIcon = (filename: string) => {
   const lowerFilename = filename.toLowerCase();
-  
+
   if (lowerFilename.endsWith(".pdf")) {
     return <FaRegFilePdf className="size-8 mb-1" />;
   }
@@ -48,7 +53,7 @@ const getFileIcon = (filename: string) => {
     return <BsFiletypeDocx className="size-8 mb-1" />;
   }
   if (lowerFilename.endsWith(".xlsx")) {
-    return <BsFiletypeXlsx className="size-8 mb-1" />;
+    return <BsFileEarmarkSpreadsheet className="size-8 mb-1" />;
   }
   if (lowerFilename.endsWith(".pptx")) {
     return <BsFiletypePptx className="size-8 mb-1" />;
@@ -56,7 +61,19 @@ const getFileIcon = (filename: string) => {
   if (lowerFilename.endsWith(".html") || lowerFilename.endsWith(".htm")) {
     return <FaHtml5 className="size-8 mb-1" />;
   }
-  
+  if (lowerFilename.endsWith(".txt")) {
+    return <FiFileText className="size-8 mb-1" />;
+  }
+  if (lowerFilename.endsWith(".md")) {
+    return <BsFiletypeMd className="size-8 mb-1" />;
+  }
+  if (lowerFilename.endsWith(".json")) {
+    return <LuFileJson className="size-8 mb-1" />;
+  }
+  if (lowerFilename.endsWith(".csv")) {
+    return <BsFiletypeCsv className="size-8 mb-1" />;
+  }
+
   // Default icon for other file types
   return <FileText className="size-8 mb-1" />;
 };
