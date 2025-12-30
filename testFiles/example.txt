@@ -1,0 +1,23 @@
+Sample Text Document for Testing
+
+This is a plain text file to test document parsing functionality in the graph-llm application.
+
+Features to Test:
+- Plain text parsing
+- Line breaks and formatting
+- Special characters and symbols
+
+Content Example:
+The quick brown fox jumps over the lazy dog. This is a test sentence that contains all letters of the alphabet.
+
+Numbers: 1234567890
+Special characters: !@#$%^&*()_+-=[]{}|;:,.<>?
+
+Multi-line content:
+Line 1
+Line 2
+Line 3
+
+This text file should be parsed as-is, with minimal processing applied.
+
+End of document.

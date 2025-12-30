@@ -1,0 +1,42 @@
+{
+  "name": "Sample JSON Document",
+  "description": "Example JSON file for testing document parsing",
+  "version": "1.0.0",
+  "features": [
+    "JSON parsing",
+    "Nested objects",
+    "Arrays of various types",
+    "Different data types"
+  ],
+  "metadata": {
+    "created": "2024-01-01",
+    "author": "Test Suite",
+    "purpose": "Document parsing testing"
+  },
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "active": true
+      },
+      {
+        "id": 2,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "active": true
+      }
+    ],
+    "settings": {
+      "theme": "dark",
+      "language": "en",
+      "notifications": true
+    }
+  },
+  "statistics": {
+    "total_users": 2,
+    "active_users": 2,
+    "total_documents": 10
+  }
+}

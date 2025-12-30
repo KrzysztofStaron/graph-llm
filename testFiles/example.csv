@@ -1,0 +1,9 @@
+Name,Email,Age,Department,Active
+John Doe,john.doe@example.com,30,Engineering,true
+Jane Smith,jane.smith@example.com,25,Design,true
+Bob Johnson,bob.johnson@example.com,35,Marketing,false
+Alice Williams,alice.williams@example.com,28,Sales,true
+Charlie Brown,charlie.brown@example.com,32,Engineering,true
+Diana Prince,diana.prince@example.com,29,Design,true
+Edward Norton,edward.norton@example.com,40,Marketing,true
+Fiona Apple,fiona.apple@example.com,27,Sales,false
