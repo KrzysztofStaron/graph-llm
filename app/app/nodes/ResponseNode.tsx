@@ -5,11 +5,9 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { memo, useMemo } from "react";
-import { PlusIcon } from "lucide-react";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
-  onAddNode?: (position: "left" | "right") => void;
 };
 
 const arraysEqual = (a: string[], b: string[]) =>
@@ -182,7 +180,7 @@ const splitIntoChunks = (content: string): string[] => {
 };
 
 export const ResponseNode = memo(
-  function ResponseNode({ node, onAddNode }: ResponseNodeProps) {
+  function ResponseNode({ node }: ResponseNodeProps) {
     const rawContent = node.value;
     const isLoading = rawContent.length === 0;
 
@@ -192,28 +190,8 @@ export const ResponseNode = memo(
       return splitIntoChunks(normalized);
     }, [rawContent]);
 
-    const handleAddLeft = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onAddNode?.("left");
-    };
-
-    const handleAddRight = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onAddNode?.("right");
-    };
-
     return (
       <div className="max-w-[808px] min-w-[200px] flex items-center group">
-        <button
-          className="size-[40px]"
-          onClick={handleAddLeft}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <PlusIcon
-            size={30}
-            className="invisible group-hover:visible rounded-full border border-white/10"
-          />
-        </button>
         <div className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20">
           <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none">
             {isLoading ? (
@@ -228,16 +206,6 @@ export const ResponseNode = memo(
             )}
           </div>
         </div>
-        <button
-          className="size-[40px]"
-          onClick={handleAddRight}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <PlusIcon
-            size={30}
-            className="invisible group-hover:visible rounded-full border border-white/10"
-          />
-        </button>
       </div>
     );
   },

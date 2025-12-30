@@ -1,10 +1,9 @@
 import { memo } from "react";
 import { ContextNode as ContextNodeType } from "@/app/types/graph";
-import { FileText, PlusIcon } from "lucide-react";
+import { FileText } from "lucide-react";
 
 type ContextNodeProps = {
   node: ContextNodeType;
-  onAddNode?: (position: "left" | "right") => void;
 };
 
 function arraysEqual(a: string[], b: string[]) {
@@ -14,47 +13,14 @@ function arraysEqual(a: string[], b: string[]) {
   return true;
 }
 
-const ContextNodeContent = ({ node, onAddNode }: ContextNodeProps) => {
-  function handleAdd(pos: "left" | "right") {
-    return (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation();
-      onAddNode?.(pos);
-    };
-  }
-
+const ContextNodeContent = ({ node }: ContextNodeProps) => {
   return (
     <div className="flex items-center group">
-      <button
-        className="size-[40px]"
-        onClick={handleAdd("left")}
-        onMouseDown={(e) => e.stopPropagation()}
-        tabIndex={-1}
-        aria-label="Add node to left"
-        type="button"
-      >
-        <PlusIcon
-          size={30}
-          className="invisible group-hover:visible rounded-full border border-white/10"
-        />
-      </button>
       <div className="w-24 h-24 flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-tr p-px from-white/5 to-white/20">
         <div className="w-full h-full flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] text-white">
           <FileText className="size-8" />
         </div>
       </div>
-      <button
-        className="size-[40px]"
-        onClick={handleAdd("right")}
-        onMouseDown={(e) => e.stopPropagation()}
-        tabIndex={-1}
-        aria-label="Add node to right"
-        type="button"
-      >
-        <PlusIcon
-          size={30}
-          className="invisible group-hover:visible rounded-full border border-white/10"
-        />
-      </button>
     </div>
   );
 };

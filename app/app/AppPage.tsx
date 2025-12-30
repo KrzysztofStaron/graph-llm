@@ -248,39 +248,6 @@ const AppPageContent = () => {
     return items;
   })();
 
-  const onAddInputNode = (fromNode: GraphNode, position: "left" | "right") => {
-    const nodeElement = document.querySelector(
-      `[data-node-id="${fromNode.id}"]`
-    ) as HTMLElement;
-    const height = nodeElement?.offsetHeight ?? 96;
-
-    // Position directly below parent with minimal offset
-    const offsetX = position === "left" ? -50 : 50; // Small horizontal offset
-    const targetX = fromNode.x + offsetX;
-    const targetY = fromNode.y + height + 30; // Closer vertical spacing
-
-    // Use smart placement to find a free spot, preferring below
-    const newNodeDim = getDefaultNodeDimensions("input");
-    const freePos = findFreePosition(
-      targetX,
-      targetY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below" // Always prefer below
-    );
-
-    const newInputNode = createNode("input", freePos.x, freePos.y);
-
-    // Add to tree and update the ref immediately so rapid clicks work
-    treeManager.addNode(newInputNode);
-    treeManager.linkNodes(fromNode.id, newInputNode.id);
-
-    // Immediately update the ref so the next call sees this node
-    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
-  };
-
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
       const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
@@ -525,8 +492,6 @@ const AppPageContent = () => {
         setTransform={setTransform}
         onMouseDown={handleMouseDown}
         onInputSubmit={onInputSubmit}
-        onAddNodeFromResponse={onAddInputNode}
-        onAddNodeFromContext={onAddInputNode}
         onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
         onContextNodeDoubleClick={handleContextNodeDoubleClick}
         onDropFilesAsContext={onDropFilesAsContext}

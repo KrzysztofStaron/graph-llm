@@ -16,14 +16,6 @@ interface GraphCanvasProps {
   setTransform: (transform: { x: number; y: number; k: number }) => void;
   onMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
   onInputSubmit: (query: string, caller: GraphNode) => void;
-  onAddNodeFromResponse: (
-    responseNode: GraphNode,
-    position: "left" | "right"
-  ) => void;
-  onAddNodeFromContext: (
-    contextNode: GraphNode,
-    position: "left" | "right"
-  ) => void;
   onDeleteNode: (nodeId: string) => void;
   onContextNodeDoubleClick?: (nodeId: string) => void;
   onDropFilesAsContext?: (
@@ -70,8 +62,6 @@ export const GraphCanvas = ({
   setTransform,
   onMouseDown,
   onInputSubmit,
-  onAddNodeFromResponse,
-  onAddNodeFromContext,
   onDeleteNode,
   onContextNodeDoubleClick,
   onDropFilesAsContext,
@@ -621,29 +611,10 @@ export const GraphCanvas = ({
                       onDelete={() => onDeleteNode(node.id)}
                     />
                   )}
-                  {node.type === "response" && (
-                    <ResponseNode
-                      node={node}
-                      onAddNode={(position) =>
-                        onAddNodeFromResponse(node, position)
-                      }
-                    />
-                  )}
-                  {node.type === "context" && (
-                    <ContextNode
-                      node={node}
-                      onAddNode={(position) =>
-                        onAddNodeFromContext(node, position)
-                      }
-                    />
-                  )}
+                  {node.type === "response" && <ResponseNode node={node} />}
+                  {node.type === "context" && <ContextNode node={node} />}
                   {node.type === "image-context" && (
-                    <ImageContextNode
-                      node={node}
-                      onAddNode={(position) =>
-                        onAddNodeFromContext(node, position)
-                      }
-                    />
+                    <ImageContextNode node={node} />
                   )}
                 </motion.div>
               );
