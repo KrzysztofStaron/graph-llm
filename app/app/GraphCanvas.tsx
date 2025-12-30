@@ -89,7 +89,9 @@ export const GraphCanvas = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nodeDimensions, setNodeDimensions] = useState<NodeDimensions>({});
-  const [appearingNodes, setAppearingNodes] = useState<Record<string, { x: number; y: number }>>({});
+  const [appearingNodes, setAppearingNodes] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
   const [deletingNodes, setDeletingNodes] = useState<
     Record<string, { x: number; y: number }>
   >({});
