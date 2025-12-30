@@ -18,7 +18,8 @@ export type GraphAction =
       setPinned?: boolean;
     }
   | { type: "DELETE_CASCADE"; id: string }
-  | { type: "DELETE_NODE_DETACH"; id: string };
+  | { type: "DELETE_NODE_DETACH"; id: string }
+  | { type: "RESTORE_NODES"; nodes: GraphNodes };
 
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}

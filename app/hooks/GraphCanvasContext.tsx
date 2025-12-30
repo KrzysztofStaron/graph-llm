@@ -22,6 +22,7 @@ type GraphCanvasContextValue = {
   deselectNode: (nodeId: string) => void;
   toggleNodeSelection: (nodeId: string) => void;
   clearSelection: () => void;
+  undo: () => void;
 };
 
 const GraphCanvasContext = createContext<GraphCanvasContextValue | undefined>(
@@ -62,6 +63,7 @@ export const GraphCanvasProvider = ({
     deselectNode,
     toggleNodeSelection,
     clearSelection,
+    undo,
   } = useGraphCanvas(initialNodes);
 
   return (
@@ -81,6 +83,7 @@ export const GraphCanvasProvider = ({
         deselectNode,
         toggleNodeSelection,
         clearSelection,
+        undo,
       }}
     >
       {children}

@@ -1,6 +1,6 @@
 import { InputNode } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
-import { memo, useRef, useState } from "react";
+import { memo, useRef, useState, useEffect } from "react";
 import { useGraphCanvasContext } from "../../hooks/GraphCanvasContext";
 
 enum Mode {
@@ -27,10 +27,31 @@ export const InputFieldNode = memo(
   }: InputFieldNodeProps) {
     const { nodes } = useGraphCanvasContext();
     const [mode, setMode] = useState<Mode>(Mode.ASK);
-    const [query, setQuery] = useState("");
-    const [previousQuery, setPreviousQuery] = useState("");
+    const [query, setQuery] = useState(node.value || "");
+    const [previousQuery, setPreviousQuery] = useState(node.value || "");
     const [isDeleteHovered, setIsDeleteHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const lastSyncedValueRef = useRef(node.value);
+
+    // Sync local state with node.value (important for undo/redo)
+    useEffect(() => {
+      // Only sync if node.value changed externally (not from our own updates)
+      if (node.value !== lastSyncedValueRef.current) {
+        lastSyncedValueRef.current = node.value;
+        if (node.value) {
+          // Sync local state when node.value changes externally (e.g., from undo)
+          setQuery(node.value);
+          setPreviousQuery(node.value);
+          setMode(Mode.DISPLAY);
+        } else {
+          setQuery("");
+          setPreviousQuery("");
+          setMode(Mode.ASK);
+        }
+      }
+      // Intentionally only depend on node.value - we sync when it changes externally
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [node.value]);
 
     const handleSubmit = () => {
       const trimmedQuery = query.trim();

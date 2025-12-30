@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { ParticleEffect } from "../components/ui/ParticleEffect";
 import { resolveLocalCollisions } from "../utils/collisionResolver";
+import { useGraphCanvasContext } from "../hooks/GraphCanvasContext";
 
 interface GraphCanvasProps {
   nodes: GraphNodes;
@@ -70,6 +71,7 @@ export const GraphCanvas = ({
   selectedNodeIds,
   onClearSelection,
 }: GraphCanvasProps) => {
+  const { undo } = useGraphCanvasContext();
   const nodeArray = Object.values(nodes);
   const edges = nodeArray.flatMap((node) =>
     node.childrenIds.map((to) => ({ from: node.id, to }))
@@ -287,28 +289,29 @@ export const GraphCanvas = ({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if typing in input/textarea
       if (
-        e.key === "f" &&
-        !(
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLInputElement
-        )
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
       ) {
+        return;
+      }
+
+      if (e.key === "f") {
         fitView();
       }
-      if (
-        e.key === "Escape" &&
-        !(
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLInputElement
-        )
-      ) {
+      if (e.key === "Escape") {
         onClearSelection?.();
+      }
+      // Handle Ctrl+Z (or Cmd+Z on Mac) for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [fitView, onClearSelection]);
+  }, [fitView, onClearSelection, undo]);
 
   // Track node appear/delete to show particle effects
   useEffect(() => {

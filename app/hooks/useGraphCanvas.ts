@@ -1,4 +1,11 @@
-import { useReducer, useRef, useEffect, useMemo, useState } from "react";
+import {
+  useReducer,
+  useRef,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import type {
   ContextNode,
   Edge,
@@ -11,8 +18,24 @@ import type {
 } from "../types/graph";
 import { TreeManager, type GraphAction } from "../interfaces/TreeManager";
 
+// Deep copy function for GraphNodes
+const deepCopyNodes = (nodes: GraphNodes): GraphNodes => {
+  const copy: GraphNodes = {};
+  for (const [id, node] of Object.entries(nodes)) {
+    copy[id] = {
+      ...node,
+      parentIds: [...node.parentIds],
+      childrenIds: [...node.childrenIds],
+    };
+  }
+  return copy;
+};
+
 function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
   switch (action.type) {
+    case "RESTORE_NODES": {
+      return deepCopyNodes(action.nodes);
+    }
     case "PATCH_NODE": {
       const node = nodes[action.id];
       if (!node) return nodes;
@@ -188,6 +211,13 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
   );
   const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
   const nodesRef = useRef(nodes);
+
+  // History state: track last 3 node snapshots
+  const [history, setHistory] = useState<GraphNodes[]>([]);
+  const historyRef = useRef(history);
+  const isUndoingRef = useRef(false);
+  const shouldSaveHistoryAfterUpdateRef = useRef(false);
+  const skipNextHistorySavesRef = useRef(0); // Counter for how many actions to skip history for
   const [nodeDimensions, setNodeDimensions] = useReducer(
     (prev: NodeDimensions, next: NodeDimensions) => next,
     {}
@@ -262,15 +292,116 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     draggingRef.current = { type: "node", nodeId, hasMoved: false };
   };
 
-  const treeManager = useMemo(() => new TreeManager(dispatch), [dispatch]);
+  // Wrapped dispatch that captures history before applying actions
+  const dispatchWithHistory = useCallback(
+    (action: GraphAction) => {
+      // Skip history capture if we're restoring state (undo operation)
+      if (action.type === "RESTORE_NODES" || isUndoingRef.current) {
+        dispatch(action);
+        return;
+      }
+
+      // For input node value patches (submissions), save history AFTER the patch
+      // This ensures the submitted value is preserved in history, not the empty state
+      if (action.type === "PATCH_NODE" && action.patch.value !== undefined) {
+        const node = nodesRef.current[action.id];
+        if (
+          node &&
+          node.type === "input" &&
+          node.value === "" &&
+          action.patch.value !== ""
+        ) {
+          // This is an input submission - apply the patch first, then save history after state updates
+          // Also skip history for the next few actions (ADD_NODE, LINK) that typically follow submission
+          shouldSaveHistoryAfterUpdateRef.current = true;
+          skipNextHistorySavesRef.current = 3; // Skip next 3 actions (typically ADD_NODE, LINK, and maybe another)
+          dispatch(action);
+          return;
+        }
+      }
+
+      // Skip history for actions that follow input submission
+      if (skipNextHistorySavesRef.current > 0) {
+        skipNextHistorySavesRef.current--;
+        dispatch(action);
+        return;
+      }
+
+      const currentNodes = nodesRef.current;
+      const currentHistory = historyRef.current;
+      // Save current state to history before applying action
+      const snapshot = deepCopyNodes(currentNodes);
+      const newHistory = [...currentHistory, snapshot];
+
+      // Limit history to 3 steps (remove oldest when adding 4th)
+      const trimmedHistory = newHistory.slice(-3);
+
+      setHistory(trimmedHistory);
+      historyRef.current = trimmedHistory;
+
+      // Apply the action
+      dispatch(action);
+    },
+    [dispatch]
+  );
+
+  // Note: dispatchWithHistory is a useCallback that accesses refs, but only when called (not during render)
+  // This is safe because refs are only read in response to user actions, not during render
+  const treeManager = useMemo(
+    () => new TreeManager(dispatchWithHistory),
+    [dispatchWithHistory]
+  );
 
   useEffect(() => {
     nodesRef.current = nodes;
+
+    // If we need to save history after an update (e.g., input submission),
+    // do it now that the state has been updated
+    if (shouldSaveHistoryAfterUpdateRef.current) {
+      shouldSaveHistoryAfterUpdateRef.current = false;
+      const currentNodes = nodesRef.current;
+      const currentHistory = historyRef.current;
+
+      // Save current state to history
+      const snapshot = deepCopyNodes(currentNodes);
+      const newHistory = [...currentHistory, snapshot];
+
+      // Limit history to 3 steps (remove oldest when adding 4th)
+      const trimmedHistory = newHistory.slice(-3);
+
+      setHistory(trimmedHistory);
+      historyRef.current = trimmedHistory;
+    }
   }, [nodes]);
 
   useEffect(() => {
     nodeDimensionsRef.current = nodeDimensions;
   }, [nodeDimensions]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  // Undo function: restore previous state from history
+  const undo = useCallback(() => {
+    if (history.length === 0) return;
+
+    const previousState = history[history.length - 1];
+    const newHistory = history.slice(0, -1);
+
+    // Set flag to skip history capture
+    isUndoingRef.current = true;
+
+    // Restore the previous state
+    setHistory(newHistory);
+    historyRef.current = newHistory;
+
+    // Restore nodes using RESTORE_NODES action
+    dispatchWithHistory({ type: "RESTORE_NODES", nodes: previousState });
+
+    // Reset flag
+    isUndoingRef.current = false;
+  }, [history, dispatchWithHistory]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -324,5 +455,6 @@ export const useGraphCanvas = (initialNodes: GraphNodes) => {
     deselectNode,
     toggleNodeSelection,
     clearSelection,
+    undo,
   };
 };
