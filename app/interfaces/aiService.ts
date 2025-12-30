@@ -60,6 +60,14 @@ export class aiService {
       };
     }
   ): Promise<string> {
+    const payload = JSON.stringify({
+      messages: Array.isArray(message)
+        ? message
+        : [{ role: "user", content: message }],
+      ...(options?.model && { model: options.model }),
+      ...(options?.provider && { provider: options.provider }),
+    });
+
     const response = await fetch(
       `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
       {
@@ -67,13 +75,7 @@ export class aiService {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          messages: Array.isArray(message)
-            ? message
-            : [{ role: "user", content: message }],
-          ...(options?.model && { model: options.model }),
-          ...(options?.provider && { provider: options.provider }),
-        }),
+        body: payload,
       }
     );
 

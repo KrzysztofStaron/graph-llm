@@ -9,6 +9,7 @@ import {
   useGraphCanvasContext,
 } from "../hooks/GraphCanvasContext";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import { compressImage } from "../utils/imageCompression";
 import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
 
 const initialNodes: GraphNodes = {
@@ -289,11 +290,8 @@ const AppPageContent = () => {
 
       // Create image context nodes
       for (const file of imageFiles) {
-        const dataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsDataURL(file);
-        });
+        // Compress image before converting to data URL
+        const dataUrl = await compressImage(file);
 
         // Stagger positions: prefer stacking vertically below, slight horizontal offset
         const targetX = canvasPoint.x + nodeIndex * 40;
