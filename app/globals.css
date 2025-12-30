@@ -27,7 +27,11 @@ body {
   font-family: var(--font-universal-sans), Arial, Helvetica, sans-serif;
 
   background-size: 40px 40px;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px
+  );
   background: var(--background);
 }
 
@@ -42,4 +46,26 @@ body {
 
 .katex-display {
   margin: 0.5em 0 !important;
+}
+
+@keyframes unstable {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(5px);
+  }
+  50% {
+    transform: translateX(0);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.unstable {
+  animation: unstable 1s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite both;
 }

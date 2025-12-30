@@ -614,6 +614,7 @@ const AppPageContent = () => {
           y={contextMenu.y}
           items={contextMenuItems}
           onClose={closeContextMenu}
+          selectedNodeCount={selectedNodeIds.size}
         />
       )}
       <div
