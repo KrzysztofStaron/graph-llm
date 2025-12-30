@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { createNode, TreeManager } from "../hooks/useGraphCanvas";
 import { GraphCanvas } from "./GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
@@ -64,6 +64,9 @@ const AppPageContent = () => {
     canvasX: number;
     canvasY: number;
   } | null>(null);
+
+  // File input ref for upload context
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleContextNodeDoubleClick = useCallback(
     (nodeId: string) => {
@@ -238,113 +241,6 @@ const AppPageContent = () => {
     };
   }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
 
-  // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
-  // Note: Handlers use refs but are only called on user interaction, not during render
-  const contextMenuItems: ContextMenuItem[] = (() => {
-    if (!contextMenu) return [];
-
-    const isActingUponNodes = selectedNodeIds.size > 0;
-
-    // State 1: Acting upon nodes (when nodes are selected)
-    if (isActingUponNodes) {
-      const items: ContextMenuItem[] = [];
-
-      // Check if at least one selected node is non-input
-      const hasNonInputSelected = Array.from(selectedNodeIds).some((nodeId) => {
-        const node = nodes[nodeId];
-        return node && node.type !== "input";
-      });
-
-      // Show "Ask Question" only if at least one selected node is non-input
-      if (hasNonInputSelected) {
-        // eslint-disable-next-line react-hooks/refs
-        items.push({ label: "Ask Question", onClick: handleAskQuestion });
-      }
-
-      // Determine delete options based on selection count
-      if (selectedNodeIds.size <= 1) {
-        // Single selection: use single node delete handlers
-        const nodeId = Array.from(selectedNodeIds)[0];
-        const node = nodes[nodeId];
-
-        if (node) {
-          // Always show "Delete"
-          items.push({
-            label: "Delete",
-            onClick: () => handleDeleteSingle(nodeId),
-          });
-
-          // Show "Delete [ with children ]" if node has children
-          if (node.childrenIds.length > 0) {
-            items.push({
-              label: "Delete [ with children ]",
-              onClick: () => handleDeleteSingleWithChildren(nodeId),
-            });
-          }
-        }
-      } else {
-        // Multiple selection: use delete all handlers
-        // Check if at least one selected node has children
-        const hasAnyChildren = Array.from(selectedNodeIds).some((nodeId) => {
-          const node = nodes[nodeId];
-          return node && node.childrenIds.length > 0;
-        });
-
-        // Always show "Delete All"
-        items.push({
-          label: "Delete All",
-          onClick: () => handleDeleteAll(selectedNodeIds),
-        });
-
-        // Show "Delete All [ with children ]" if at least one node has children
-        if (hasAnyChildren) {
-          items.push({
-            label: "Delete All [ with children ]",
-            onClick: () => handleDeleteAllWithChildren(selectedNodeIds),
-          });
-        }
-      }
-
-      return items;
-    }
-
-    // State 2: Not acting upon nodes (when no nodes are selected)
-    if (contextMenu.target.kind === "canvas") {
-      return [
-        { label: "New Question", onClick: handleNewQuestionOnCanvas },
-        { label: "New Context", onClick: handleAddContext },
-      ];
-    }
-
-    // Not acting upon nodes, but clicking on a specific node
-    const node = nodes[contextMenu.target.nodeId];
-    if (!node) return [];
-
-    const items: ContextMenuItem[] = [];
-
-    // Show "Ask Question" for non-input nodes (creates and links)
-    if (node.type !== "input") {
-      // eslint-disable-next-line react-hooks/refs
-      items.push({ label: "Ask Question", onClick: handleAskQuestion });
-    }
-
-    // Always show "Delete"
-    items.push({
-      label: "Delete",
-      onClick: () => handleDeleteSingle(node.id),
-    });
-
-    // Show "Delete [ with children ]" if node has children
-    if (node.childrenIds.length > 0) {
-      items.push({
-        label: "Delete [ with children ]",
-        onClick: () => handleDeleteSingleWithChildren(node.id),
-      });
-    }
-
-    return items;
-  })();
-
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
       const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
@@ -427,6 +323,151 @@ const AppPageContent = () => {
     },
     [treeManager, nodesRef, nodeDimensionsRef]
   );
+
+  const uploadContextCanvasPointRef = useRef<{ x: number; y: number } | null>(
+    null
+  );
+
+  const handleUploadContext = useCallback(() => {
+    // Store canvas coordinates before opening file dialog (context menu will close)
+    if (contextMenu) {
+      uploadContextCanvasPointRef.current = {
+        x: contextMenu.canvasX,
+        y: contextMenu.canvasY,
+      };
+    }
+    fileInputRef.current?.click();
+  }, [contextMenu]);
+
+  const handleFileInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      // Use stored canvas coordinates
+      const canvasPoint = uploadContextCanvasPointRef.current;
+      if (!canvasPoint) return;
+
+      await onDropFilesAsContext(files, canvasPoint);
+
+      // Reset the input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      // Clear the stored coordinates
+      uploadContextCanvasPointRef.current = null;
+    },
+    [onDropFilesAsContext]
+  );
+
+  // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
+  // Note: Handlers use refs but are only called on user interaction, not during render
+  const contextMenuItems: ContextMenuItem[] = (() => {
+    if (!contextMenu) return [];
+
+    const isActingUponNodes = selectedNodeIds.size > 0;
+
+    // State 1: Acting upon nodes (when nodes are selected)
+    if (isActingUponNodes) {
+      const items: ContextMenuItem[] = [];
+
+      // Check if at least one selected node is non-input
+      const hasNonInputSelected = Array.from(selectedNodeIds).some((nodeId) => {
+        const node = nodes[nodeId];
+        return node && node.type !== "input";
+      });
+
+      // Show "Ask Question" only if at least one selected node is non-input
+      if (hasNonInputSelected) {
+        // eslint-disable-next-line react-hooks/refs
+        items.push({ label: "Ask Question", onClick: handleAskQuestion });
+      }
+
+      // Determine delete options based on selection count
+      if (selectedNodeIds.size <= 1) {
+        // Single selection: use single node delete handlers
+        const nodeId = Array.from(selectedNodeIds)[0];
+        const node = nodes[nodeId];
+
+        if (node) {
+          // Always show "Delete"
+          items.push({
+            label: "Delete",
+            onClick: () => handleDeleteSingle(nodeId),
+          });
+
+          // Show "Delete [ with children ]" if node has children
+          if (node.childrenIds.length > 0) {
+            items.push({
+              label: "Delete [ with children ]",
+              onClick: () => handleDeleteSingleWithChildren(nodeId),
+            });
+          }
+        }
+      } else {
+        // Multiple selection: use delete all handlers
+        // Check if at least one selected node has children
+        const hasAnyChildren = Array.from(selectedNodeIds).some((nodeId) => {
+          const node = nodes[nodeId];
+          return node && node.childrenIds.length > 0;
+        });
+
+        // Always show "Delete All"
+        items.push({
+          label: "Delete All",
+          onClick: () => handleDeleteAll(selectedNodeIds),
+        });
+
+        // Show "Delete All [ with children ]" if at least one node has children
+        if (hasAnyChildren) {
+          items.push({
+            label: "Delete All [ with children ]",
+            onClick: () => handleDeleteAllWithChildren(selectedNodeIds),
+          });
+        }
+      }
+
+      return items;
+    }
+
+    // State 2: Not acting upon nodes (when no nodes are selected)
+    if (contextMenu.target.kind === "canvas") {
+      return [
+        { label: "New Question", onClick: handleNewQuestionOnCanvas },
+        { label: "New Context", onClick: handleAddContext },
+        { label: "Upload Context", onClick: handleUploadContext },
+      ];
+    }
+
+    // Not acting upon nodes, but clicking on a specific node
+    const node = nodes[contextMenu.target.nodeId];
+    if (!node) return [];
+
+    const items: ContextMenuItem[] = [];
+
+    // Show "Ask Question" for non-input nodes (creates and links)
+    if (node.type !== "input") {
+      // eslint-disable-next-line react-hooks/refs
+      items.push({ label: "Ask Question", onClick: handleAskQuestion });
+    }
+
+    // Always show "Delete"
+    items.push({
+      label: "Delete",
+      onClick: () => handleDeleteSingle(node.id),
+    });
+
+    // Show "Delete [ with children ]" if node has children
+    if (node.childrenIds.length > 0) {
+      items.push({
+        label: "Delete [ with children ]",
+        onClick: () => handleDeleteSingleWithChildren(node.id),
+      });
+    }
+
+    return items;
+  })();
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
     // Find the first response child node
@@ -617,6 +658,14 @@ const AppPageContent = () => {
           selectedNodeCount={selectedNodeIds.size}
         />
       )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".txt,.md,.json,.csv,image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
       <div
         className="dot-grid-background fixed inset-0 -z-20"
         style={{

@@ -4,9 +4,11 @@ import {
   ChevronRight,
   Trash2,
   MessageCircle,
-  Merge,
   Eraser,
   Plus,
+  ImageUp,
+  Minus,
+  Delete,
 } from "lucide-react";
 import MonoLabel from "./MonoLabel";
 
@@ -82,11 +84,13 @@ export const ContextMenu = ({
               if (item.label.includes("Delete")) {
                 Icon = item.label.includes("[ with children ]")
                   ? Trash2
-                  : Eraser;
+                  : Delete;
               } else if (item.label.toLowerCase().includes("new")) {
                 Icon = Plus;
               } else if (item.label.includes("Ask Question")) {
                 Icon = MessageCircle;
+              } else if (item.label.includes("Upload Context")) {
+                Icon = ImageUp;
               }
 
               // Parse label to extract "[ with children ]" part

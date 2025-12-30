@@ -660,17 +660,6 @@ export const GraphCanvas = ({
           }}
         />
       ))}
-
-      {/* UI Controls */}
-      <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-50">
-        <button
-          onClick={() => fitView()}
-          className="p-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md text-white transition-all active:scale-95"
-          title="Fit to view (F)"
-        >
-          <Maximize className="size-5" />
-        </button>
-      </div>
     </div>
   );
 };
