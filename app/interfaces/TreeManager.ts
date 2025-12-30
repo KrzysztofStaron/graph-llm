@@ -119,8 +119,20 @@ export class TreeManager {
 
     traverse(startNode, 0);
 
+    // normalizedTree has this structure: level -> nodes[]
+
     const maxLevel = Math.max(...Object.keys(normalizedTree).map(Number));
     const messages = [];
+
+    const wrapContextMetadata = (node: {
+      id: string;
+      value: string;
+      parentIds: string[];
+    }) => {
+      return `<metadata id="${node.id}" parentIds="${node.parentIds.join(
+        ","
+      )}">${node.value}</metadata>`;
+    };
 
     for (let level = 0; level <= maxLevel; level++) {
       const levelNodesRaw = normalizedTree[level];
@@ -186,7 +198,14 @@ export class TreeManager {
         });
       } else {
         // Standard text-only format
-        const mergedNodes = levelNodes.map((node) => node.value);
+        const mergedNodes = levelNodes.map((node) =>
+          wrapContextMetadata({
+            id: node.id,
+            value: node.value,
+            parentIds: nodes[node.id]?.parentIds || [],
+          })
+        );
+
         messages.push({
           role,
           content: mergedNodes.join("<separatorOfContextualData />"),
@@ -194,7 +213,23 @@ export class TreeManager {
       }
     }
 
-    const ret = messages.reverse();
+    const ret = [
+      {
+        role: "system",
+        content: `You are an experimental LLM based on graphs called GraphAI at graphai.one, each piece of information is a node in the graph, 
+          and the connections between the nodes are the edges. When responding don't include metadata tags, 
+          only the content of the nodes. As metadata is only for the LLM to understand the connections between the nodes, 
+          it's not part of the response. You can use markdown and latex for formatting purposes. Try not to send walls of text.
+          
+          CRUCIAL:
+          - don't include metadata tags in your responses
+          - don't include the metadata in your responses
+          - don't include the metadata in your responses
+          
+          `,
+      },
+      ...messages.reverse(),
+    ] as ChatMessage[];
 
     console.log(ret);
 
