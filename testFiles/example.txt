@@ -21,3 +21,4 @@ Line 3
 This text file should be parsed as-is, with minimal processing applied.
 
 End of document.
+
