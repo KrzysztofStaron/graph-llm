@@ -39,6 +39,7 @@ import { getDefaultNodeDimensions } from "../utils/placement";
 import EdgesRenderer from "../components/GraphCanvas/EdgesRenderer";
 import NodesRenderer from "../components/GraphCanvas/NodesRenderer";
 import ParticleRenderer from "../components/GraphCanvas/ParticleRenderer";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 
 export interface GraphCanvasRef {
   transform: { x: number; y: number; k: number };
@@ -576,31 +577,11 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     }, []); // Run once on mount
 
     // Handle keyboard shortcuts
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Skip if typing in input/textarea
-        if (
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLInputElement
-        ) {
-          return;
-        }
-
-        if (e.key === "f") {
-          fitView();
-        }
-        if (e.key === "Escape") {
-          clearSelection();
-        }
-        // Handle Ctrl+Z (or Cmd+Z on Mac) for undo
-        if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-        }
-      };
-      window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [fitView, clearSelection, undo]);
+    useKeyboardShortcuts({
+      onFitView: fitView,
+      onClearSelection: clearSelection,
+      onUndo: undo,
+    });
 
     // Helper function to show particle effect for a node
     const showParticleEffect = useCallback(
