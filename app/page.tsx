@@ -5,7 +5,7 @@ import { motion, useAnimate } from "framer-motion";
 import LandingPage from "./components/LandingPage";
 import ParticlesBackground from "./components/ParticlesBackground";
 import DotGridBackground from "./components/DotGridBackground";
-import AppPage from "./app/AppPage";
+import AppRoute from "./app/page";
 
 export default function Home() {
   const [scope, animate] = useAnimate();
@@ -23,7 +23,7 @@ export default function Home() {
     await Promise.all(hideAnims);
 
     router.push("/app");
-    await new Promise(resolve => requestAnimationFrame(resolve));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     await animate(".app-page-container", { opacity: 1 }, { duration: 0.25 });
   };
 
@@ -41,7 +41,9 @@ export default function Home() {
       <LandingPage onStart={handleStart} />
       <ParticlesBackground />
 
-      <div className="app-page-container absolute inset-0 z-20 pointer-events-none">{showApp && <AppPage />}</div>
+      <div className="app-page-container absolute inset-0 z-20 pointer-events-none">
+        {showApp && <AppRoute />}
+      </div>
     </motion.div>
   );
 }
