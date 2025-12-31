@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/refs */
-import { useState, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
@@ -51,15 +51,12 @@ const AppPageContent = () => {
   // AI chat hook
   const { onInputSubmit } = useAIChat({ graphCanvasRef });
 
-  const handleRequestNodeMove = useCallback(
-    (nodeId: string, dx: number, dy: number) => {
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (treeManager) {
-        treeManager.moveNode(nodeId, dx, dy);
-      }
-    },
-    []
-  );
+  const handleRequestNodeMove = (nodeId: string, dx: number, dy: number) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.moveNode(nodeId, dx, dy);
+    }
+  };
 
   return (
     <div className="relative w-full h-screen">

@@ -117,44 +117,38 @@ export function useCanvasInteraction({
   );
 
   // Drag and drop handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-  }, []);
+  };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-      if (!onDropFilesAsContext || !e.dataTransfer.files.length) return;
+    if (!onDropFilesAsContext || !e.dataTransfer.files.length) return;
 
-      // Convert screen coordinates to canvas coordinates
-      const canvasX = (e.clientX - transform.x) / transform.k;
-      const canvasY = (e.clientY - transform.y) / transform.k;
+    // Convert screen coordinates to canvas coordinates
+    const canvasX = (e.clientX - transform.x) / transform.k;
+    const canvasY = (e.clientY - transform.y) / transform.k;
 
-      onDropFilesAsContext(e.dataTransfer.files, { x: canvasX, y: canvasY });
-    },
-    [onDropFilesAsContext, transform]
-  );
+    onDropFilesAsContext(e.dataTransfer.files, { x: canvasX, y: canvasY });
+  };
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (!onRequestContextMenu) return;
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!onRequestContextMenu) return;
 
-      e.preventDefault();
-      e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
 
-      // Check if click was on a node
-      const nodeElement = (e.target as HTMLElement).closest(
-        "[data-node-id]"
-      ) as HTMLElement | null;
-      const nodeId = nodeElement?.dataset.nodeId;
+    // Check if click was on a node
+    const nodeElement = (e.target as HTMLElement).closest(
+      "[data-node-id]"
+    ) as HTMLElement | null;
+    const nodeId = nodeElement?.dataset.nodeId;
 
-      onRequestContextMenu(e.clientX, e.clientY, nodeId);
-    },
-    [onRequestContextMenu]
-  );
+    onRequestContextMenu(e.clientX, e.clientY, nodeId);
+  };
 
   // Handle canvas clicks to clear selection (before d3-zoom processes them)
   useEffect(() => {

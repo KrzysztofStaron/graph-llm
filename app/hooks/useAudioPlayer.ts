@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import type { GraphNode, GraphNodes } from "../types/graph";
 import { audioService } from "../interfaces/audioService";
 
@@ -96,100 +96,101 @@ export const useAudioPlayer = () => {
     Array<{ word: string; start: number; end: number }>
   >([]);
 
-  const playAudio = useCallback(
-    async (nodeIds: string[], nodes: GraphNodes, includeTimestamps = false) => {
-      if (nodeIds.length === 0) return;
+  const playAudio = async (
+    nodeIds: string[],
+    nodes: GraphNodes,
+    includeTimestamps = false
+  ) => {
+    if (nodeIds.length === 0) return;
 
-      setIsLoadingAudio(true);
+    setIsLoadingAudio(true);
+    setCurrentWordIndex(null);
+    setWords([]);
+
+    // Extract and combine text from nodes (sorted by tree depth)
+    const combinedText = extractTextFromNodes(nodeIds, nodes);
+
+    if (!combinedText) {
+      console.warn("No text content found in selected nodes");
+      setIsLoadingAudio(false);
+      return;
+    }
+
+    // Call TTS service with optional timestamps
+    let audioResult: {
+      audio: HTMLAudioElement;
+      audioUrl: string;
+      words?: Array<{ word: string; start: number; end: number }>;
+      duration?: number;
+    };
+    try {
+      audioResult = await audioService.textToSpeech(
+        combinedText,
+        includeTimestamps
+      );
+    } catch (error) {
+      console.error("Failed to generate speech:", error);
+      setIsLoadingAudio(false);
+      return;
+    }
+
+    const { audio, audioUrl, words: wordsData } = audioResult;
+    if (wordsData) {
+      console.log("wordsData", wordsData);
+
+      setWords(wordsData);
+    }
+
+    // Store audio reference and URL
+    audioRef.current = audio;
+    audioUrlRef.current = audioUrl;
+
+    setIsLoadingAudio(false);
+    setIsPlayingAudio(true);
+
+    // Set up word tracking if we have timestamps
+    let updateCurrentWordHandler: (() => void) | null = null;
+    if (wordsData && wordsData.length > 0) {
+      updateCurrentWordHandler = () => {
+        if (!audioRef.current) return;
+        const currentTime = audioRef.current.currentTime;
+        const wordIndex = wordsData.findIndex(
+          (w) => currentTime >= w.start && currentTime <= w.end
+        );
+        setCurrentWordIndex(wordIndex >= 0 ? wordIndex : null);
+      };
+
+      audio.addEventListener("timeupdate", updateCurrentWordHandler);
+    }
+
+    const cleanup = () => {
+      setIsPlayingAudio(false);
+      setIsLoadingAudio(false);
       setCurrentWordIndex(null);
       setWords([]);
-
-      // Extract and combine text from nodes (sorted by tree depth)
-      const combinedText = extractTextFromNodes(nodeIds, nodes);
-
-      if (!combinedText) {
-        console.warn("No text content found in selected nodes");
-        setIsLoadingAudio(false);
-        return;
+      if (updateCurrentWordHandler) {
+        audio.removeEventListener("timeupdate", updateCurrentWordHandler);
       }
-
-      // Call TTS service with optional timestamps
-      let audioResult: {
-        audio: HTMLAudioElement;
-        audioUrl: string;
-        words?: Array<{ word: string; start: number; end: number }>;
-        duration?: number;
-      };
-      try {
-        audioResult = await audioService.textToSpeech(
-          combinedText,
-          includeTimestamps
-        );
-      } catch (error) {
-        console.error("Failed to generate speech:", error);
-        setIsLoadingAudio(false);
-        return;
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
       }
+      audioRef.current = null;
+    };
 
-      const { audio, audioUrl, words: wordsData } = audioResult;
-      if (wordsData) {
-        console.log("wordsData", wordsData);
+    audio.play().catch((error) => {
+      console.error("Failed to play audio:", error);
+      cleanup();
+    });
 
-        setWords(wordsData);
-      }
+    // Clean up when audio finishes
+    audio.addEventListener("ended", cleanup);
 
-      // Store audio reference and URL
-      audioRef.current = audio;
-      audioUrlRef.current = audioUrl;
+    // Clean up on error
+    audio.addEventListener("error", cleanup);
+  };
 
-      setIsLoadingAudio(false);
-      setIsPlayingAudio(true);
-
-      // Set up word tracking if we have timestamps
-      let updateCurrentWordHandler: (() => void) | null = null;
-      if (wordsData && wordsData.length > 0) {
-        updateCurrentWordHandler = () => {
-          if (!audioRef.current) return;
-          const currentTime = audioRef.current.currentTime;
-          const wordIndex = wordsData.findIndex(
-            (w) => currentTime >= w.start && currentTime <= w.end
-          );
-          setCurrentWordIndex(wordIndex >= 0 ? wordIndex : null);
-        };
-
-        audio.addEventListener("timeupdate", updateCurrentWordHandler);
-      }
-
-      const cleanup = () => {
-        setIsPlayingAudio(false);
-        setIsLoadingAudio(false);
-        setCurrentWordIndex(null);
-        setWords([]);
-        if (updateCurrentWordHandler) {
-          audio.removeEventListener("timeupdate", updateCurrentWordHandler);
-        }
-        if (audioUrlRef.current) {
-          URL.revokeObjectURL(audioUrlRef.current);
-          audioUrlRef.current = null;
-        }
-        audioRef.current = null;
-      };
-
-      audio.play().catch((error) => {
-        console.error("Failed to play audio:", error);
-        cleanup();
-      });
-
-      // Clean up when audio finishes
-      audio.addEventListener("ended", cleanup);
-
-      // Clean up on error
-      audio.addEventListener("error", cleanup);
-    },
-    []
-  );
-
-  const stopAudio = useCallback(() => {
+  const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -203,7 +204,7 @@ export const useAudioPlayer = () => {
     setIsLoadingAudio(false);
     setCurrentWordIndex(null);
     setWords([]);
-  }, []);
+  };
 
   return {
     isPlayingAudio,

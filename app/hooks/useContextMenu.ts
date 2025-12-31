@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/refs */
-import { useState, useCallback, useMemo } from "react";
+import { useState } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
@@ -38,78 +38,67 @@ export function useContextMenu({
 }: UseContextMenuProps): UseContextMenuReturn {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  const handleRequestContextMenu = useCallback(
-    (clientX: number, clientY: number, nodeId?: string) => {
-      const transform = graphCanvasRef.current?.transform;
-      if (!transform) return;
+  const handleRequestContextMenu = (
+    clientX: number,
+    clientY: number,
+    nodeId?: string
+  ) => {
+    const transform = graphCanvasRef.current?.transform;
+    if (!transform) return;
 
-      // Convert client coordinates to canvas coordinates
-      const canvasX = (clientX - transform.x) / transform.k;
-      const canvasY = (clientY - transform.y) / transform.k;
+    // Convert client coordinates to canvas coordinates
+    const canvasX = (clientX - transform.x) / transform.k;
+    const canvasY = (clientY - transform.y) / transform.k;
 
-      setContextMenu({
-        isOpen: true,
-        x: clientX,
-        y: clientY,
-        target: nodeId ? { kind: "node", nodeId } : { kind: "canvas" },
-        canvasX,
-        canvasY,
-      });
-    },
-    []
-  );
+    setContextMenu({
+      isOpen: true,
+      x: clientX,
+      y: clientY,
+      target: nodeId ? { kind: "node", nodeId } : { kind: "canvas" },
+      canvasX,
+      canvasY,
+    });
+  };
 
-  const closeContextMenu = useCallback(() => {
+  const closeContextMenu = () => {
     setContextMenu(null);
-  }, []);
+  };
 
   // Delete handlers
-  const handleDeleteSingle = useCallback(
-    (nodeId: string) => {
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (treeManager) {
+  const handleDeleteSingle = (nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.deleteNodeDetach(nodeId);
+    }
+  };
+
+  const handleDeleteSingleWithChildren = (nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.deleteNode(nodeId);
+    }
+  };
+
+  const handleDeleteAll = (selectedNodeIds: Set<string>) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      selectedNodeIds.forEach((nodeId) => {
         treeManager.deleteNodeDetach(nodeId);
-      }
-    },
-    [graphCanvasRef]
-  );
+      });
+    }
+  };
 
-  const handleDeleteSingleWithChildren = useCallback(
-    (nodeId: string) => {
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (treeManager) {
+  const handleDeleteAllWithChildren = (selectedNodeIds: Set<string>) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      selectedNodeIds.forEach((nodeId) => {
         treeManager.deleteNode(nodeId);
-      }
-    },
-    [graphCanvasRef]
-  );
-
-  const handleDeleteAll = useCallback(
-    (selectedNodeIds: Set<string>) => {
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (treeManager) {
-        selectedNodeIds.forEach((nodeId) => {
-          treeManager.deleteNodeDetach(nodeId);
-        });
-      }
-    },
-    [graphCanvasRef]
-  );
-
-  const handleDeleteAllWithChildren = useCallback(
-    (selectedNodeIds: Set<string>) => {
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (treeManager) {
-        selectedNodeIds.forEach((nodeId) => {
-          treeManager.deleteNode(nodeId);
-        });
-      }
-    },
-    [graphCanvasRef]
-  );
+      });
+    }
+  };
 
   // Creation handlers
-  const handleNewQuestionOnCanvas = useCallback(() => {
+  const handleNewQuestionOnCanvas = () => {
     if (!contextMenu) return;
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
@@ -129,9 +118,9 @@ export function useContextMenu({
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
-  }, [contextMenu, graphCanvasRef]);
+  };
 
-  const handleAskQuestion = useCallback(() => {
+  const handleAskQuestion = () => {
     if (!contextMenu) return;
     const nodes = graphCanvasRef.current?.nodes;
     const nodesRef = graphCanvasRef.current?.nodesRef;
@@ -209,9 +198,9 @@ export function useContextMenu({
     eligibleParentIds.forEach((parentId) => {
       treeManager.linkNodes(parentId, newInputNode.id);
     });
-  }, [contextMenu, graphCanvasRef]);
+  };
 
-  const handleAddContext = useCallback(() => {
+  const handleAddContext = () => {
     if (!contextMenu) return;
     const nodes = graphCanvasRef.current?.nodes;
     const nodesRef = graphCanvasRef.current?.nodesRef;
@@ -247,18 +236,18 @@ export function useContextMenu({
 
     const newContextNode = createNode("context", freePos.x, freePos.y);
     treeManager.addNode(newContextNode);
-  }, [contextMenu, graphCanvasRef]);
+  };
 
-  const handleUploadContext = useCallback(() => {
+  const handleUploadContext = () => {
     if (contextMenu) {
       onUploadContext({
         x: contextMenu.canvasX,
         y: contextMenu.canvasY,
       });
     }
-  }, [contextMenu, onUploadContext]);
+  };
 
-  const handleListen = useCallback(() => {
+  const handleListen = () => {
     if (!contextMenu) return;
     const nodes = graphCanvasRef.current?.nodes;
     const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
@@ -278,10 +267,10 @@ export function useContextMenu({
     if (targetNodeIds.length === 0) return;
 
     onListen(targetNodeIds);
-  }, [contextMenu, graphCanvasRef, onListen]);
+  };
 
   // Build context menu items based on state
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+  const getContextMenuItems = (): ContextMenuItem[] => {
     if (!contextMenu) return [];
     const nodes = graphCanvasRef.current?.nodes;
     const selectedNodeIds = graphCanvasRef.current
@@ -403,23 +392,11 @@ export function useContextMenu({
     }
 
     return items;
-  }, [
-    contextMenu,
-    graphCanvasRef,
-    handleAskQuestion,
-    handleListen,
-    handleDeleteSingle,
-    handleDeleteAll,
-    handleDeleteSingleWithChildren,
-    handleDeleteAllWithChildren,
-    handleNewQuestionOnCanvas,
-    handleAddContext,
-    handleUploadContext,
-  ]);
+  };
 
   return {
     contextMenu,
-    contextMenuItems,
+    contextMenuItems: getContextMenuItems(),
     handleRequestContextMenu,
     closeContextMenu,
   };
