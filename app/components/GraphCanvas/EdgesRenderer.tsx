@@ -1,5 +1,5 @@
 import { CanvasContext } from "@/app/app/GraphCanvas";
-import { GraphNodes, NodeDimensions, Vector2 } from "@/app/types/graph";
+import { NodeDimensions, Vector2 } from "@/app/types/graph";
 import { getNodeCenter } from "@/app/utils/getNodeCenter";
 import { AnimatePresence, motion } from "framer-motion";
 import { useContext } from "react";

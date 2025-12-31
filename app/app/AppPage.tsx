@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 import { useState, useCallback, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas";
@@ -6,11 +7,10 @@ import { ContextSidebar } from "./ContextSidebar";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
-import { compressImage } from "../utils/imageCompression";
 import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
-import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
+import { useFileUpload } from "../hooks/useFileUpload";
 import { globals } from "../globals";
 
 type ContextMenuState = {
@@ -33,12 +33,17 @@ const AppPageContent = () => {
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  // File input ref for upload context
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // Audio playback hook
   const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } =
     useAudioPlayer();
+
+  // File upload hook
+  const {
+    onDropFilesAsContext,
+    handleUploadContext: handleUploadContextBase,
+    fileInputRef,
+    handleFileInputChange,
+  } = useFileUpload({ graphCanvasRef });
 
   const handleRequestNodeMove = useCallback(
     (nodeId: string, dx: number, dy: number) => {
@@ -132,7 +137,6 @@ const AppPageContent = () => {
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
-    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
   }, [contextMenu]);
 
   const handleAskQuestion = useCallback(() => {
@@ -209,7 +213,6 @@ const AppPageContent = () => {
 
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
-    nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
 
     // Link all eligible parent nodes
     eligibleParentIds.forEach((parentId) => {
@@ -253,182 +256,17 @@ const AppPageContent = () => {
 
     const newContextNode = createNode("context", freePos.x, freePos.y);
     treeManager.addNode(newContextNode);
-    nodesRef.current = {
-      ...nodesRef.current,
-      [newContextNode.id]: newContextNode,
-    };
   }, [contextMenu]);
-
-  const onDropFilesAsContext = useCallback(
-    async (files: FileList, canvasPoint: { x: number; y: number }) => {
-      const nodesRef = graphCanvasRef.current?.nodesRef;
-      const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
-      const treeManager = graphCanvasRef.current?.treeManager;
-      if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
-
-      const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
-      const documentExtensions = [
-        ".pdf",
-        ".docx",
-        ".pptx",
-        ".xlsx",
-        ".html",
-        ".htm",
-      ];
-      const fileArray = Array.from(files);
-
-      // Separate file types
-      const imageFiles = fileArray.filter((file) =>
-        file.type.startsWith("image/")
-      );
-      // Include plain text files in document files now
-      const documentFiles = fileArray.filter(
-        (file) =>
-          acceptedExtensions.some((ext) =>
-            file.name.toLowerCase().endsWith(ext)
-          ) ||
-          documentExtensions.some((ext) =>
-            file.name.toLowerCase().endsWith(ext)
-          ) ||
-          file.type === "application/pdf" ||
-          file.type ===
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-          file.type ===
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-          file.type ===
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-          file.type === "text/html" ||
-          file.type.startsWith("text/")
-      );
-
-      if (imageFiles.length === 0 && documentFiles.length === 0) return;
-
-      let nodeIndex = 0;
-
-      // Keep track of nodes as we create them for collision detection
-      const workingNodes = { ...nodesRef.current };
-
-      // Create image context nodes
-      for (const file of imageFiles) {
-        // Compress image before converting to data URL
-        const dataUrl = await compressImage(file);
-
-        // Stagger positions: prefer stacking vertically below, slight horizontal offset
-        const targetX = canvasPoint.x + nodeIndex * 40;
-        const targetY = canvasPoint.y + nodeIndex * 120;
-
-        const newNodeDim = getDefaultNodeDimensions("image-context");
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          newNodeDim.width,
-          newNodeDim.height,
-          workingNodes,
-          nodeDimensionsRef.current,
-          "below"
-        );
-
-        const newImageContextNode = createNode(
-          "image-context",
-          freePos.x,
-          freePos.y
-        );
-        const nodeWithValue = { ...newImageContextNode, value: dataUrl };
-        treeManager.addNode(nodeWithValue);
-        workingNodes[nodeWithValue.id] = nodeWithValue;
-        nodeIndex++;
-      }
-
-      // Create document nodes (includes plain text files now)
-      for (const file of documentFiles) {
-        // For plain text files (.txt, .md, .json, .csv), parse directly
-        // For other document types, use the parser with fallback
-        let parseResult;
-        const isPlainText = acceptedExtensions.some((ext) =>
-          file.name.toLowerCase().endsWith(ext)
-        );
-
-        if (isPlainText) {
-          // Parse plain text files directly and format with filename
-          const text = await file.text();
-          parseResult = {
-            text: `FILENAME:${file.name}\n\n${text}`,
-            filename: file.name,
-          };
-        } else {
-          // Use parser with fallback for other document types
-          parseResult = await parseDocumentWithFallback(file);
-        }
-
-        if (parseResult.error) {
-          console.error(`Failed to parse ${file.name}:`, parseResult.error);
-          continue;
-        }
-
-        // Stagger positions: prefer stacking vertically below, slight horizontal offset
-        const targetX = canvasPoint.x + nodeIndex * 40;
-        const targetY = canvasPoint.y + nodeIndex * 120;
-
-        const newNodeDim = getDefaultNodeDimensions("document");
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          newNodeDim.width,
-          newNodeDim.height,
-          workingNodes,
-          nodeDimensionsRef.current,
-          "below"
-        );
-
-        const newDocumentNode = createNode("document", freePos.x, freePos.y);
-        const nodeWithValue = {
-          ...newDocumentNode,
-          value: parseResult.text,
-        };
-        treeManager.addNode(nodeWithValue);
-        workingNodes[nodeWithValue.id] = nodeWithValue;
-        nodeIndex++;
-      }
-    },
-    []
-  );
-
-  const uploadContextCanvasPointRef = useRef<{ x: number; y: number } | null>(
-    null
-  );
 
   const handleUploadContext = useCallback(() => {
     // Store canvas coordinates before opening file dialog (context menu will close)
     if (contextMenu) {
-      uploadContextCanvasPointRef.current = {
+      handleUploadContextBase({
         x: contextMenu.canvasX,
         y: contextMenu.canvasY,
-      };
+      });
     }
-    fileInputRef.current?.click();
-  }, [contextMenu]);
-
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
-
-      // Use stored canvas coordinates
-      const canvasPoint = uploadContextCanvasPointRef.current;
-      if (!canvasPoint) return;
-
-      await onDropFilesAsContext(files, canvasPoint);
-
-      // Reset the input so the same file can be selected again
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-
-      // Clear the stored coordinates
-      uploadContextCanvasPointRef.current = null;
-    },
-    [onDropFilesAsContext]
-  );
+  }, [contextMenu, handleUploadContextBase]);
 
   // Handle Listen action - convert selected nodes' text to speech
   const handleListen = useCallback(() => {
@@ -547,7 +385,6 @@ const AppPageContent = () => {
 
     // Show "Ask Question" for non-input nodes (creates and links)
     if (node.type !== "input") {
-      // eslint-disable-next-line react-hooks/refs
       items.push({ label: "Ask Question", onClick: handleAskQuestion });
     }
 

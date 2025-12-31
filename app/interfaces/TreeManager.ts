@@ -2,7 +2,6 @@ import type {
   GraphNode,
   GraphNodes,
   InputNode,
-  NodeDimensions,
   NodeType,
   ResponseNode,
   ContextNode,

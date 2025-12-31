@@ -1,4 +1,4 @@
-import { GraphNode, GraphNodes } from "@/app/types/graph";
+import { GraphNode } from "@/app/types/graph";
 import { AnimatePresence, motion } from "framer-motion";
 import React, { useContext } from "react";
 import { InputFieldNode } from "@/app/app/nodes/InputFieldNode";
