@@ -4,6 +4,7 @@ import { GraphNode, GraphNodes } from "../types/";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { aiService } from "../interfaces/aiService";
+import { useAppSelector } from "../store/hooks";
 
 interface UseAIChatProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -14,6 +15,7 @@ interface UseAIChatReturn {
 }
 
 export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
+  const selectedModel = useAppSelector((state) => state.settings.selectedModel);
   /**
    * Recursively updates all descendant response nodes in breadth-first order.
    * Updates all nodes at each depth level in parallel, then moves to the next level.
@@ -70,7 +72,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                     value: response,
                     error: undefined,
                   };
-                }
+                },
+                { model: selectedModel }
               )
               .catch((error) => {
                 const errorMessage =
@@ -169,7 +172,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               value: response,
               error: undefined,
             };
-          }
+          },
+          { model: selectedModel }
         )
         .catch((error) => {
           const errorMessage =
@@ -222,7 +226,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Cascading updates: find all descendant response nodes and update them level by level
       await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
     },
-    [graphCanvasRef, cascadeUpdateDescendants]
+    [graphCanvasRef, cascadeUpdateDescendants, selectedModel]
   );
 
   return {

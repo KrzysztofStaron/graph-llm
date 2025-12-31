@@ -10,12 +10,14 @@ import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
+import { ModelIndicator } from "../components/ui/ModelIndicator";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { useFileUpload } from "../hooks/useFileUpload";
 import { useContextMenu } from "../hooks/useContextMenu";
 import { useAIChat } from "../hooks/useAIChat";
 import { globals } from "../globals";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import QuickMenu from "./QuickMenu";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
@@ -86,6 +88,12 @@ const AppPageContent = () => {
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
       />
+      {quickMenuOpen && (
+        <QuickMenu
+          isOpen={quickMenuOpen}
+          onClose={() => setQuickMenuOpen(false)}
+        />
+      )}
       {editingContextNodeId && (
         <ContextSidebar
           value={
@@ -119,6 +127,7 @@ const AppPageContent = () => {
           <AudioPlayerIndicator onStop={stopAudio} isLoading={isLoadingAudio} />
         )}
       </AnimatePresence>
+      <ModelIndicator />
       <input
         ref={fileInputRef}
         type="file"
