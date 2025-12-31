@@ -144,15 +144,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Handle mouse down
     const handleMouseDown = useCallback(
       (e: React.MouseEvent, nodeId?: string) => {
-        // #region agent log
-        console.log("[DEBUG-B] handleMouseDown called", {
-          nodeId: nodeId,
-          shiftKey: e.shiftKey,
-          button: e.button,
-          targetTag: (e.target as HTMLElement).tagName,
-        });
-        // #endregion
-
         if (!nodeId) {
           // Click on canvas - clear selection if shift not held
           if (!e.shiftKey) {
@@ -180,14 +171,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         // IMPORTANT: Prevent event from reaching d3-zoom
         e.preventDefault();
         e.stopPropagation();
-
-        // #region agent log
-        console.log("[DEBUG-B] preventDefault called, setting draggingRef", {
-          nodeId: nodeId,
-          clientX: e.clientX,
-          clientY: e.clientY,
-        });
-        // #endregion
 
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         draggingRef.current = { type: "node", nodeId, hasMoved: false };

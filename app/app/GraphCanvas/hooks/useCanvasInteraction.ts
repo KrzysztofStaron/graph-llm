@@ -156,14 +156,6 @@ export function useCanvasInteraction({
       .zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 4])
       .on("zoom", (event) => {
-        // #region agent log
-        console.log("[DEBUG-C] d3-zoom activated", {
-          x: event.transform.x,
-          y: event.transform.y,
-          k: event.transform.k,
-          sourceEventType: event.sourceEvent?.type,
-        });
-        // #endregion
         const { x, y, k } = event.transform;
         if (contentRef.current) {
           contentRef.current.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
@@ -173,30 +165,6 @@ export function useCanvasInteraction({
       .filter((event) => {
         // Only allow zoom/pan if not clicking on buttons or inputs
         const target = event.target as HTMLElement;
-
-        // #region agent log
-        const hasNodeId = target.closest("[data-node-id]");
-        const hasCursorMove = target.closest(".cursor-move");
-        const shouldAllow =
-          event.type === "wheel" ||
-          (!event.button &&
-            target.tagName !== "BUTTON" &&
-            target.tagName !== "TEXTAREA" &&
-            target.tagName !== "INPUT" &&
-            !target.closest(".cursor-pointer") &&
-            !target.closest(".cursor-text") &&
-            !target.closest(".cursor-move") &&
-            !target.closest("[data-node-id]"));
-        console.log("[DEBUG-A] d3-zoom filter check", {
-          eventType: event.type,
-          targetTag: target.tagName,
-          targetClasses: target.className,
-          hasNodeId: !!hasNodeId,
-          hasCursorMove: !!hasCursorMove,
-          shouldAllow: shouldAllow,
-          button: event.button,
-        });
-        // #endregion
 
         // Always allow zoom with wheel (unless stopped by stopPropagation)
         if (event.type === "wheel") return true;
