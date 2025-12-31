@@ -1,4 +1,4 @@
-import { CanvasContext } from "@/app/app/GraphCanvas";
+import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 import { NodeDimensions, Vector2 } from "@/app/types/graph";
 import { getNodeCenter } from "@/app/utils/getNodeCenter";
 import { AnimatePresence, motion } from "framer-motion";

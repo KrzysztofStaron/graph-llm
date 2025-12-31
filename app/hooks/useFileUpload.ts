@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { GraphCanvasRef } from "../app/GraphCanvas";
+import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { compressImage } from "../utils/imageCompression";

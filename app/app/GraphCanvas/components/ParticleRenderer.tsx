@@ -1,5 +1,5 @@
 import React from "react";
-import { ParticleEffect } from "../ui/ParticleEffect";
+import { ParticleEffect } from "../../../components/ui/ParticleEffect";
 import { Vector2 } from "@/app/types/graph";
 
 const ParticleRenderer = ({

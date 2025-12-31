@@ -6,12 +6,12 @@ import {
   useMemo,
   type Dispatch,
 } from "react";
-import { type GraphNodes } from "../types/graph";
+import { type GraphNodes } from "../../../types/graph";
 import {
   type GraphAction,
   deepCopyNodes,
   TreeManager,
-} from "../interfaces/TreeManager";
+} from "../../../interfaces/TreeManager";
 
 interface UseGraphHistoryProps {
   nodes: GraphNodes;

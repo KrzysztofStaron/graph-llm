@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/refs */
 import { useState } from "react";
-import { GraphCanvasRef } from "../app/GraphCanvas";
+import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { ContextMenuItem } from "../components/ui/ContextMenu";

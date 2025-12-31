@@ -1,15 +1,17 @@
 import { useEffect } from "react";
 
 interface UseKeyboardShortcutsProps {
-  onFitView: () => void;
-  onClearSelection: () => void;
-  onUndo: () => void;
+  onFitView?: () => void;
+  onClearSelection?: () => void;
+  onUndo?: () => void;
+  onQuickMenu?: () => void;
 }
 
 export function useKeyboardShortcuts({
   onFitView,
   onClearSelection,
   onUndo,
+  onQuickMenu,
 }: UseKeyboardShortcutsProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -22,18 +24,24 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === "f") {
-        onFitView();
+        onFitView?.();
       }
       if (e.key === "Escape") {
-        onClearSelection();
+        onClearSelection?.();
       }
       // Handle Ctrl+Z (or Cmd+Z on Mac) for undo
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
-        onUndo();
+        onUndo?.();
+      }
+
+      // ctrl + k for quick menu
+      if (e.key == "k" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        onQuickMenu?.();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onFitView, onClearSelection, onUndo]);
+  }, [onFitView, onClearSelection, onUndo, onQuickMenu]);
 }

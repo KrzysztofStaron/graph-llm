@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GraphNode, GraphNodes, NodeDimensions } from "../types/graph";
+import { GraphNode, GraphNodes, NodeDimensions } from "../../types/graph";
 import {
   useEffect,
   useRef,
@@ -10,19 +10,18 @@ import {
   useReducer,
   useImperativeHandle,
   forwardRef,
-  useContext,
   createContext,
 } from "react";
-import { resolveLocalCollisions } from "../utils/collisionResolver";
-import { graphReducer } from "../interfaces/TreeManager";
-import type { TreeManager } from "../interfaces/TreeManager";
-import EdgesRenderer from "../components/GraphCanvas/EdgesRenderer";
-import NodesRenderer from "../components/GraphCanvas/NodesRenderer";
-import ParticleRenderer from "../components/GraphCanvas/ParticleRenderer";
-import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { useNodeParticles } from "../hooks/useNodeParticles";
-import { useGraphHistory } from "../hooks/useGraphHistory";
-import { useCanvasInteraction } from "../hooks/useCanvasInteraction";
+import { resolveLocalCollisions } from "../../utils/collisionResolver";
+import { graphReducer } from "../../interfaces/TreeManager";
+import type { TreeManager } from "../../interfaces/TreeManager";
+import EdgesRenderer from "./components/EdgesRenderer";
+import NodesRenderer from "./components/NodesRenderer";
+import ParticleRenderer from "./components/ParticleRenderer";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { useNodeParticles } from "./hooks/useNodeParticles";
+import { useGraphHistory } from "./hooks/useGraphHistory";
+import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 
 export interface GraphCanvasRef {
   transform: { x: number; y: number; k: number };
@@ -45,6 +44,7 @@ interface GraphCanvasProps {
     files: FileList,
     canvasPoint: { x: number; y: number }
   ) => void;
+  setQuickMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
   onRequestContextMenu?: (
     clientX: number,
@@ -63,6 +63,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
   function GraphCanvasInner(props, ref) {
     const {
       initialNodes,
+      setQuickMenuOpen,
       onInputSubmit,
       setEditingContextNodeId,
       onDropFilesAsContext,

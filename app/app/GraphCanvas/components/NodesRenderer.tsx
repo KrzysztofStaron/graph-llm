@@ -6,7 +6,7 @@ import { ResponseNode } from "@/app/app/nodes/ResponseNode";
 import { ContextNode } from "@/app/app/nodes/ContextNode";
 import { ImageContextNode } from "@/app/app/nodes/ImageContextNode";
 import { DocumentNode } from "@/app/app/nodes/DocumentNode";
-import { CanvasContext } from "@/app/app/GraphCanvas";
+import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 
 const NodesRenderer = ({
   selectedNodeIds,

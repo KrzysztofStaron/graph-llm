@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/refs */
 import { useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
-import { GraphCanvas } from "./GraphCanvas";
+import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
@@ -10,6 +10,7 @@ import { useFileUpload } from "../hooks/useFileUpload";
 import { useContextMenu } from "../hooks/useContextMenu";
 import { useAIChat } from "../hooks/useAIChat";
 import { globals } from "../globals";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
@@ -58,6 +59,12 @@ const AppPageContent = () => {
     }
   };
 
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+
+  useKeyboardShortcuts({
+    onQuickMenu: () => setQuickMenuOpen((prev) => !prev),
+  });
+
   return (
     <div className="relative w-full h-screen">
       <GraphCanvas
@@ -68,6 +75,7 @@ const AppPageContent = () => {
         onDropFilesAsContext={onDropFilesAsContext}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
+        setQuickMenuOpen={setQuickMenuOpen}
       />
       {editingContextNodeId && (
         <ContextSidebar

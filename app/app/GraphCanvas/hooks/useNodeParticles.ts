@@ -6,8 +6,13 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { GraphNode, GraphNodes, NodeDimensions, Vector2 } from "../types/graph";
-import { getDefaultNodeDimensions } from "../utils/placement";
+import {
+  GraphNode,
+  GraphNodes,
+  NodeDimensions,
+  Vector2,
+} from "@/app/types/graph";
+import { getDefaultNodeDimensions } from "@/app/utils/placement";
 
 interface UseNodeParticlesProps {
   nodes: GraphNodes;
