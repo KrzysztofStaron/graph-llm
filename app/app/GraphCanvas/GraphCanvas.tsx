@@ -16,7 +16,7 @@ import { resolveLocalCollisions } from "../../utils/collisionResolver";
 import { graphReducer } from "../../interfaces/TreeManager";
 import type { TreeManager } from "../../interfaces/TreeManager";
 import EdgesRenderer from "./components/EdgesRenderer";
-import NodesRenderer from "./components/NodesRenderer";
+import NodesRenderer from "./components/nodes/NodesRenderer";
 import ParticleRenderer from "./components/ParticleRenderer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useNodeParticles } from "./hooks/useNodeParticles";
