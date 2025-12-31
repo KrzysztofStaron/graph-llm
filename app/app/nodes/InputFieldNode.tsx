@@ -1,4 +1,5 @@
 import { InputNode, GraphNodes } from "@/app/types/graph";
+import { TreeManager } from "@/app/interfaces/TreeManager";
 import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
 import { memo, useRef, useState, useEffect } from "react";
 
@@ -31,15 +32,23 @@ export const InputFieldNode = memo(
     const [previousQuery, setPreviousQuery] = useState(node.value || "");
     const [isDeleteHovered, setIsDeleteHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const lastSyncedValueRef = useRef(node.value);
+    const isSubmittingRef = useRef(false);
+    const queryRef = useRef(query);
 
-    // Sync local state with node.value (important for undo/redo)
+    // Keep ref in sync with query state
     useEffect(() => {
-      // Only sync if node.value changed externally (not from our own updates)
-      if (node.value !== lastSyncedValueRef.current) {
-        lastSyncedValueRef.current = node.value;
+      queryRef.current = query;
+    }, [query]);
+
+    useEffect(() => {
+      // If we're submitting, the node.value change is expected - skip sync
+      if (isSubmittingRef.current) {
+        isSubmittingRef.current = false;
+        return;
+      }
+
+      if (node.value !== queryRef.current) {
         if (node.value) {
-          // Sync local state when node.value changes externally (e.g., from undo)
           setQuery(node.value);
           setPreviousQuery(node.value);
           setMode(Mode.DISPLAY);
@@ -49,7 +58,7 @@ export const InputFieldNode = memo(
           setMode(Mode.ASK);
         }
       }
-      // Intentionally only depend on node.value - we sync when it changes externally
+      // This effect intentionally syncs external prop changes to local state (undo/redo support)
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [node.value]);
 
@@ -57,53 +66,18 @@ export const InputFieldNode = memo(
       const trimmedQuery = query.trim();
       if (trimmedQuery === "") return;
 
+      isSubmittingRef.current = true;
       setPreviousQuery(trimmedQuery);
-      onInputSubmit(trimmedQuery);
       setQuery(trimmedQuery);
       setMode(Mode.DISPLAY);
+      onInputSubmit(trimmedQuery);
     };
 
-    const hasInputDescendant = (() => {
-      const visited = new Set<string>();
-
-      const checkDescendants = (nodeId: string): boolean => {
-        if (visited.has(nodeId)) return false;
-        visited.add(nodeId);
-
-        const currentNode = nodes[nodeId];
-        if (!currentNode) return false;
-
-        // Check if current node is an input node with the original node as parent
-        if (
-          currentNode.type === "response" &&
-          currentNode.parentIds.includes(node.id)
-        ) {
-          if (!node.childrenIds.includes(nodeId)) {
-            return true;
-          }
-        }
-
-        // Recursively check all children
-        for (const childId of currentNode.childrenIds) {
-          if (checkDescendants(childId)) {
-            if (!node.childrenIds.includes(nodeId)) {
-              return true;
-            }
-          }
-        }
-
-        return false;
-      };
-
-      // Check all direct children
-      for (const childId of node.childrenIds) {
-        if (checkDescendants(childId)) {
-          return true;
-        }
-      }
-
-      return false;
-    })();
+    const hasInputDescendant = TreeManager.hasDescendant(
+      nodes,
+      node.id,
+      "response"
+    );
 
     const performCancel = () => {
       if (previousQuery) {

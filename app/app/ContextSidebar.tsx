@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 type ContextSidebarProps = {
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   onClose: (finalValue: string) => void;
 };
 
@@ -72,7 +72,7 @@ export const ContextSidebar = ({
             value={localValue}
             onChange={(e) => {
               setLocalValue(e.target.value);
-              onChange(e.target.value);
+              onChange?.(e.target.value);
             }}
             placeholder="Enter context content..."
             className="w-full h-full bg-[#0a0a0a] border border-white/10 rounded-xl p-4 text-white text-sm leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/30"

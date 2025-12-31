@@ -1,9 +1,14 @@
 import type {
   GraphNode,
   GraphNodes,
+  InputNode,
   NodeType,
   ResponseNode,
+  ContextNode,
+  DocumentNode,
+  ImageContextNode,
 } from "../types/graph";
+
 import type { ChatMessage } from "./aiService";
 
 export type GraphAction =
@@ -23,6 +28,55 @@ export type GraphAction =
 
 export class TreeManager {
   constructor(private dispatch: (action: GraphAction) => void) {}
+
+  /**
+   * Checks if a node has any descendant of the specified type.
+   * @param nodes - All nodes in the graph
+   * @param nodeId - The starting node ID to check descendants from
+   * @param nodeType - The type of node to search for
+   * @returns true if any descendant matches the specified type
+   */
+  static hasDescendant(
+    nodes: GraphNodes,
+    nodeId: string,
+    nodeType: NodeType
+  ): boolean {
+    const visited = new Set<string>();
+
+    const checkDescendants = (currentNodeId: string): boolean => {
+      if (visited.has(currentNodeId)) return false;
+      visited.add(currentNodeId);
+
+      const currentNode = nodes[currentNodeId];
+      if (!currentNode) return false;
+
+      // Check if current node matches the target type
+      if (currentNode.type === nodeType) {
+        return true;
+      }
+
+      // Recursively check all children
+      for (const childId of currentNode.childrenIds) {
+        if (checkDescendants(childId)) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // Start checking from the node's direct children
+    const startNode = nodes[nodeId];
+    if (!startNode) return false;
+
+    for (const childId of startNode.childrenIds) {
+      if (checkDescendants(childId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   /**
    * Finds all descendant response nodes starting from a given node, grouped by depth level (BFS).
@@ -275,4 +329,188 @@ export class TreeManager {
   deleteNodeDetach(id: string): void {
     this.dispatch({ type: "DELETE_NODE_DETACH", id });
   }
+}
+
+// Deep copy function for GraphNodes
+export const deepCopyNodes = (nodes: GraphNodes): GraphNodes => {
+  const copy: GraphNodes = {};
+  for (const [id, node] of Object.entries(nodes)) {
+    copy[id] = {
+      ...node,
+      parentIds: [...node.parentIds],
+      childrenIds: [...node.childrenIds],
+    };
+  }
+  return copy;
+};
+
+export function graphReducer(
+  nodes: GraphNodes,
+  action: GraphAction
+): GraphNodes {
+  switch (action.type) {
+    case "RESTORE_NODES": {
+      return deepCopyNodes(action.nodes);
+    }
+    case "PATCH_NODE": {
+      const node = nodes[action.id];
+      if (!node) return nodes;
+      return { ...nodes, [action.id]: { ...node, ...action.patch } };
+    }
+    case "ADD_NODE": {
+      return { ...nodes, [action.node.id]: action.node };
+    }
+    case "LINK": {
+      const fromNode = nodes[action.fromId];
+      const toNode = nodes[action.toId];
+      if (!fromNode || !toNode) return nodes;
+
+      return {
+        ...nodes,
+        [action.fromId]: {
+          ...fromNode,
+          childrenIds: fromNode.childrenIds.includes(action.toId)
+            ? fromNode.childrenIds
+            : [...fromNode.childrenIds, action.toId],
+        },
+        [action.toId]: {
+          ...toNode,
+          parentIds: toNode.parentIds.includes(action.fromId)
+            ? toNode.parentIds
+            : [...toNode.parentIds, action.fromId],
+        },
+      };
+    }
+    case "MOVE_NODE": {
+      const node = nodes[action.id];
+      if (!node) return nodes;
+      const updated: GraphNode = {
+        ...node,
+        x: node.x + action.dx,
+        y: node.y + action.dy,
+      };
+      if (action.setPinned !== undefined) {
+        updated.pinned = action.setPinned;
+      }
+      return {
+        ...nodes,
+        [action.id]: updated,
+      };
+    }
+    case "DELETE_CASCADE": {
+      const startNode = nodes[action.id];
+      if (!startNode) return nodes;
+
+      // DFS to collect nodes to delete
+      // Rule: stop (and keep) a branch when we hit a node with >1 parent
+      const toDelete = new Set<string>();
+      const stack: string[] = [action.id];
+
+      while (stack.length > 0) {
+        const nodeId = stack.pop()!;
+
+        // Skip if already processed
+        if (toDelete.has(nodeId)) continue;
+
+        const node = nodes[nodeId];
+        if (!node) continue;
+
+        // For non-start nodes, check if this node has a parent outside the deletion set
+        if (nodeId !== action.id) {
+          // If node has >1 parent, stop here (keep this node and its descendants)
+          if (node.parentIds.length > 1) continue;
+
+          // If node has any parent not in toDelete, it still has a valid parent - keep it
+          const hasParentOutsideDeleteSet = node.parentIds.some(
+            (parentId) => !toDelete.has(parentId)
+          );
+          if (hasParentOutsideDeleteSet) continue;
+        }
+
+        // Mark for deletion
+        toDelete.add(nodeId);
+
+        // Add children to stack for DFS traversal
+        for (const childId of node.childrenIds) {
+          if (!toDelete.has(childId)) {
+            stack.push(childId);
+          }
+        }
+      }
+
+      // Build the updated nodes object
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        // Skip nodes that are being deleted
+        if (toDelete.has(nodeId)) continue;
+
+        // Filter out deleted nodes from parentIds and childrenIds
+        updatedNodes[nodeId] = {
+          ...node,
+          parentIds: node.parentIds.filter((id) => !toDelete.has(id)),
+          childrenIds: node.childrenIds.filter((id) => !toDelete.has(id)),
+        };
+      }
+
+      return updatedNodes;
+    }
+    case "DELETE_NODE_DETACH": {
+      const nodeToDelete = nodes[action.id];
+      if (!nodeToDelete) return nodes;
+
+      // Build updated nodes object
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        // Skip the node being deleted
+        if (nodeId === action.id) continue;
+
+        // Remove the deleted node from parentIds and childrenIds
+        updatedNodes[nodeId] = {
+          ...node,
+          parentIds: node.parentIds.filter(
+            (parentId) => parentId !== action.id
+          ),
+          childrenIds: node.childrenIds.filter(
+            (childId) => childId !== action.id
+          ),
+        };
+      }
+
+      return updatedNodes;
+    }
+  }
+}
+
+export function createNode(type: "input", x: number, y: number): InputNode;
+export function createNode(
+  type: "response",
+  x: number,
+  y: number
+): ResponseNode;
+export function createNode(type: "context", x: number, y: number): ContextNode;
+export function createNode(
+  type: "image-context",
+  x: number,
+  y: number
+): ImageContextNode;
+export function createNode(
+  type: "document",
+  x: number,
+  y: number
+): DocumentNode;
+
+export function createNode(type: NodeType, x: number, y: number): GraphNode {
+  const id = crypto.randomUUID();
+
+  return {
+    id,
+    type,
+    x,
+    y,
+    value: "",
+    parentIds: [],
+    childrenIds: [],
+  };
 }

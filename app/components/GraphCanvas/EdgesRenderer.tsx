@@ -1,17 +1,18 @@
-import { GraphNodes, NodeDimensions, Vector2 } from "@/app/types/graph";
+import { CanvasContext } from "@/app/app/GraphCanvas";
+import { NodeDimensions, Vector2 } from "@/app/types/graph";
 import { getNodeCenter } from "@/app/utils/getNodeCenter";
 import { AnimatePresence, motion } from "framer-motion";
-import React from "react";
+import { useContext } from "react";
 
 const EdgesRenderer = ({
-  nodes,
   localNodeDimensions,
   appearingNodes,
 }: {
-  nodes: GraphNodes;
   localNodeDimensions: NodeDimensions;
   appearingNodes: Record<string, Vector2>;
 }) => {
+  const { nodes } = useContext(CanvasContext);
+
   const nodeArray = Object.values(nodes);
 
   const edges = nodeArray.flatMap((node) =>

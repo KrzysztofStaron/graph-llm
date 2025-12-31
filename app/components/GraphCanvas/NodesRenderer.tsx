@@ -1,27 +1,27 @@
-import { GraphNode, GraphNodes } from "@/app/types/graph";
+import { GraphNode } from "@/app/types/graph";
 import { AnimatePresence, motion } from "framer-motion";
-import React from "react";
+import React, { useContext } from "react";
 import { InputFieldNode } from "@/app/app/nodes/InputFieldNode";
 import { ResponseNode } from "@/app/app/nodes/ResponseNode";
 import { ContextNode } from "@/app/app/nodes/ContextNode";
 import { ImageContextNode } from "@/app/app/nodes/ImageContextNode";
 import { DocumentNode } from "@/app/app/nodes/DocumentNode";
+import { CanvasContext } from "@/app/app/GraphCanvas";
 
 const NodesRenderer = ({
-  nodes,
   selectedNodeIds,
   handleMouseDown,
-  onContextNodeDoubleClick,
+  setEditingContextNodeId,
   onInputSubmit,
   onDeleteNode,
 }: {
-  nodes: GraphNodes;
   selectedNodeIds: Set<string>;
   handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
-  onContextNodeDoubleClick?: (nodeId: string) => void;
+  setEditingContextNodeId?: (nodeId: string | null) => void;
   onInputSubmit: (query: string, node: GraphNode) => void;
   onDeleteNode: (nodeId: string) => void;
 }) => {
+  const { nodes } = useContext(CanvasContext);
   const nodeArray = Object.values(nodes);
 
   return (
@@ -62,9 +62,9 @@ const NodesRenderer = ({
                 handleMouseDown(e, node.id);
               }}
               onDoubleClick={(e) => {
-                if (node.type === "context" && onContextNodeDoubleClick) {
+                if (node.type === "context" && setEditingContextNodeId) {
                   e.stopPropagation();
-                  onContextNodeDoubleClick(node.id);
+                  setEditingContextNodeId(node.id);
                 }
               }}
             >
