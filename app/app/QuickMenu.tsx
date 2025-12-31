@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, Check } from "lucide-react";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setSelectedModel, availableModels } from "../store/settingsSlice";
 
@@ -13,17 +13,24 @@ const QuickMenu = ({
 }) => {
   const dispatch = useAppDispatch();
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
-  const [focusedIndex, setFocusedIndex] = useState(0);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  useEffect(() => {
-    if (isOpen) {
-      const currentIndex = availableModels.findIndex(
-        (model) => model.value === selectedModel
-      );
-      setFocusedIndex(currentIndex >= 0 ? currentIndex : 0);
-    }
-  }, [isOpen, selectedModel]);
+  const getInitialIndex = () => {
+    const currentIndex = availableModels.findIndex(
+      (model) => model.value === selectedModel
+    );
+    return currentIndex >= 0 ? currentIndex : 0;
+  };
+
+  const [focusedIndex, setFocusedIndex] = useState(getInitialIndex);
+
+  const handleModelSelect = useCallback(
+    (modelValue: string) => {
+      dispatch(setSelectedModel(modelValue));
+      onClose();
+    },
+    [dispatch, onClose]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,17 +64,12 @@ const QuickMenu = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, focusedIndex]);
-
-  const handleModelSelect = (modelValue: string) => {
-    dispatch(setSelectedModel(modelValue));
-    onClose();
-  };
+  }, [isOpen, focusedIndex, handleModelSelect, onClose]);
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <React.Fragment key={`menu-${isOpen}`}>
           {/* Backdrop to block canvas interactions */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -97,14 +99,18 @@ const QuickMenu = ({
                 return (
                   <button
                     key={model.value}
-                    ref={(el) => (buttonRefs.current[index] = el)}
+                    ref={(el) => {
+                      buttonRefs.current[index] = el;
+                    }}
                     onClick={() => handleModelSelect(model.value)}
                     className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-all duration-200 flex items-center gap-2 ${
-                      isFocused
-                        ? "bg-white/50 text-black"
-                        : "bg-transparent"
+                      isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
-                      isSelected && !isFocused ? "text-white" : !isFocused ? "text-white/70" : ""
+                      isSelected && !isFocused
+                        ? "text-white"
+                        : !isFocused
+                        ? "text-white/70"
+                        : ""
                     }`}
                   >
                     <Icon
@@ -112,14 +118,18 @@ const QuickMenu = ({
                         isSelected || isFocused ? "opacity-100" : ""
                       } ${isFocused ? "translate-x-2" : ""}`}
                     />
-                    <span className={`group-hover:translate-x-2 transition-all duration-200 ${
-                      isFocused ? "translate-x-2" : ""
-                    }`}>
+                    <span
+                      className={`group-hover:translate-x-2 transition-all duration-200 ${
+                        isFocused ? "translate-x-2" : ""
+                      }`}
+                    >
                       {model.label}
                     </span>
-                    <span className={`ml-auto text-xs opacity-40 group-hover:opacity-60 ${
-                      isFocused ? "opacity-60" : ""
-                    }`}>
+                    <span
+                      className={`ml-auto text-xs opacity-40 group-hover:opacity-60 ${
+                        isFocused ? "opacity-60" : ""
+                      }`}
+                    >
                       {model.value.split("/")[0]}
                     </span>
                   </button>
@@ -127,7 +137,7 @@ const QuickMenu = ({
               })}
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
     </AnimatePresence>
   );
