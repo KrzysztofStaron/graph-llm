@@ -13,9 +13,7 @@ interface UseAIChatReturn {
   onInputSubmit: (query: string, caller: GraphNode) => Promise<void>;
 }
 
-export function useAIChat({
-  graphCanvasRef,
-}: UseAIChatProps): UseAIChatReturn {
+export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   /**
    * Recursively updates all descendant response nodes in breadth-first order.
    * Updates all nodes at each depth level in parallel, then moves to the next level.
@@ -55,16 +53,35 @@ export function useAIChat({
             const inputParent = currentNodes[inputParentId];
 
             // Stream the AI response
-            await aiService.streamChat(
-              TreeManager.buildChatML(currentNodes, inputParent),
-              (response) => {
-                treeManager.patchNode(responseNode.id, { value: response });
+            const result = await aiService
+              .streamChat(
+                TreeManager.buildChatML(currentNodes, inputParent),
+                (response) => {
+                  treeManager.patchNode(responseNode.id, {
+                    value: response,
+                    error: undefined,
+                  });
+                  currentNodes[responseNode.id] = {
+                    ...currentNodes[responseNode.id],
+                    value: response,
+                    error: undefined,
+                  };
+                }
+              )
+              .catch((error) => {
+                const errorMessage =
+                  error instanceof Error ? error.message : String(error);
+                treeManager.patchNode(responseNode.id, { error: errorMessage });
                 currentNodes[responseNode.id] = {
                   ...currentNodes[responseNode.id],
-                  value: response,
+                  error: errorMessage,
                 };
-              }
-            );
+                return null;
+              });
+
+            if (result === null) {
+              return;
+            }
           })
         );
       }
@@ -83,12 +100,10 @@ export function useAIChat({
       const currentCaller = nodesRef.current[caller.id] || caller;
 
       // Find the first response child node
-      let responseNodeId = currentCaller.childrenIds.find(
-        (childId: string) => {
-          const childNode = nodesRef.current[childId];
-          return childNode?.type === "response";
-        }
-      );
+      let responseNodeId = currentCaller.childrenIds.find((childId: string) => {
+        const childNode = nodesRef.current[childId];
+        return childNode?.type === "response";
+      });
 
       let responseNode: GraphNode;
 
@@ -137,16 +152,36 @@ export function useAIChat({
       }
 
       // Send the query - use the locally updated nodes object
-      await aiService.streamChat(
-        TreeManager.buildChatML(nodesWithQuery, updatedCaller),
-        (response) => {
-          treeManager.patchNode(responseNodeId, { value: response });
+      const result = await aiService
+        .streamChat(
+          TreeManager.buildChatML(nodesWithQuery, updatedCaller),
+          (response) => {
+            treeManager.patchNode(responseNodeId, {
+              value: response,
+              error: undefined,
+            });
+            nodesWithQuery[responseNodeId] = {
+              ...nodesWithQuery[responseNodeId],
+              value: response,
+              error: undefined,
+            };
+          }
+        )
+        .catch((error) => {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          treeManager.patchNode(responseNodeId, { error: errorMessage });
           nodesWithQuery[responseNodeId] = {
             ...nodesWithQuery[responseNodeId],
-            value: response,
+            error: errorMessage,
           };
-        }
-      );
+          return null;
+        });
+
+      // If the request failed, don't create follow-up nodes or cascade updates
+      if (result === null) {
+        return;
+      }
 
       // If response has no Input Node, create a new one
       if (

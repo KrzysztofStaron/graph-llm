@@ -185,7 +185,8 @@ function splitIntoChunks(content: string): string[] {
 export const ResponseNode = memo(
   function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {
     const rawContent = node.value;
-    const isLoading = rawContent.length === 0;
+    const isLoading = rawContent.length === 0 && !node.error;
+    const isFailed = !!node.error;
 
     // Memoize chunk splitting and math normalization
     const chunks = useMemo(() => {
@@ -210,6 +211,39 @@ export const ResponseNode = memo(
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
                 <p className="text-sm font-mono">Loading…</p>
               </div>
+            ) : isFailed ? (
+              <div className="flex items-start gap-3 text-red-400">
+                <div className="size-4 mt-0.5 shrink-0">
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-full h-full"
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M5 5L11 11M11 5L5 11"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold mb-1">
+                    Failed to generate response
+                  </p>
+                  <p className="text-sm text-red-300/80 font-mono">
+                    {node.error}
+                  </p>
+                </div>
+              </div>
             ) : (
               chunks.map((chunk, index) => (
                 <MarkdownChunk key={index} content={chunk} />
@@ -223,6 +257,7 @@ export const ResponseNode = memo(
   (prev, next) => {
     return (
       prev.node.value === next.node.value &&
+      prev.node.error === next.node.error &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected

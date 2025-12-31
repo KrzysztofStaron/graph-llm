@@ -19,6 +19,9 @@ export interface BaseNode {
 
   // true if user has manually dragged this node (prevents auto-layout from moving it)
   pinned?: boolean;
+
+  // error message if the node failed to process
+  error?: string;
 }
 
 export interface ResponseNode extends BaseNode {
