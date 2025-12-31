@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
@@ -15,7 +15,7 @@ interface UseFileUploadReturn {
     canvasPoint: { x: number; y: number }
   ) => Promise<void>;
   handleUploadContext: (canvasPoint: { x: number; y: number }) => void;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -30,8 +30,7 @@ export function useFileUpload({
     null
   );
 
-  const onDropFilesAsContext = useCallback(
-    async (files: FileList, canvasPoint: { x: number; y: number }) => {
+  const onDropFilesAsContext = async (files: FileList, canvasPoint: { x: number; y: number }) => {
       const nodesRef = graphCanvasRef.current?.nodesRef;
       const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
       const treeManager = graphCanvasRef.current?.treeManager;
@@ -151,40 +150,32 @@ export function useFileUpload({
         workingNodes[nodeWithValue.id] = nodeWithValue;
         nodeIndex++;
       }
-    },
-    [graphCanvasRef]
-  );
+  };
 
-  const handleUploadContext = useCallback(
-    (canvasPoint: { x: number; y: number }) => {
-      // Store canvas coordinates before opening file dialog
-      uploadContextCanvasPointRef.current = canvasPoint;
-      fileInputRef.current?.click();
-    },
-    []
-  );
+  const handleUploadContext = (canvasPoint: { x: number; y: number }) => {
+    // Store canvas coordinates before opening file dialog
+    uploadContextCanvasPointRef.current = canvasPoint;
+    fileInputRef.current?.click();
+  };
 
-  const handleFileInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-      // Use stored canvas coordinates
-      const canvasPoint = uploadContextCanvasPointRef.current;
-      if (!canvasPoint) return;
+    // Use stored canvas coordinates
+    const canvasPoint = uploadContextCanvasPointRef.current;
+    if (!canvasPoint) return;
 
-      await onDropFilesAsContext(files, canvasPoint);
+    await onDropFilesAsContext(files, canvasPoint);
 
-      // Reset the input so the same file can be selected again
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    // Reset the input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
 
-      // Clear the stored coordinates
-      uploadContextCanvasPointRef.current = null;
-    },
-    [onDropFilesAsContext]
-  );
+    // Clear the stored coordinates
+    uploadContextCanvasPointRef.current = null;
+  };
 
   return {
     onDropFilesAsContext,
