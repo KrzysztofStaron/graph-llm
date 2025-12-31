@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 import { useState, useCallback, useMemo } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
@@ -63,12 +64,15 @@ export function useContextMenu({
   }, []);
 
   // Delete handlers
-  const handleDeleteSingle = useCallback((nodeId: string) => {
-    const treeManager = graphCanvasRef.current?.treeManager;
-    if (treeManager) {
-      treeManager.deleteNodeDetach(nodeId);
-    }
-  }, [graphCanvasRef]);
+  const handleDeleteSingle = useCallback(
+    (nodeId: string) => {
+      const treeManager = graphCanvasRef.current?.treeManager;
+      if (treeManager) {
+        treeManager.deleteNodeDetach(nodeId);
+      }
+    },
+    [graphCanvasRef]
+  );
 
   const handleDeleteSingleWithChildren = useCallback(
     (nodeId: string) => {
@@ -302,10 +306,15 @@ export function useContextMenu({
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
       }
 
-      // Show "Listen" for any selected nodes that have text content
+      // Show "Listen" for any selected nodes that have text content (but not images)
       const hasTextContent = Array.from(selectedNodeIds).some((nodeId) => {
         const node = nodes[nodeId];
-        return node && node.value && node.value.trim().length > 0;
+        return (
+          node &&
+          node.type !== "image-context" &&
+          node.value &&
+          node.value.trim().length > 0
+        );
       });
 
       if (hasTextContent) {
@@ -370,8 +379,12 @@ export function useContextMenu({
       items.push({ label: "Ask Question", onClick: handleAskQuestion });
     }
 
-    // Show "Listen" if node has text content
-    if (node.value && node.value.trim().length > 0) {
+    // Show "Listen" if node has text content (but not for images)
+    if (
+      node.type !== "image-context" &&
+      node.value &&
+      node.value.trim().length > 0
+    ) {
       items.push({ label: "Listen", onClick: handleListen });
     }
 
