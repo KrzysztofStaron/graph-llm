@@ -18,26 +18,13 @@ import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 
 const initialNodes: GraphNodes = {
-  "context-1": {
-    id: "context-1",
-    type: "context",
-    x: 550 + 300,
-    y: 100,
-    value: `Today is ${new Date().toLocaleDateString()}, ${new Date().toLocaleDateString(
-      "en-US",
-      { weekday: "long" }
-    )}`,
-    parentIds: [],
-    childrenIds: ["input-1"],
-  },
-
   "input-1": {
     id: "input-1",
     type: "input",
-    x: 400 + 300,
-    y: 300,
+    x: 800,
+    y: 473 - 136 / 2,
     value: "",
-    parentIds: ["context-1"],
+    parentIds: [],
     childrenIds: [],
   },
 };
