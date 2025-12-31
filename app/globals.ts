@@ -1,9 +1,23 @@
+import { GraphNodes } from "./types/graph";
+
 const local = process.env.NODE_ENV === "development";
 
 export class globals {
   static readonly graphLLMBackendUrl = local
     ? "http://localhost:9955"
     : "https://api.graphai.one"; //
+
+  static readonly initialNodes: GraphNodes = {
+    "input-1": {
+      id: "input-1",
+      type: "input",
+      x: 800,
+      y: 473 - 136 / 2,
+      value: "",
+      parentIds: [],
+      childrenIds: [],
+    },
+  };
 }
 
 console.log("local", globals.graphLLMBackendUrl);

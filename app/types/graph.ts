@@ -1,4 +1,9 @@
-export type NodeType = "input" | "response" | "context" | "image-context" | "document";
+export type NodeType =
+  | "input"
+  | "response"
+  | "context"
+  | "image-context"
+  | "document";
 
 export interface BaseNode {
   id: string;
@@ -36,7 +41,12 @@ export interface DocumentNode extends BaseNode {
   type: "document";
 }
 
-export type GraphNode = InputNode | ResponseNode | ContextNode | ImageContextNode | DocumentNode;
+export type GraphNode =
+  | InputNode
+  | ResponseNode
+  | ContextNode
+  | ImageContextNode
+  | DocumentNode;
 
 export type GraphNodes = Record<string, GraphNode>;
 
@@ -44,3 +54,7 @@ export interface Edge {
   from: string;
   to: string;
 }
+
+export type NodeDimensions = Record<string, { width: number; height: number }>;
+
+export type Vector2 = { x: number; y: number };

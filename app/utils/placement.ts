@@ -1,5 +1,4 @@
-import type { GraphNode, GraphNodes } from "../types/graph";
-import type { NodeDimensions } from "../hooks/useGraphCanvas";
+import type { GraphNode, GraphNodes, NodeDimensions } from "../types/graph";
 import { LAYOUT_CONFIG } from "../globals";
 
 export interface Rectangle {

@@ -1,7 +1,6 @@
-import { InputNode } from "@/app/types/graph";
+import { InputNode, GraphNodes } from "@/app/types/graph";
 import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
 import { memo, useRef, useState, useEffect } from "react";
-import { useGraphCanvasContext } from "../../hooks/GraphCanvasContext";
 
 enum Mode {
   ASK = "ask",
@@ -11,6 +10,7 @@ enum Mode {
 type InputFieldNodeProps = {
   node: InputNode;
   isSelected: boolean;
+  nodes: GraphNodes;
   onInputSubmit: (query: string) => void;
   onDelete: () => void;
 };
@@ -22,10 +22,10 @@ export const InputFieldNode = memo(
   function InputFieldNode({
     node,
     isSelected,
+    nodes,
     onInputSubmit,
     onDelete,
   }: InputFieldNodeProps) {
-    const { nodes } = useGraphCanvasContext();
     const [mode, setMode] = useState<Mode>(Mode.ASK);
     const [query, setQuery] = useState(node.value || "");
     const [previousQuery, setPreviousQuery] = useState(node.value || "");

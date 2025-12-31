@@ -1,47 +1,29 @@
 import { useState, useCallback, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
-import { createNode } from "../hooks/useGraphCanvas";
+import { createNode, GraphCanvas, type GraphCanvasRef } from "./GraphCanvas";
 import { TreeManager } from "../interfaces/TreeManager";
-import { GraphCanvas } from "./GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
-import {
-  GraphCanvasProvider,
-  useGraphCanvasContext,
-} from "../hooks/GraphCanvasContext";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { compressImage } from "../utils/imageCompression";
 import { ContextMenu, ContextMenuItem } from "../components/ui/ContextMenu";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
+import { globals } from "../globals";
 
-const initialNodes: GraphNodes = {
-  "input-1": {
-    id: "input-1",
-    type: "input",
-    x: 800,
-    y: 473 - 136 / 2,
-    value: "",
-    parentIds: [],
-    childrenIds: [],
-  },
+type ContextMenuState = {
+  isOpen: boolean;
+  x: number;
+  y: number;
+  target: { kind: "canvas" } | { kind: "node"; nodeId: string };
+  canvasX: number;
+  canvasY: number;
 };
 
 const AppPageContent = () => {
-  const {
-    transform,
-    setTransform,
-    nodes,
-    nodesRef,
-    treeManager,
-    handleMouseDown,
-    setNodeDimensions,
-    nodeDimensionsRef,
-    selectedNodeIds,
-    clearSelection,
-  } = useGraphCanvasContext();
+  const graphCanvasRef = useRef<GraphCanvasRef>(null);
 
   // Context node editing state
   const [editingContextNodeId, setEditingContextNodeId] = useState<
@@ -49,14 +31,7 @@ const AppPageContent = () => {
   >(null);
 
   // Context menu state
-  const [contextMenu, setContextMenu] = useState<{
-    isOpen: boolean;
-    x: number;
-    y: number;
-    target: { kind: "canvas" } | { kind: "node"; nodeId: string };
-    canvasX: number;
-    canvasY: number;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   // File input ref for upload context
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,35 +46,44 @@ const AppPageContent = () => {
     words: audioWords,
   } = useAudioPlayer();
 
-  const handleContextNodeDoubleClick = useCallback(
-    (nodeId: string) => {
+  const handleContextNodeDoubleClick = useCallback((nodeId: string) => {
+    const nodes = graphCanvasRef.current?.nodes;
+    if (nodes) {
       const node = nodes[nodeId];
       if (node && node.type === "context") {
         setEditingContextNodeId(nodeId);
       }
-    },
-    [nodes]
-  );
+    }
+  }, []);
 
   const handleCloseSidebar = useCallback(
     (finalValue: string) => {
       if (editingContextNodeId) {
-        treeManager.patchNode(editingContextNodeId, { value: finalValue });
+        const treeManager = graphCanvasRef.current?.treeManager;
+        if (treeManager) {
+          treeManager.patchNode(editingContextNodeId, { value: finalValue });
+        }
       }
       setEditingContextNodeId(null);
     },
-    [editingContextNodeId, treeManager]
+    [editingContextNodeId]
   );
 
   const handleRequestNodeMove = useCallback(
     (nodeId: string, dx: number, dy: number) => {
-      treeManager.moveNode(nodeId, dx, dy);
+      const treeManager = graphCanvasRef.current?.treeManager;
+      if (treeManager) {
+        treeManager.moveNode(nodeId, dx, dy);
+      }
     },
-    [treeManager]
+    []
   );
 
   const handleRequestContextMenu = useCallback(
     (clientX: number, clientY: number, nodeId?: string) => {
+      const transform = graphCanvasRef.current?.transform;
+      if (!transform) return;
+
       // Convert client coordinates to canvas coordinates
       const canvasX = (clientX - transform.x) / transform.k;
       const canvasY = (clientY - transform.y) / transform.k;
@@ -113,7 +97,7 @@ const AppPageContent = () => {
         canvasY,
       });
     },
-    [transform]
+    []
   );
 
   const closeContextMenu = useCallback(() => {
@@ -121,41 +105,48 @@ const AppPageContent = () => {
   }, []);
 
   // Context menu actions - Delete handlers
-  const handleDeleteSingle = useCallback(
-    (nodeId: string) => {
+  const handleDeleteSingle = useCallback((nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
       treeManager.deleteNodeDetach(nodeId);
-    },
-    [treeManager]
-  );
+    }
+  }, []);
 
-  const handleDeleteSingleWithChildren = useCallback(
-    (nodeId: string) => {
+  const handleDeleteSingleWithChildren = useCallback((nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
       treeManager.deleteNode(nodeId);
-    },
-    [treeManager]
-  );
+    }
+  }, []);
 
-  const handleDeleteAll = useCallback(
-    (selectedNodeIds: Set<string>) => {
+  const handleDeleteAll = useCallback((selectedNodeIds: Set<string>) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
       selectedNodeIds.forEach((nodeId) => {
         treeManager.deleteNodeDetach(nodeId);
       });
-    },
-    [treeManager]
-  );
+    }
+  }, []);
 
   const handleDeleteAllWithChildren = useCallback(
     (selectedNodeIds: Set<string>) => {
-      selectedNodeIds.forEach((nodeId) => {
-        treeManager.deleteNode(nodeId);
-      });
+      const treeManager = graphCanvasRef.current?.treeManager;
+      if (treeManager) {
+        selectedNodeIds.forEach((nodeId) => {
+          treeManager.deleteNode(nodeId);
+        });
+      }
     },
-    [treeManager]
+    []
   );
 
   // Context menu actions - Creation handlers
   const handleNewQuestionOnCanvas = useCallback(() => {
     if (!contextMenu) return;
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
     const newNodeDim = getDefaultNodeDimensions("input");
     const freePos = findFreePosition(
@@ -171,10 +162,23 @@ const AppPageContent = () => {
     const newInputNode = createNode("input", freePos.x, freePos.y);
     treeManager.addNode(newInputNode);
     nodesRef.current = { ...nodesRef.current, [newInputNode.id]: newInputNode };
-  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef]);
+  }, [contextMenu]);
 
   const handleAskQuestion = useCallback(() => {
     if (!contextMenu) return;
+    const nodes = graphCanvasRef.current?.nodes;
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
+    if (
+      !nodes ||
+      !nodesRef ||
+      !nodeDimensionsRef ||
+      !treeManager ||
+      !selectedNodeIds
+    )
+      return;
 
     let eligibleParentIds: string[] = [];
 
@@ -240,17 +244,15 @@ const AppPageContent = () => {
     eligibleParentIds.forEach((parentId) => {
       treeManager.linkNodes(parentId, newInputNode.id);
     });
-  }, [
-    contextMenu,
-    treeManager,
-    nodesRef,
-    nodeDimensionsRef,
-    selectedNodeIds,
-    nodes,
-  ]);
+  }, [contextMenu]);
 
   const handleAddContext = useCallback(() => {
     if (!contextMenu) return;
+    const nodes = graphCanvasRef.current?.nodes;
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!nodes || !nodesRef || !nodeDimensionsRef || !treeManager) return;
 
     let targetX = contextMenu.canvasX;
     let targetY = contextMenu.canvasY;
@@ -284,10 +286,15 @@ const AppPageContent = () => {
       ...nodesRef.current,
       [newContextNode.id]: newContextNode,
     };
-  }, [contextMenu, treeManager, nodesRef, nodeDimensionsRef, nodes]);
+  }, [contextMenu]);
 
   const onDropFilesAsContext = useCallback(
     async (files: FileList, canvasPoint: { x: number; y: number }) => {
+      const nodesRef = graphCanvasRef.current?.nodesRef;
+      const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+      const treeManager = graphCanvasRef.current?.treeManager;
+      if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
+
       const acceptedExtensions = [".txt", ".md", ".json", ".csv"];
       const documentExtensions = [
         ".pdf",
@@ -412,7 +419,7 @@ const AppPageContent = () => {
         nodeIndex++;
       }
     },
-    [treeManager, nodesRef, nodeDimensionsRef]
+    []
   );
 
   const uploadContextCanvasPointRef = useRef<{ x: number; y: number } | null>(
@@ -455,6 +462,9 @@ const AppPageContent = () => {
   // Handle Listen action - convert selected nodes' text to speech
   const handleListen = useCallback(() => {
     if (!contextMenu) return;
+    const nodes = graphCanvasRef.current?.nodes;
+    const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
+    if (!nodes || !selectedNodeIds) return;
 
     // Get nodes to process
     let targetNodeIds: string[] = [];
@@ -472,12 +482,15 @@ const AppPageContent = () => {
     // Play audio with sorted nodes (nodes lower in tree play last)
     // Include timestamps for word-level highlighting
     playAudio(targetNodeIds, nodes, true);
-  }, [contextMenu, selectedNodeIds, nodes, playAudio]);
+  }, [contextMenu, playAudio]);
 
   // Build context menu items based on state (acting upon nodes vs not acting upon nodes)
   // Note: Handlers use refs but are only called on user interaction, not during render
   const contextMenuItems: ContextMenuItem[] = (() => {
     if (!contextMenu) return [];
+    const nodes = graphCanvasRef.current?.nodes;
+    const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
+    if (!nodes || !selectedNodeIds) return [];
 
     const isActingUponNodes = selectedNodeIds.size > 0;
 
@@ -597,6 +610,11 @@ const AppPageContent = () => {
   })();
 
   const onInputSubmit = async (query: string, caller: GraphNode) => {
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
+
     // Get the current node from nodesRef to use up-to-date position (may have been moved by collision resolution)
     const currentCaller = nodesRef.current[caller.id] || caller;
 
@@ -706,6 +724,9 @@ const AppPageContent = () => {
     startNodeId: string,
     currentNodes: GraphNodes
   ) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!treeManager) return;
+
     // Find all descendant response nodes grouped by depth level
     const descendantLevels = TreeManager.findDescendantResponseNodes(
       startNodeId,
@@ -754,27 +775,38 @@ const AppPageContent = () => {
   return (
     <div className="relative w-full h-screen">
       <GraphCanvas
-        nodes={nodes}
-        transform={transform}
-        setTransform={setTransform}
-        onMouseDown={handleMouseDown}
+        ref={graphCanvasRef}
+        initialNodes={globals.initialNodes}
         onInputSubmit={onInputSubmit}
-        onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
+        onDeleteNode={(nodeId) => {
+          const treeManager = graphCanvasRef.current?.treeManager;
+          if (treeManager) {
+            treeManager.deleteNode(nodeId);
+          }
+        }}
         onContextNodeDoubleClick={handleContextNodeDoubleClick}
         onDropFilesAsContext={onDropFilesAsContext}
-        onNodeDimensionsChange={setNodeDimensions}
+        onNodeDimensionsChange={(dimensions) => {
+          const setNodeDimensions = graphCanvasRef.current?.setNodeDimensions;
+          if (setNodeDimensions) {
+            setNodeDimensions(dimensions);
+          }
+        }}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
-        selectedNodeIds={selectedNodeIds}
-        onClearSelection={clearSelection}
         currentWordIndex={currentWordIndex}
         audioWords={audioWords}
       />
       {editingContextNodeId && (
         <ContextSidebar
-          value={nodes[editingContextNodeId]?.value || ""}
+          value={
+            graphCanvasRef.current?.nodes[editingContextNodeId]?.value || ""
+          }
           onChange={(val) => {
-            treeManager.patchNode(editingContextNodeId, { value: val });
+            const treeManager = graphCanvasRef.current?.treeManager;
+            if (treeManager) {
+              treeManager.patchNode(editingContextNodeId, { value: val });
+            }
           }}
           onClose={handleCloseSidebar}
         />
@@ -786,7 +818,7 @@ const AppPageContent = () => {
           y={contextMenu.y}
           items={contextMenuItems}
           onClose={closeContextMenu}
-          selectedNodeCount={selectedNodeIds.size}
+          selectedNodeCount={graphCanvasRef.current?.selectedNodeIds.size ?? 0}
         />
       )}
       <AnimatePresence>
@@ -805,12 +837,16 @@ const AppPageContent = () => {
       <div
         className="dot-grid-background fixed inset-0 -z-20"
         style={{
-          backgroundSize: `${40 * transform.k}px ${40 * transform.k}px`,
+          backgroundSize: `${
+            40 * (graphCanvasRef.current?.transform.k ?? 1)
+          }px ${40 * (graphCanvasRef.current?.transform.k ?? 1)}px`,
           backgroundImage:
             "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
           backgroundColor: "#0a0a0a",
           opacity: 0.4,
-          backgroundPosition: `${transform.x}px ${transform.y}px`,
+          backgroundPosition: `${graphCanvasRef.current?.transform.x ?? 0}px ${
+            graphCanvasRef.current?.transform.y ?? 0
+          }px`,
         }}
       />
     </div>
@@ -818,11 +854,7 @@ const AppPageContent = () => {
 };
 
 const AppPage = () => {
-  return (
-    <GraphCanvasProvider initialNodes={initialNodes}>
-      <AppPageContent />
-    </GraphCanvasProvider>
-  );
+  return <AppPageContent />;
 };
 
 export default AppPage;
