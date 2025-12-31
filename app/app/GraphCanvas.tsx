@@ -322,7 +322,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       const previousState = history[history.length - 1];
       const newHistory = history.slice(0, -1);
 
-      // Set flag to skip history capture
+      // Set flag to skip history capture and collision resolution
       isUndoingRef.current = true;
 
       // Restore the previous state
@@ -332,8 +332,11 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       // Restore nodes using RESTORE_NODES action
       dispatchWithHistory({ type: "RESTORE_NODES", nodes: previousState });
 
-      // Reset flag
-      isUndoingRef.current = false;
+      // Reset flag after a short delay to allow async dimension updates to complete
+      // This prevents collision resolution from running during undo
+      setTimeout(() => {
+        isUndoingRef.current = false;
+      }, 100);
     }, [history, dispatchWithHistory]);
 
     // Handle mouse move and mouse up for dragging
@@ -412,6 +415,11 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           // Defer parent state updates and side effects to avoid React warnings
           requestAnimationFrame(() => {
             setNodeDimensions(updated);
+
+            // Skip collision resolution during undo operations to prevent unwanted node movement
+            if (isUndoingRef.current) {
+              return;
+            }
 
             const node = nodes[nodeId];
             if (node?.type === "response" && existing && onRequestNodeMove) {
