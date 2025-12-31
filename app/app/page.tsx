@@ -159,7 +159,7 @@ export default function AppRoute() {
       className="relative min-h-screen"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.1 }}
     >
       <div className="app-page-container absolute inset-0 z-20 pointer-events-none">
         <AppPageContent />

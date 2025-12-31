@@ -15,16 +15,16 @@ export default function Home() {
 
   const handleStart = async () => {
     const hideAnims = [
-      animate("main", { opacity: 0, y: -20 }, { duration: 0.25 }),
-      animate(".particles-background", { opacity: 0 }, { duration: 0.5 }),
-      animate(".dot-grid-background", { opacity: 1 }, { duration: 0.5 }),
+      animate("main", { opacity: 0, y: -20 }, { duration: 0.125 }),
+      animate(".particles-background", { opacity: 0 }, { duration: 0.25 }),
+      animate(".dot-grid-background", { opacity: 1 }, { duration: 0.25 }),
     ];
 
     await Promise.all(hideAnims);
 
     router.push("/app");
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    await animate(".app-page-container", { opacity: 1 }, { duration: 0.25 });
+    await animate(".app-page-container", { opacity: 1 }, { duration: 0.125 });
   };
 
   return (
@@ -33,7 +33,7 @@ export default function Home() {
       className="relative min-h-screen"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.1 }}
     >
       <div className="opacity-50">
         <DotGridBackground />
