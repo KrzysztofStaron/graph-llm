@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
-import { createNode, GraphCanvas, type GraphCanvasRef } from "./GraphCanvas";
-import { TreeManager } from "../interfaces/TreeManager";
+import { GraphCanvas } from "./GraphCanvas";
+import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { ContextSidebar } from "./ContextSidebar";
 import { GraphNode, GraphNodes } from "../types/graph";
 import { aiService } from "../interfaces/aiService";
@@ -23,7 +23,7 @@ type ContextMenuState = {
 };
 
 const AppPageContent = () => {
-  const graphCanvasRef = useRef<GraphCanvasRef>(null);
+  const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
   // Context node editing state
   const [editingContextNodeId, setEditingContextNodeId] = useState<
@@ -158,7 +158,7 @@ const AppPageContent = () => {
       eligibleParentIds = Array.from(selectedNodeIds).filter((nodeId) => {
         const node = nodes[nodeId];
         return node && node.type !== "input";
-      });
+      }) as string[];
     } else if (contextMenu.target.kind === "node") {
       // If no nodes selected but right-clicking a node, use that node if it's non-input
       const clickedNode = nodes[contextMenu.target.nodeId];
@@ -460,7 +460,9 @@ const AppPageContent = () => {
   const contextMenuItems: ContextMenuItem[] = (() => {
     if (!contextMenu) return [];
     const nodes = graphCanvasRef.current?.nodes;
-    const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
+    const selectedNodeIds = graphCanvasRef.current
+      ?.selectedNodeIds as Set<string>;
+
     if (!nodes || !selectedNodeIds) return [];
 
     const isActingUponNodes = selectedNodeIds.size > 0;
@@ -477,7 +479,6 @@ const AppPageContent = () => {
 
       // Show "Ask Question" only if at least one selected node is non-input
       if (hasNonInputSelected) {
-        // eslint-disable-next-line react-hooks/refs
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
       }
 
@@ -486,52 +487,44 @@ const AppPageContent = () => {
         const node = nodes[nodeId];
         return node && node.value && node.value.trim().length > 0;
       });
+
       if (hasTextContent) {
         items.push({ label: "Listen", onClick: handleListen });
       }
 
-      // Determine delete options based on selection count
-      if (selectedNodeIds.size <= 1) {
-        // Single selection: use single node delete handlers
-        const nodeId = Array.from(selectedNodeIds)[0];
+      const nodeId = Array.from(selectedNodeIds)[0];
+
+      const hasChildren = Array.from(selectedNodeIds).some((nodeId) => {
         const node = nodes[nodeId];
+        return node && node.childrenIds.length > 0;
+      });
 
-        if (node) {
-          // Always show "Delete"
-          items.push({
-            label: "Delete",
-            onClick: () => handleDeleteSingle(nodeId),
-          });
-
-          // Show "Delete [ with children ]" if node has children
-          if (node.childrenIds.length > 0) {
-            items.push({
-              label: "Delete [ with children ]",
-              onClick: () => handleDeleteSingleWithChildren(nodeId),
-            });
-          }
-        }
-      } else {
-        // Multiple selection: use delete all handlers
-        // Check if at least one selected node has children
-        const hasAnyChildren = Array.from(selectedNodeIds).some((nodeId) => {
-          const node = nodes[nodeId];
-          return node && node.childrenIds.length > 0;
+      // Always show "Delete"
+      if (selectedNodeIds.size == 1) {
+        items.push({
+          label: "Delete",
+          onClick: () => handleDeleteSingle(nodeId),
         });
-
-        // Always show "Delete All"
+      } else {
         items.push({
           label: "Delete All",
           onClick: () => handleDeleteAll(selectedNodeIds),
         });
+      }
 
-        // Show "Delete All [ with children ]" if at least one node has children
-        if (hasAnyChildren) {
-          items.push({
-            label: "Delete All [ with children ]",
-            onClick: () => handleDeleteAllWithChildren(selectedNodeIds),
-          });
-        }
+      // Show "Delete [ with children ]" if node has children
+      if (hasChildren == false) {
+        // do nothing
+      } else if (selectedNodeIds.size == 1) {
+        items.push({
+          label: "Delete [ with children ]",
+          onClick: () => handleDeleteSingleWithChildren(nodeId),
+        });
+      } else {
+        items.push({
+          label: "Delete All [ with children ]",
+          onClick: () => handleDeleteAllWithChildren(selectedNodeIds),
+        });
       }
 
       return items;
@@ -590,7 +583,7 @@ const AppPageContent = () => {
     const currentCaller = nodesRef.current[caller.id] || caller;
 
     // Find the first response child node
-    let responseNodeId = currentCaller.childrenIds.find((childId) => {
+    let responseNodeId = currentCaller.childrenIds.find((childId: string) => {
       const childNode = nodesRef.current[childId];
       return childNode?.type === "response";
     });
@@ -759,12 +752,6 @@ const AppPageContent = () => {
           value={
             graphCanvasRef.current?.nodes[editingContextNodeId]?.value || ""
           }
-          onChange={(val) => {
-            const treeManager = graphCanvasRef.current?.treeManager;
-            if (treeManager) {
-              treeManager.patchNode(editingContextNodeId, { value: val });
-            }
-          }}
           onClose={(finalValue) => {
             if (editingContextNodeId) {
               const treeManager = graphCanvasRef.current?.treeManager;

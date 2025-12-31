@@ -22,198 +22,23 @@ import {
   useMemo,
   useImperativeHandle,
   forwardRef,
+  type Dispatch,
+  type SetStateAction,
+  useContext,
+  createContext,
 } from "react";
 import * as d3 from "d3";
-import { ParticleEffect } from "../components/ui/ParticleEffect";
 import { resolveLocalCollisions } from "../utils/collisionResolver";
-import { TreeManager, type GraphAction } from "../interfaces/TreeManager";
+import {
+  deepCopyNodes,
+  graphReducer,
+  TreeManager,
+  type GraphAction,
+} from "../interfaces/TreeManager";
+import { getDefaultNodeDimensions } from "../utils/placement";
 import EdgesRenderer from "../components/GraphCanvas/EdgesRenderer";
 import NodesRenderer from "../components/GraphCanvas/NodesRenderer";
-
-// Deep copy function for GraphNodes
-const deepCopyNodes = (nodes: GraphNodes): GraphNodes => {
-  const copy: GraphNodes = {};
-  for (const [id, node] of Object.entries(nodes)) {
-    copy[id] = {
-      ...node,
-      parentIds: [...node.parentIds],
-      childrenIds: [...node.childrenIds],
-    };
-  }
-  return copy;
-};
-
-function graphReducer(nodes: GraphNodes, action: GraphAction): GraphNodes {
-  switch (action.type) {
-    case "RESTORE_NODES": {
-      return deepCopyNodes(action.nodes);
-    }
-    case "PATCH_NODE": {
-      const node = nodes[action.id];
-      if (!node) return nodes;
-      return { ...nodes, [action.id]: { ...node, ...action.patch } };
-    }
-    case "ADD_NODE": {
-      return { ...nodes, [action.node.id]: action.node };
-    }
-    case "LINK": {
-      const fromNode = nodes[action.fromId];
-      const toNode = nodes[action.toId];
-      if (!fromNode || !toNode) return nodes;
-
-      return {
-        ...nodes,
-        [action.fromId]: {
-          ...fromNode,
-          childrenIds: fromNode.childrenIds.includes(action.toId)
-            ? fromNode.childrenIds
-            : [...fromNode.childrenIds, action.toId],
-        },
-        [action.toId]: {
-          ...toNode,
-          parentIds: toNode.parentIds.includes(action.fromId)
-            ? toNode.parentIds
-            : [...toNode.parentIds, action.fromId],
-        },
-      };
-    }
-    case "MOVE_NODE": {
-      const node = nodes[action.id];
-      if (!node) return nodes;
-      const updated: GraphNode = {
-        ...node,
-        x: node.x + action.dx,
-        y: node.y + action.dy,
-      };
-      if (action.setPinned !== undefined) {
-        updated.pinned = action.setPinned;
-      }
-      return {
-        ...nodes,
-        [action.id]: updated,
-      };
-    }
-    case "DELETE_CASCADE": {
-      const startNode = nodes[action.id];
-      if (!startNode) return nodes;
-
-      // DFS to collect nodes to delete
-      // Rule: stop (and keep) a branch when we hit a node with >1 parent
-      const toDelete = new Set<string>();
-      const stack: string[] = [action.id];
-
-      while (stack.length > 0) {
-        const nodeId = stack.pop()!;
-
-        // Skip if already processed
-        if (toDelete.has(nodeId)) continue;
-
-        const node = nodes[nodeId];
-        if (!node) continue;
-
-        // For non-start nodes, check if this node has a parent outside the deletion set
-        if (nodeId !== action.id) {
-          // If node has >1 parent, stop here (keep this node and its descendants)
-          if (node.parentIds.length > 1) continue;
-
-          // If node has any parent not in toDelete, it still has a valid parent - keep it
-          const hasParentOutsideDeleteSet = node.parentIds.some(
-            (parentId) => !toDelete.has(parentId)
-          );
-          if (hasParentOutsideDeleteSet) continue;
-        }
-
-        // Mark for deletion
-        toDelete.add(nodeId);
-
-        // Add children to stack for DFS traversal
-        for (const childId of node.childrenIds) {
-          if (!toDelete.has(childId)) {
-            stack.push(childId);
-          }
-        }
-      }
-
-      // Build the updated nodes object
-      const updatedNodes: GraphNodes = {};
-
-      for (const [nodeId, node] of Object.entries(nodes)) {
-        // Skip nodes that are being deleted
-        if (toDelete.has(nodeId)) continue;
-
-        // Filter out deleted nodes from parentIds and childrenIds
-        updatedNodes[nodeId] = {
-          ...node,
-          parentIds: node.parentIds.filter((id) => !toDelete.has(id)),
-          childrenIds: node.childrenIds.filter((id) => !toDelete.has(id)),
-        };
-      }
-
-      return updatedNodes;
-    }
-    case "DELETE_NODE_DETACH": {
-      const nodeToDelete = nodes[action.id];
-      if (!nodeToDelete) return nodes;
-
-      // Build updated nodes object
-      const updatedNodes: GraphNodes = {};
-
-      for (const [nodeId, node] of Object.entries(nodes)) {
-        // Skip the node being deleted
-        if (nodeId === action.id) continue;
-
-        // Remove the deleted node from parentIds and childrenIds
-        updatedNodes[nodeId] = {
-          ...node,
-          parentIds: node.parentIds.filter(
-            (parentId) => parentId !== action.id
-          ),
-          childrenIds: node.childrenIds.filter(
-            (childId) => childId !== action.id
-          ),
-        };
-      }
-
-      return updatedNodes;
-    }
-  }
-}
-
-export function createNode(type: "input", x: number, y: number): InputNode;
-export function createNode(
-  type: "response",
-  x: number,
-  y: number
-): ResponseNodeType;
-export function createNode(
-  type: "context",
-  x: number,
-  y: number
-): ContextNodeType;
-export function createNode(
-  type: "image-context",
-  x: number,
-  y: number
-): ImageContextNodeType;
-export function createNode(
-  type: "document",
-  x: number,
-  y: number
-): DocumentNodeType;
-
-export function createNode(type: NodeType, x: number, y: number): GraphNode {
-  const id = crypto.randomUUID();
-
-  return {
-    id,
-    type,
-    x,
-    y,
-    value: "",
-    parentIds: [],
-    childrenIds: [],
-  };
-}
+import ParticleRenderer from "../components/GraphCanvas/ParticleRenderer";
 
 export interface GraphCanvasRef {
   transform: { x: number; y: number; k: number };
@@ -244,6 +69,12 @@ interface GraphCanvasProps {
   ) => void;
 }
 
+export const CanvasContext = createContext<{
+  nodes: GraphNodes;
+}>({
+  nodes: {},
+});
+
 export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
   function GraphCanvasInner(props, ref) {
     const {
@@ -267,6 +98,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Nodes state
     const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
     const nodesRef = useRef(nodes);
+
+    const canvasContext = useContext(CanvasContext);
 
     // History state: track last 3 node snapshots
     const [history, setHistory] = useState<GraphNodes[]>([]);
@@ -622,22 +455,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           maxY = -Infinity;
 
         nodeArray.forEach((node) => {
-          const dim = localNodeDimensions[node.id] || {
-            width:
-              node.type === "context"
-                ? 176
-                : node.type === "image-context"
-                ? 464
-                : 400,
-            height:
-              node.type === "context"
-                ? 96
-                : node.type === "image-context"
-                ? 384
-                : node.type === "input"
-                ? 120
-                : 80,
-          };
+          const dim =
+            localNodeDimensions[node.id] || getDefaultNodeDimensions(node.type);
           minX = Math.min(minX, node.x);
           minY = Math.min(minY, node.y);
           maxX = Math.max(maxX, node.x + dim.width);
@@ -783,6 +602,40 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [fitView, clearSelection, undo]);
 
+    // Helper function to show particle effect for a node
+    const showParticleEffect = useCallback(
+      (
+        node: GraphNode,
+        nodeId: string,
+        setState: Dispatch<SetStateAction<Record<string, Vector2>>>
+      ) => {
+        const dim =
+          localNodeDimensions[nodeId] || getDefaultNodeDimensions(node.type);
+
+        const center = {
+          x: node.x + dim.width / 2,
+          y: node.y + dim.height / 2,
+        };
+
+        const screenX = center.x * transform.k + transform.x;
+        const screenY = center.y * transform.k + transform.y;
+
+        setState((prev) => ({
+          ...prev,
+          [nodeId]: { x: screenX, y: screenY },
+        }));
+
+        setTimeout(() => {
+          setState((prev) => {
+            const next = { ...prev };
+            delete next[nodeId];
+            return next;
+          });
+        }, 200);
+      },
+      [localNodeDimensions, transform]
+    );
+
     // Track node appear/delete to show particle effects
     useEffect(() => {
       const currentNodeIds = new Set(Object.keys(nodes));
@@ -798,102 +651,23 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       // Find newly added nodes
       Object.keys(nodes).forEach((nodeId) => {
         if (previousNodes[nodeId]) return;
-
         const addedNode = nodes[nodeId];
-        const dim = localNodeDimensions[nodeId] || {
-          width:
-            addedNode.type === "context"
-              ? 176
-              : addedNode.type === "image-context"
-              ? 464
-              : addedNode.type === "input"
-              ? 400
-              : 200,
-          height:
-            addedNode.type === "context"
-              ? 96
-              : addedNode.type === "image-context"
-              ? 384
-              : addedNode.type === "input"
-              ? 120
-              : 80,
-        };
-
-        const center = {
-          x: addedNode.x + dim.width / 2,
-          y: addedNode.y + dim.height / 2,
-        };
-
-        const screenX = center.x * transform.k + transform.x;
-        const screenY = center.y * transform.k + transform.y;
-
-        setAppearingNodes((prev) => ({
-          ...prev,
-          [nodeId]: { x: screenX, y: screenY },
-        }));
-
-        setTimeout(() => {
-          setAppearingNodes((prev) => {
-            const next = { ...prev };
-            delete next[nodeId];
-            return next;
-          });
-        }, 200);
+        showParticleEffect(addedNode, nodeId, setAppearingNodes);
       });
 
       // Find deleted nodes
       Object.keys(previousNodes).forEach((nodeId) => {
         if (!currentNodeIds.has(nodeId)) {
-          // Node was deleted, get its center position from the snapshot
           const deletedNode = previousNodes[nodeId];
           if (deletedNode) {
-            const dim = localNodeDimensions[nodeId] || {
-              width:
-                deletedNode.type === "context"
-                  ? 176
-                  : deletedNode.type === "image-context"
-                  ? 464
-                  : deletedNode.type === "input"
-                  ? 400
-                  : 200,
-              height:
-                deletedNode.type === "context"
-                  ? 96
-                  : deletedNode.type === "image-context"
-                  ? 384
-                  : deletedNode.type === "input"
-                  ? 120
-                  : 80,
-            };
-            const center = {
-              x: deletedNode.x + dim.width / 2,
-              y: deletedNode.y + dim.height / 2,
-            };
-
-            // Apply transform to get screen coordinates
-            const screenX = center.x * transform.k + transform.x;
-            const screenY = center.y * transform.k + transform.y;
-
-            setDeletingNodes((prev) => ({
-              ...prev,
-              [nodeId]: { x: screenX, y: screenY },
-            }));
-
-            // Remove after animation completes
-            setTimeout(() => {
-              setDeletingNodes((prev) => {
-                const next = { ...prev };
-                delete next[nodeId];
-                return next;
-              });
-            }, 200);
+            showParticleEffect(deletedNode, nodeId, setDeletingNodes);
           }
         }
       });
 
       // Update snapshot
       nodesSnapshotRef.current = nodes;
-    }, [nodes, localNodeDimensions, transform]);
+    }, [nodes, localNodeDimensions, transform, showParticleEffect]);
 
     // Set up ResizeObserver to track all node dimensions
     useEffect(() => {
@@ -978,76 +752,51 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     );
 
     return (
-      <div className="relative w-full h-screen overflow-hidden">
-        <motion.div
-          ref={viewportRef}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
-          className="w-full h-screen overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onContextMenu={handleContextMenu}
-          onMouseDown={handleViewportMouseDown}
-        >
-          <div
-            ref={contentRef}
-            className="relative origin-top-left"
-            style={{
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
-            }}
+      <CanvasContext.Provider value={{ nodes }}>
+        <div className="relative w-full h-screen overflow-hidden">
+          <motion.div
+            ref={viewportRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="w-full h-screen overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onContextMenu={handleContextMenu}
+            onMouseDown={handleViewportMouseDown}
           >
-            {/* SVG inside container so it transforms with nodes - no clipping issues */}
-            <EdgesRenderer
-              nodes={nodes}
-              localNodeDimensions={localNodeDimensions}
-              appearingNodes={appearingNodes}
-            />
-            <NodesRenderer
-              nodes={nodes}
-              selectedNodeIds={selectedNodeIds}
-              handleMouseDown={handleMouseDown}
-              setEditingContextNodeId={setEditingContextNodeId}
-              onInputSubmit={onInputSubmit}
-              onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
-            />
-          </div>
-        </motion.div>
-
-        {/* Particle effects for appearing nodes - outside transform container */}
-        {appearingNodes &&
-          Object.entries(appearingNodes).map(([nodeId, position]) => (
-            <ParticleEffect
-              key={nodeId}
-              x={position.x}
-              y={position.y}
-              onComplete={() => {
-                setAppearingNodes((prev) => {
-                  const next = { ...prev };
-                  delete next[nodeId];
-                  return next;
-                });
+            <div
+              ref={contentRef}
+              className="relative origin-top-left"
+              style={{
+                transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
               }}
-            />
-          ))}
+            >
+              {/* SVG inside container so it transforms with nodes - no clipping issues */}
+              <EdgesRenderer
+                localNodeDimensions={localNodeDimensions}
+                appearingNodes={appearingNodes}
+              />
+              <NodesRenderer
+                selectedNodeIds={selectedNodeIds}
+                handleMouseDown={handleMouseDown}
+                setEditingContextNodeId={setEditingContextNodeId}
+                onInputSubmit={onInputSubmit}
+                onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
+              />
+            </div>
+          </motion.div>
 
-        {/* Particle effects for deleted nodes - outside transform container */}
-        {deletingNodes &&
-          Object.entries(deletingNodes).map(([nodeId, position]) => (
-            <ParticleEffect
-              key={nodeId}
-              x={position.x}
-              y={position.y}
-              onComplete={() => {
-                setDeletingNodes((prev) => {
-                  const next = { ...prev };
-                  delete next[nodeId];
-                  return next;
-                });
-              }}
-            />
-          ))}
-      </div>
+          <ParticleRenderer
+            positions={appearingNodes}
+            setPositions={setAppearingNodes}
+          />
+          <ParticleRenderer
+            positions={deletingNodes}
+            setPositions={setDeletingNodes}
+          />
+        </div>
+      </CanvasContext.Provider>
     );
   }
 );
