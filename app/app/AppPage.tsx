@@ -20,8 +20,8 @@ const AppPageContent = () => {
   >(null);
 
   // Audio playback hook
-  const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } =
-    useAudioPlayer();
+  // prettier-ignore
+  const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } = useAudioPlayer();
 
   // File upload hook
   const {
