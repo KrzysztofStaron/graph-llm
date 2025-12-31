@@ -62,6 +62,14 @@ const NodesRenderer = ({
                 },
               }}
               onMouseDown={(e) => {
+                // #region agent log
+                console.log("[DEBUG-E] Node onMouseDown triggered", {
+                  nodeId: node.id,
+                  button: e.button,
+                  targetTag: (e.target as HTMLElement).tagName,
+                  targetClasses: (e.target as HTMLElement).className,
+                });
+                // #endregion
                 handleMouseDown(e, node.id);
               }}
               onDoubleClick={(e) => {
