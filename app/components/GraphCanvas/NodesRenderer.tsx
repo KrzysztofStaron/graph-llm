@@ -11,14 +11,14 @@ const NodesRenderer = ({
   nodes,
   selectedNodeIds,
   handleMouseDown,
-  onContextNodeDoubleClick,
+  setEditingContextNodeId,
   onInputSubmit,
   onDeleteNode,
 }: {
   nodes: GraphNodes;
   selectedNodeIds: Set<string>;
   handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
-  onContextNodeDoubleClick?: (nodeId: string) => void;
+  setEditingContextNodeId?: (nodeId: string | null) => void;
   onInputSubmit: (query: string, node: GraphNode) => void;
   onDeleteNode: (nodeId: string) => void;
 }) => {
@@ -62,9 +62,9 @@ const NodesRenderer = ({
                 handleMouseDown(e, node.id);
               }}
               onDoubleClick={(e) => {
-                if (node.type === "context" && onContextNodeDoubleClick) {
+                if (node.type === "context" && setEditingContextNodeId) {
                   e.stopPropagation();
-                  onContextNodeDoubleClick(node.id);
+                  setEditingContextNodeId(node.id);
                 }
               }}
             >

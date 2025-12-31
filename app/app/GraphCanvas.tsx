@@ -223,7 +223,6 @@ export interface GraphCanvasRef {
   treeManager: TreeManager;
   handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
   nodeDimensions: NodeDimensions;
-  setNodeDimensions: (dimensions: NodeDimensions) => void;
   nodeDimensionsRef: React.MutableRefObject<NodeDimensions>;
   selectedNodeIds: Set<string>;
   clearSelection: () => void;
@@ -232,13 +231,11 @@ export interface GraphCanvasRef {
 interface GraphCanvasProps {
   initialNodes: GraphNodes;
   onInputSubmit: (query: string, caller: GraphNode) => void;
-  onDeleteNode: (nodeId: string) => void;
-  onContextNodeDoubleClick?: (nodeId: string) => void;
+  setEditingContextNodeId?: (nodeId: string | null) => void;
   onDropFilesAsContext?: (
     files: FileList,
     canvasPoint: { x: number; y: number }
   ) => void;
-  onNodeDimensionsChange?: (dimensions: NodeDimensions) => void;
   onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
   onRequestContextMenu?: (
     clientX: number,
@@ -252,10 +249,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     const {
       initialNodes,
       onInputSubmit,
-      onDeleteNode,
-      onContextNodeDoubleClick,
+      setEditingContextNodeId,
       onDropFilesAsContext,
-      onNodeDimensionsChange,
       onRequestNodeMove,
       onRequestContextMenu,
     } = props;
@@ -409,6 +404,23 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       [clearSelection, toggleNodeSelection, selectedNodeIds]
     );
 
+    const handleViewportMouseDown = useCallback(
+      (e: React.MouseEvent) => {
+        // Don't handle right-clicks
+        if (e.button === 2) return;
+
+        // Only handle if clicking directly on the viewport (not on a node)
+        const target = e.target as HTMLElement;
+        const closestNode = target.closest(
+          "[data-node-id]"
+        ) as HTMLElement | null;
+        if (!closestNode) {
+          handleMouseDown(e);
+        }
+      },
+      [handleMouseDown]
+    );
+
     // Expose values to parent via ref
     useImperativeHandle(
       ref,
@@ -420,7 +432,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         treeManager,
         handleMouseDown,
         nodeDimensions,
-        setNodeDimensions,
         nodeDimensionsRef,
         selectedNodeIds,
         clearSelection,
@@ -433,7 +444,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         treeManager,
         handleMouseDown,
         nodeDimensions,
-        setNodeDimensions,
         nodeDimensionsRef,
         selectedNodeIds,
         clearSelection,
@@ -567,8 +577,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
 
           // Defer parent state updates and side effects to avoid React warnings
           requestAnimationFrame(() => {
-            // Notify parent of dimension changes
-            onNodeDimensionsChange?.(updated);
             setNodeDimensions(updated);
 
             const node = nodes[nodeId];
@@ -594,7 +602,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           return updated;
         });
       },
-      [onNodeDimensionsChange, onRequestNodeMove, nodes]
+      [onRequestNodeMove, nodes]
     );
 
     const fitView = useCallback(
@@ -980,19 +988,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           onContextMenu={handleContextMenu}
-          onMouseDown={(e) => {
-            // Don't handle right-clicks
-            if (e.button === 2) return;
-
-            // Only handle if clicking directly on the viewport (not on a node)
-            const target = e.target as HTMLElement;
-            const closestNode = target.closest(
-              "[data-node-id]"
-            ) as HTMLElement | null;
-            if (!closestNode) {
-              handleMouseDown(e);
-            }
-          }}
+          onMouseDown={handleViewportMouseDown}
         >
           <div
             ref={contentRef}
@@ -1011,9 +1007,9 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
               nodes={nodes}
               selectedNodeIds={selectedNodeIds}
               handleMouseDown={handleMouseDown}
-              onContextNodeDoubleClick={onContextNodeDoubleClick}
+              setEditingContextNodeId={setEditingContextNodeId}
               onInputSubmit={onInputSubmit}
-              onDeleteNode={onDeleteNode}
+              onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}
             />
           </div>
         </motion.div>

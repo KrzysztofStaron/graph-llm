@@ -143,13 +143,14 @@ const MarkdownChunk = memo(
 );
 
 // Normalize math delimiters in content
-const normalizeMath = (raw: string) =>
-  raw
+function normalizeMath(raw: string) {
+  return raw
     .replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => `$$${math}$$`)
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
+}
 
 // Split markdown into stable chunks (by double newlines, preserving code blocks)
-const splitIntoChunks = (content: string): string[] => {
+function splitIntoChunks(content: string): string[] {
   const chunks: string[] = [];
   let currentChunk = "";
   let inCodeBlock = false;
@@ -179,7 +180,7 @@ const splitIntoChunks = (content: string): string[] => {
   }
 
   return chunks;
-};
+}
 
 export const ResponseNode = memo(
   function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {

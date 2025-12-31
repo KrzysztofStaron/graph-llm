@@ -37,35 +37,8 @@ const AppPageContent = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Audio playback hook
-  const {
-    isPlayingAudio,
-    isLoadingAudio,
-    playAudio,
-    stopAudio,
-  } = useAudioPlayer();
-
-  const handleContextNodeDoubleClick = useCallback((nodeId: string) => {
-    const nodes = graphCanvasRef.current?.nodes;
-    if (nodes) {
-      const node = nodes[nodeId];
-      if (node && node.type === "context") {
-        setEditingContextNodeId(nodeId);
-      }
-    }
-  }, []);
-
-  const handleCloseSidebar = useCallback(
-    (finalValue: string) => {
-      if (editingContextNodeId) {
-        const treeManager = graphCanvasRef.current?.treeManager;
-        if (treeManager) {
-          treeManager.patchNode(editingContextNodeId, { value: finalValue });
-        }
-      }
-      setEditingContextNodeId(null);
-    },
-    [editingContextNodeId]
-  );
+  const { isPlayingAudio, isLoadingAudio, playAudio, stopAudio } =
+    useAudioPlayer();
 
   const handleRequestNodeMove = useCallback(
     (nodeId: string, dx: number, dy: number) => {
@@ -776,20 +749,8 @@ const AppPageContent = () => {
         ref={graphCanvasRef}
         initialNodes={globals.initialNodes}
         onInputSubmit={onInputSubmit}
-        onDeleteNode={(nodeId) => {
-          const treeManager = graphCanvasRef.current?.treeManager;
-          if (treeManager) {
-            treeManager.deleteNode(nodeId);
-          }
-        }}
-        onContextNodeDoubleClick={handleContextNodeDoubleClick}
+        setEditingContextNodeId={setEditingContextNodeId}
         onDropFilesAsContext={onDropFilesAsContext}
-        onNodeDimensionsChange={(dimensions) => {
-          const setNodeDimensions = graphCanvasRef.current?.setNodeDimensions;
-          if (setNodeDimensions) {
-            setNodeDimensions(dimensions);
-          }
-        }}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
       />
@@ -804,7 +765,17 @@ const AppPageContent = () => {
               treeManager.patchNode(editingContextNodeId, { value: val });
             }
           }}
-          onClose={handleCloseSidebar}
+          onClose={(finalValue) => {
+            if (editingContextNodeId) {
+              const treeManager = graphCanvasRef.current?.treeManager;
+              if (treeManager) {
+                treeManager.patchNode(editingContextNodeId, {
+                  value: finalValue,
+                });
+              }
+            }
+            setEditingContextNodeId(null);
+          }}
         />
       )}
       {contextMenu && (
@@ -833,16 +804,12 @@ const AppPageContent = () => {
       <div
         className="dot-grid-background fixed inset-0 -z-20"
         style={{
-          backgroundSize: `${
-            40 * (graphCanvasRef.current?.transform.k ?? 1)
-          }px ${40 * (graphCanvasRef.current?.transform.k ?? 1)}px`,
+          backgroundSize: `40px 40px`,
           backgroundImage:
             "radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
           backgroundColor: "#0a0a0a",
           opacity: 0.4,
-          backgroundPosition: `${graphCanvasRef.current?.transform.x ?? 0}px ${
-            graphCanvasRef.current?.transform.y ?? 0
-          }px`,
+          backgroundPosition: `0px 0px`,
         }}
       />
     </div>
