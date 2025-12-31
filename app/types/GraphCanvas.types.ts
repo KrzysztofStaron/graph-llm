@@ -59,5 +59,3 @@ export interface Edge {
 }
 
 export type NodeDimensions = Record<string, { width: number; height: number }>;
-
-export type Vector2 = { x: number; y: number };

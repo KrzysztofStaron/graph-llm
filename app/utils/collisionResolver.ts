@@ -1,4 +1,4 @@
-import type { GraphNode, GraphNodes, NodeDimensions } from "../types/graph";
+import type { GraphNode, GraphNodes, NodeDimensions } from "../types/";
 import { getNodeRect, rectanglesIntersect, type Rectangle } from "./placement";
 import { LAYOUT_CONFIG } from "../globals";
 

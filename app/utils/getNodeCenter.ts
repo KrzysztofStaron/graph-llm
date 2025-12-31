@@ -1,4 +1,4 @@
-import { GraphNode, NodeDimensions } from "../types/graph";
+import { GraphNode, NodeDimensions } from "../types/";
 
 export const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];

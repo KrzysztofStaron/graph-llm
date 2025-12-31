@@ -1,4 +1,5 @@
-import { GraphNode } from "@/app/types/graph";
+import { GraphNode } from "@/app/types/GraphCanvas.types";
+
 import { AnimatePresence, motion } from "framer-motion";
 import React, { useContext } from "react";
 

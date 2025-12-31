@@ -1,7 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GraphNode, GraphNodes, NodeDimensions } from "../../types/graph";
+import {
+  GraphNode,
+  GraphNodes,
+  NodeDimensions,
+} from "../../types/GraphCanvas.types";
 import {
   useEffect,
   useRef,

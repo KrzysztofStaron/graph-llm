@@ -1,4 +1,4 @@
-import { GraphNodes } from "./types/graph";
+import { GraphNodes } from "./types/";
 
 const local = process.env.NODE_ENV === "development";
 

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { GraphNode, GraphNodes } from "../types/graph";
+import { GraphNode, GraphNodes } from "../types/";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { aiService } from "../interfaces/aiService";

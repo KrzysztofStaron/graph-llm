@@ -6,7 +6,7 @@ import {
   useMemo,
   type Dispatch,
 } from "react";
-import { type GraphNodes } from "../../../types/graph";
+import { type GraphNodes } from "../../../types/";
 import {
   type GraphAction,
   deepCopyNodes,

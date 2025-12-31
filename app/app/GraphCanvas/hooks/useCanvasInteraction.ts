@@ -1,6 +1,6 @@
 import { useRef, useReducer, useCallback, useEffect } from "react";
 import * as d3 from "d3";
-import { GraphNodes, NodeDimensions } from "@/app/types/graph";
+import { GraphNodes, NodeDimensions } from "@/app/types/GraphCanvas.types";
 import { getDefaultNodeDimensions } from "@/app/utils/placement";
 
 interface UseCanvasInteractionProps {

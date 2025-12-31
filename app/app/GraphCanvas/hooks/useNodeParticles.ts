@@ -10,9 +10,9 @@ import {
   GraphNode,
   GraphNodes,
   NodeDimensions,
-  Vector2,
-} from "@/app/types/graph";
+} from "@/app/types/GraphCanvas.types";
 import { getDefaultNodeDimensions } from "@/app/utils/placement";
+import { Vector2 } from "@/app/types";
 
 interface UseNodeParticlesProps {
   nodes: GraphNodes;

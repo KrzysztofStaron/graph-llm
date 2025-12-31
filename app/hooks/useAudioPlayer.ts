@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import type { GraphNode, GraphNodes } from "../types/graph";
+import type { GraphNode, GraphNodes } from "../types/";
 import { audioService } from "../interfaces/audioService";
 
 /**
