@@ -35,8 +35,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
         // Put all nodes in this level into loading state
         for (const node of levelNodes) {
-          treeManager.patchNode(node.id, { value: "" });
-          currentNodes[node.id] = { ...currentNodes[node.id], value: "" };
+          treeManager.patchNode(node.id, { value: "", error: undefined });
+          currentNodes[node.id] = {
+            ...currentNodes[node.id],
+            value: "",
+            error: undefined,
+          };
         }
 
         // Update all nodes at this level in parallel
@@ -120,7 +124,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Prepare the response node
       if (responseNodeId) {
         // put existing response node into loading state
-        treeManager.patchNode(responseNodeId, { value: "" });
+        treeManager.patchNode(responseNodeId, { value: "", error: undefined });
         responseNode = nodesRef.current[responseNodeId];
       } else {
         // create a new response node with smart placement - close to parent
