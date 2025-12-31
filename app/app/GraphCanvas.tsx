@@ -1,18 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  GraphNode,
-  GraphNodes,
-  NodeDimensions,
-  Vector2,
-  NodeType,
-  ContextNode as ContextNodeType,
-  DocumentNode as DocumentNodeType,
-  ImageContextNode as ImageContextNodeType,
-  InputNode,
-  ResponseNode as ResponseNodeType,
-} from "../types/graph";
+import { GraphNode, GraphNodes, NodeDimensions } from "../types/graph";
 import {
   useEffect,
   useRef,
@@ -22,8 +11,6 @@ import {
   useMemo,
   useImperativeHandle,
   forwardRef,
-  type Dispatch,
-  type SetStateAction,
   useContext,
   createContext,
 } from "react";
@@ -40,6 +27,7 @@ import EdgesRenderer from "../components/GraphCanvas/EdgesRenderer";
 import NodesRenderer from "../components/GraphCanvas/NodesRenderer";
 import ParticleRenderer from "../components/GraphCanvas/ParticleRenderer";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { useNodeParticles } from "../hooks/useNodeParticles";
 
 export interface GraphCanvasRef {
   transform: { x: number; y: number; k: number };
@@ -383,17 +371,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     const contentRef = useRef<HTMLDivElement>(null);
     const [localNodeDimensions, setLocalNodeDimensions] =
       useState<NodeDimensions>({});
-
-    const [appearingNodes, setAppearingNodes] = useState<
-      Record<string, Vector2>
-    >({});
-
-    const [deletingNodes, setDeletingNodes] = useState<Record<string, Vector2>>(
-      {}
-    );
-
-    const nodesSnapshotRef = useRef<GraphNodes>(nodes);
-    const hasMountedRef = useRef<boolean>(false);
     const zoomBehaviorRef = useRef<d3.ZoomBehavior<
       HTMLDivElement,
       unknown
@@ -591,72 +568,17 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onUndo: undo,
     });
 
-    // Helper function to show particle effect for a node
-    const showParticleEffect = useCallback(
-      (
-        node: GraphNode,
-        nodeId: string,
-        setState: Dispatch<SetStateAction<Record<string, Vector2>>>
-      ) => {
-        const dim =
-          localNodeDimensions[nodeId] || getDefaultNodeDimensions(node.type);
-
-        const center = {
-          x: node.x + dim.width / 2,
-          y: node.y + dim.height / 2,
-        };
-
-        const screenX = center.x * transform.k + transform.x;
-        const screenY = center.y * transform.k + transform.y;
-
-        setState((prev) => ({
-          ...prev,
-          [nodeId]: { x: screenX, y: screenY },
-        }));
-
-        setTimeout(() => {
-          setState((prev) => {
-            const next = { ...prev };
-            delete next[nodeId];
-            return next;
-          });
-        }, 200);
-      },
-      [localNodeDimensions, transform]
-    );
-
-    // Track node appear/delete to show particle effects
-    useEffect(() => {
-      const currentNodeIds = new Set(Object.keys(nodes));
-      const previousNodes = nodesSnapshotRef.current;
-
-      // Skip particles on the very first render
-      if (hasMountedRef.current === false) {
-        hasMountedRef.current = true;
-        nodesSnapshotRef.current = nodes;
-        return;
-      }
-
-      // Find newly added nodes
-      Object.keys(nodes).forEach((nodeId) => {
-        if (previousNodes[nodeId]) return;
-        const addedNode = nodes[nodeId];
-        showParticleEffect(addedNode, nodeId, setAppearingNodes);
-      });
-
-      // Find deleted nodes
-      Object.keys(previousNodes).forEach((nodeId) => {
-        if (!currentNodeIds.has(nodeId)) {
-          const deletedNode = previousNodes[nodeId];
-          if (deletedNode) {
-            showParticleEffect(deletedNode, nodeId, setDeletingNodes);
-          }
-        }
-      });
-
-      // Update snapshot
-      nodesSnapshotRef.current = nodes;
-    }, [nodes, localNodeDimensions, transform, showParticleEffect]);
+    // Track node appear/delete particle effects
+    const {
+      appearingNodes,
+      deletingNodes,
+      setAppearingNodes,
+      setDeletingNodes,
+    } = useNodeParticles({
+      nodes,
+      localNodeDimensions,
+      transform,
+    });
 
     // Set up ResizeObserver to track all node dimensions
     useEffect(() => {
