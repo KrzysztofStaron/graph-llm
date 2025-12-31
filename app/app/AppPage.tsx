@@ -42,8 +42,6 @@ const AppPageContent = () => {
     isLoadingAudio,
     playAudio,
     stopAudio,
-    currentWordIndex,
-    words: audioWords,
   } = useAudioPlayer();
 
   const handleContextNodeDoubleClick = useCallback((nodeId: string) => {
@@ -794,8 +792,6 @@ const AppPageContent = () => {
         }}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
-        currentWordIndex={currentWordIndex}
-        audioWords={audioWords}
       />
       {editingContextNodeId && (
         <ContextSidebar

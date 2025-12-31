@@ -1,11 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { InputFieldNode } from "./nodes/InputFieldNode";
-import { ResponseNode } from "./nodes/ResponseNode";
-import { ContextNode } from "./nodes/ContextNode";
-import { ImageContextNode } from "./nodes/ImageContextNode";
-import { DocumentNode } from "./nodes/DocumentNode";
+import { motion } from "framer-motion";
 import {
   GraphNode,
   GraphNodes,
@@ -31,8 +26,9 @@ import {
 import * as d3 from "d3";
 import { ParticleEffect } from "../components/ui/ParticleEffect";
 import { resolveLocalCollisions } from "../utils/collisionResolver";
-import { getNodeCenter } from "../utils/getNodeCenter";
 import { TreeManager, type GraphAction } from "../interfaces/TreeManager";
+import EdgesRenderer from "../components/GraphCanvas/EdgesRenderer";
+import NodesRenderer from "../components/GraphCanvas/NodesRenderer";
 
 // Deep copy function for GraphNodes
 const deepCopyNodes = (nodes: GraphNodes): GraphNodes => {
@@ -249,8 +245,6 @@ interface GraphCanvasProps {
     clientY: number,
     nodeId?: string
   ) => void;
-  currentWordIndex?: number | null;
-  audioWords?: Array<{ word: string; start: number; end: number }>;
 }
 
 export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
@@ -264,8 +258,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onNodeDimensionsChange,
       onRequestNodeMove,
       onRequestContextMenu,
-      currentWordIndex,
-      audioWords,
     } = props;
 
     // Transform state
@@ -539,10 +531,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     }, [treeManager, transform.k, selectedNodeIds]);
 
     const nodeArray = Object.values(nodes);
-
-    const edges = nodeArray.flatMap((node) =>
-      node.childrenIds.map((to) => ({ from: node.id, to }))
-    );
 
     const viewportRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -1014,118 +1002,19 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
             }}
           >
             {/* SVG inside container so it transforms with nodes - no clipping issues */}
-            <svg
-              className="absolute pointer-events-none"
-              style={{
-                overflow: "visible",
-                left: 0,
-                top: 0,
-                width: 1,
-                height: 1,
-              }}
-            >
-              <AnimatePresence>
-                {edges.map((edge) => {
-                  const fromNode = nodes[edge.from];
-                  const toNode = nodes[edge.to];
-                  if (!fromNode || !toNode) return null;
-                  const from = getNodeCenter(fromNode, localNodeDimensions);
-                  const to = getNodeCenter(toNode, localNodeDimensions);
-                  const isAppearing =
-                    appearingNodes && edge.to in appearingNodes;
-                  return (
-                    <motion.line
-                      key={`${edge.from}-${edge.to}`}
-                      x1={from.x}
-                      y1={from.y}
-                      x2={to.x}
-                      y2={to.y}
-                      stroke="white"
-                      strokeWidth={2}
-                      initial={isAppearing ? { opacity: 0 } : { opacity: 0.2 }}
-                      animate={{ opacity: 0.2 }}
-                      transition={{
-                        duration: 0.2,
-                        ease: "easeOut",
-                      }}
-                    />
-                  );
-                })}
-              </AnimatePresence>
-            </svg>
-
-            <AnimatePresence mode="popLayout" initial={false}>
-              {nodeArray.map((node) => {
-                const isSelected = selectedNodeIds.has(node.id);
-                return (
-                  <motion.div
-                    key={node.id}
-                    className={`absolute cursor-move ${
-                      node.type === "response" ? "w-max" : ""
-                    }`}
-                    data-node-id={node.id}
-                    style={{
-                      left: node.x,
-                      top: node.y,
-                      transformOrigin: "center center",
-                    }}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{
-                      scale: 1,
-                      opacity: 1,
-                      transition: {
-                        duration: 0.2,
-                        ease: "easeOut",
-                      },
-                    }}
-                    exit={{
-                      scale: 0,
-                      opacity: 0,
-                      transition: {
-                        duration: 0.2,
-                        ease: "easeIn",
-                      },
-                    }}
-                    onMouseDown={(e) => {
-                      handleMouseDown(e, node.id);
-                    }}
-                    onDoubleClick={(e) => {
-                      if (node.type === "context" && onContextNodeDoubleClick) {
-                        e.stopPropagation();
-                        onContextNodeDoubleClick(node.id);
-                      }
-                    }}
-                  >
-                    {node.type === "input" && (
-                      <InputFieldNode
-                        node={node}
-                        isSelected={isSelected}
-                        nodes={nodes}
-                        onInputSubmit={(query) => onInputSubmit(query, node)}
-                        onDelete={() => onDeleteNode(node.id)}
-                      />
-                    )}
-                    {node.type === "response" && (
-                      <ResponseNode
-                        node={node}
-                        isSelected={isSelected}
-                        currentWordIndex={currentWordIndex}
-                        audioWords={audioWords}
-                      />
-                    )}
-                    {node.type === "context" && (
-                      <ContextNode node={node} isSelected={isSelected} />
-                    )}
-                    {node.type === "image-context" && (
-                      <ImageContextNode node={node} isSelected={isSelected} />
-                    )}
-                    {node.type === "document" && (
-                      <DocumentNode node={node} isSelected={isSelected} />
-                    )}
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+            <EdgesRenderer
+              nodes={nodes}
+              localNodeDimensions={localNodeDimensions}
+              appearingNodes={appearingNodes}
+            />
+            <NodesRenderer
+              nodes={nodes}
+              selectedNodeIds={selectedNodeIds}
+              handleMouseDown={handleMouseDown}
+              onContextNodeDoubleClick={onContextNodeDoubleClick}
+              onInputSubmit={onInputSubmit}
+              onDeleteNode={onDeleteNode}
+            />
           </div>
         </motion.div>
 
