@@ -48,7 +48,6 @@ interface GraphCanvasProps {
     files: FileList,
     canvasPoint: { x: number; y: number }
   ) => void;
-  setQuickMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
   onRequestContextMenu?: (
     clientX: number,
@@ -67,7 +66,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
   function GraphCanvasInner(props, ref) {
     const {
       initialNodes,
-      setQuickMenuOpen,
       onInputSubmit,
       setEditingContextNodeId,
       onDropFilesAsContext,
@@ -124,18 +122,16 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     } = useCanvasInteraction({
       nodes,
       localNodeDimensions,
-      onClearSelection: clearSelection,
       onDropFilesAsContext,
       onRequestContextMenu,
     });
 
     // History management and tree manager
-    const { dispatchWithHistory, treeManager, undo, isUndoingRef } =
-      useGraphHistory({
-        nodes,
-        nodesRef,
-        dispatch,
-      });
+    const { treeManager, undo, isUndoingRef } = useGraphHistory({
+      nodes,
+      nodesRef,
+      dispatch,
+    });
 
     // Dragging state
     const draggingRef = useRef<{
@@ -164,35 +160,22 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           return;
         }
 
-        // Click on node without shift
+        // Click on node without shift - start dragging
         const isNodeSelected = selectedNodeIds.has(nodeId);
         if (!isNodeSelected) {
           // Node is not selected - clear all selections and drag just this node
           clearSelection();
         }
         // If node is selected, keep the selection and drag all selected nodes
+
+        // IMPORTANT: Prevent event from reaching d3-zoom
         e.preventDefault();
+        e.stopPropagation();
+
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         draggingRef.current = { type: "node", nodeId, hasMoved: false };
       },
       [clearSelection, toggleNodeSelection, selectedNodeIds]
-    );
-
-    const handleViewportMouseDown = useCallback(
-      (e: React.MouseEvent) => {
-        // Don't handle right-clicks
-        if (e.button === 2) return;
-
-        // Only handle if clicking directly on the viewport (not on a node)
-        const target = e.target as HTMLElement;
-        const closestNode = target.closest(
-          "[data-node-id]"
-        ) as HTMLElement | null;
-        if (!closestNode) {
-          handleMouseDown(e);
-        }
-      },
-      [handleMouseDown]
     );
 
     // Expose values to parent via ref
@@ -238,6 +221,9 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       const handleMouseMove = (e: MouseEvent) => {
         if (!draggingRef.current) return;
 
+        // Prevent any default behavior while dragging
+        e.preventDefault();
+
         const dx = (e.clientX - lastMousePos.current.x) / transform.k;
         const dy = (e.clientY - lastMousePos.current.y) / transform.k;
         lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -259,11 +245,15 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         }
       };
 
-      const handleMouseUp = () => {
+      const handleMouseUp = (e: MouseEvent) => {
+        if (draggingRef.current) {
+          // Prevent any click events from firing after drag
+          e.preventDefault();
+        }
         draggingRef.current = null;
       };
 
-      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mousemove", handleMouseMove, { passive: false });
       window.addEventListener("mouseup", handleMouseUp);
       return () => {
         window.removeEventListener("mousemove", handleMouseMove);
@@ -395,7 +385,19 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onContextMenu={handleContextMenu}
-            onMouseDown={handleViewportMouseDown}
+            onMouseDown={(e) => {
+              // Handle canvas clicks for selection clearing
+              // Don't handle right-clicks
+              if (e.button === 2) return;
+
+              const target = e.target as HTMLElement;
+              const closestNode = target.closest("[data-node-id]");
+
+              // Only clear selection if clicking on canvas (not on a node) and shift not held
+              if (!closestNode && !e.shiftKey) {
+                clearSelection();
+              }
+            }}
           >
             <div
               ref={contentRef}

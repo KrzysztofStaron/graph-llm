@@ -6,7 +6,6 @@ import { getDefaultNodeDimensions } from "@/app/utils/placement";
 interface UseCanvasInteractionProps {
   nodes: GraphNodes;
   localNodeDimensions: NodeDimensions;
-  onClearSelection: () => void;
   onDropFilesAsContext?: (
     files: FileList,
     canvasPoint: { x: number; y: number }
@@ -32,7 +31,6 @@ interface UseCanvasInteractionReturn {
 export function useCanvasInteraction({
   nodes,
   localNodeDimensions,
-  onClearSelection,
   onDropFilesAsContext,
   onRequestContextMenu,
 }: UseCanvasInteractionProps): UseCanvasInteractionReturn {
@@ -150,32 +148,6 @@ export function useCanvasInteraction({
     onRequestContextMenu(e.clientX, e.clientY, nodeId);
   };
 
-  // Handle canvas clicks to clear selection (before d3-zoom processes them)
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    const handleCanvasMouseDown = (e: MouseEvent) => {
-      // Don't clear selection on right-click (button 2)
-      if (e.button === 2) return;
-
-      const target = e.target as HTMLElement;
-
-      // Only handle if clicking on canvas background (not on a node)
-      const closestNode = target.closest("[data-node-id]");
-      if (!closestNode && !e.shiftKey) {
-        onClearSelection();
-      }
-    };
-
-    // Use capture phase to fire before d3-zoom
-    viewport.addEventListener("mousedown", handleCanvasMouseDown, true);
-
-    return () => {
-      viewport.removeEventListener("mousedown", handleCanvasMouseDown, true);
-    };
-  }, [onClearSelection]);
-
   // Initialize zoom behavior
   useEffect(() => {
     if (!viewportRef.current) return;
@@ -197,16 +169,15 @@ export function useCanvasInteraction({
         // Always allow zoom with wheel (unless stopped by stopPropagation)
         if (event.type === "wheel") return true;
 
-        // For other events (mousedown, touchstart), filter out interactive elements and nodes
+        // For other events (mousedown, touchstart), filter out interactive elements
+        // BUT allow panning on nodes - the node drag handler will preventDefault if needed
         return (
           !event.button &&
           target.tagName !== "BUTTON" &&
           target.tagName !== "TEXTAREA" &&
           target.tagName !== "INPUT" &&
           !target.closest(".cursor-pointer") &&
-          !target.closest(".cursor-text") &&
-          // Prevent panning if we are clicking directly on a node's drag handle
-          !target.closest("[data-node-id]")
+          !target.closest(".cursor-text")
         );
       });
 

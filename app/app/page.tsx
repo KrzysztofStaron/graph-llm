@@ -67,7 +67,12 @@ const AppPageContent = () => {
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
   useKeyboardShortcuts({
-    onQuickMenu: () => setQuickMenuOpen((prev) => !prev),
+    onQuickMenu: () => {
+      setQuickMenuOpen((prev) => {
+        console.log("prev", prev);
+        return !prev;
+      });
+    },
   });
 
   return (
@@ -80,7 +85,6 @@ const AppPageContent = () => {
         onDropFilesAsContext={onDropFilesAsContext}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
-        setQuickMenuOpen={setQuickMenuOpen}
       />
       {editingContextNodeId && (
         <ContextSidebar
