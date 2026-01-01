@@ -7,7 +7,7 @@ import type {
   ContextNode,
   DocumentNode,
   ImageContextNode,
-} from "../types/";
+} from "../types/graph";
 
 import type { ChatMessage } from "./aiService";
 
