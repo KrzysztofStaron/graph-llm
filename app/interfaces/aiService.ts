@@ -40,11 +40,16 @@ export class aiService {
           ...(options?.provider && { provider: options.provider }),
         }),
       });
-    } catch {
-      // Network errors (server down, DNS failure, etc.)
-      throw new Error(
-        `Cannot connect to AI service at ${globals.graphLLMBackendUrl}. Server may be offline.`
-      );
+    } catch (error) {
+      // Differentiate between network errors and other issues
+      if (error instanceof TypeError) {
+        // TypeError typically indicates network failure, CORS, or DNS issues
+        throw new Error(
+          `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
+        );
+      }
+      // Re-throw other errors as-is
+      throw error;
     }
 
     if (!response.ok) {
@@ -97,13 +102,18 @@ export class aiService {
         }
       );
     } catch (fetchError) {
-      // Network errors (server down, DNS failure, etc.)
+      // Handle specific error types
       if (fetchError instanceof Error && fetchError.name === "AbortError") {
         throw new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
       }
-      throw new Error(
-        `Cannot connect to AI service at ${globals.graphLLMBackendUrl}. Server may be offline.`
-      );
+      if (fetchError instanceof TypeError) {
+        // TypeError typically indicates network failure, CORS, or DNS issues
+        throw new Error(
+          `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
+        );
+      }
+      // Re-throw other errors as-is
+      throw fetchError;
     }
 
     if (!response.ok) {
