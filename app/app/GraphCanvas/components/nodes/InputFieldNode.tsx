@@ -172,7 +172,7 @@ export const InputFieldNode = memo(
                 }}
                 onBlur={handleOnBlur}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmit();
                   } else if (e.key === "Escape") {
