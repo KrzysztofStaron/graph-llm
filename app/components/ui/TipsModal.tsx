@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Keyboard, MousePointer2, Hand } from "lucide-react";
+import { X, Keyboard, MousePointer2, Hand, Upload } from "lucide-react";
 import React, { useEffect } from "react";
 import Image from "next/image";
 
@@ -124,6 +124,18 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                       Multi-select nodes (hold Shift and click multiple nodes)
                     </p>
                   </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-2 min-w-[80px]">
+                      <Upload className="size-4 text-white/60" />
+                      <span className="text-white/90 font-mono text-xs">
+                        Drag & drop
+                      </span>
+                    </div>
+                    <p className="text-white/70 text-sm leading-relaxed">
+                      Drag and drop files onto the canvas to upload them as context
+                    </p>
+                  </div>
                 </div>
               </section>
 
@@ -175,7 +187,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                     <h4 className="text-white/90 font-mono text-sm mb-2">
                       Branch out from a node
                     </h4>
-                    <ol className="space-y-1 text-white/70 text-sm list-decimal list-inside">
+                    <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
                       <li>
                         <span className="font-mono text-xs bg-white/5 px-1 rounded">
                           Right click
@@ -191,6 +203,51 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                       </li>
                       <li>Type your question and submit</li>
                     </ol>
+                    <div className="rounded overflow-hidden border border-white/10">
+                      <Image
+                        src="/branchOut.png"
+                        alt="Branch out example showing context menu on a node"
+                        width={600}
+                        height={300}
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Starting from scratch workflow */}
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <h4 className="text-white/90 font-mono text-sm mb-2">
+                      Starting from scratch
+                    </h4>
+                    <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
+                      <li>
+                        <span className="font-mono text-xs bg-white/5 px-1 rounded">
+                          Right click
+                        </span>{" "}
+                        on any empty space on the canvas
+                      </li>
+                      <li>
+                        Choose either{" "}
+                        <span className="font-mono text-xs bg-white/5 px-1 rounded">
+                          New Question
+                        </span>{" "}
+                        or{" "}
+                        <span className="font-mono text-xs bg-white/5 px-1 rounded">
+                          New Context
+                        </span>{" "}
+                        from context menu
+                      </li>
+                      <li>Add your content and submit</li>
+                    </ol>
+                    <div className="rounded overflow-hidden border border-white/10">
+                      <Image
+                        src="/freeStart.png"
+                        alt="Starting from scratch example showing context menu on empty canvas"
+                        width={600}
+                        height={300}
+                        className="w-full h-auto"
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
