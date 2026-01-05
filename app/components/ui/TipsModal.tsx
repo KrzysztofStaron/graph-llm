@@ -76,7 +76,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                 <div className="space-y-2">
                   <div className="flex items-start gap-3">
                     <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
-                      Cmd/Ctrl+K
+                      ⌘/Ctrl+K
                     </kbd>
                     <p className="text-white/70 text-sm leading-relaxed">
                       Open model selection menu
@@ -100,7 +100,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex items-center gap-2 min-w-[80px]">
+                    <div className="flex items-center  gap-2 min-w-[80px]">
                       <MousePointer2 className="size-4 text-white/60" />
                       <span className="text-white/90 font-mono text-xs">
                         Right click
