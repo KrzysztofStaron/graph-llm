@@ -77,6 +77,22 @@ export class aiService {
       timeoutMs?: number;
     }
   ): Promise<string> {
+    // Feature detection: check if streaming is supported
+    const supportsStreaming =
+      typeof ReadableStream !== "undefined" &&
+      typeof TextDecoder !== "undefined" &&
+      typeof Response !== "undefined";
+
+    // If streaming is not supported, fall back to non-streaming endpoint
+    if (!supportsStreaming) {
+      console.warn(
+        "Streaming not supported in this browser, falling back to non-streaming endpoint"
+      );
+      const result = await this.chat(message, options);
+      onChunk(result);
+      return result;
+    }
+
     const payload = JSON.stringify({
       messages: Array.isArray(message)
         ? message
@@ -127,8 +143,15 @@ export class aiService {
       );
     }
 
-    if (!response.body) {
-      throw new Error("Response body is null");
+    // Additional check: if response.body or getReader is not available, fall back
+    if (!response.body || typeof response.body.getReader !== "function") {
+      console.warn(
+        "Response body streaming not available, falling back to non-streaming"
+      );
+      clearTimeout(timeoutId);
+      const result = await response.text();
+      onChunk(result);
+      return result;
     }
 
     try {
