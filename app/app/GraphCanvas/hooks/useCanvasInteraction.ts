@@ -1,4 +1,4 @@
-import { useRef, useReducer, useCallback, useEffect } from "react";
+import { useRef, useReducer, useCallback, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { GraphNodes, NodeDimensions } from "@/app/types/GraphCanvas.types";
 import { getDefaultNodeDimensions } from "@/app/utils/placement";
@@ -49,6 +49,7 @@ export function useCanvasInteraction({
     HTMLDivElement,
     unknown
   > | null>(null);
+  const [isZoomInitialized, setIsZoomInitialized] = useState(false);
 
   const nodeArray = Object.values(nodes);
 
@@ -148,10 +149,18 @@ export function useCanvasInteraction({
     onRequestContextMenu(e.clientX, e.clientY, nodeId);
   };
 
+  // Store the current transform state in a ref to avoid recreating zoom behavior on every change
+  const transformRef = useRef(transform);
+  useEffect(() => {
+    transformRef.current = transform;
+  }, [transform]);
+
   // Initialize zoom behavior
   useEffect(() => {
-    if (!viewportRef.current) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
 
+    // Create zoom behavior
     const zoom = d3
       .zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 4])
@@ -183,21 +192,64 @@ export function useCanvasInteraction({
         );
       });
 
-    const svg = d3.select(viewportRef.current);
-    svg.call(zoom);
+    const selection = d3.select(viewport);
+    selection.call(zoom);
     zoomBehaviorRef.current = zoom;
+    setIsZoomInitialized(true);
 
     // Set initial transform without transition
-    svg.call(
+    const currentTransform = transformRef.current;
+    selection.call(
       zoom.transform,
-      d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k)
+      d3.zoomIdentity
+        .translate(currentTransform.x, currentTransform.y)
+        .scale(currentTransform.k)
     );
 
     return () => {
-      svg.on(".zoom", null);
+      // Clean up properly using the captured viewport reference
+      selection.on(".zoom", null);
+      // Clear the behavior ref on cleanup
+      if (zoomBehaviorRef.current === zoom) {
+        zoomBehaviorRef.current = null;
+      }
+      setIsZoomInitialized(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+    // Run once on mount - viewport should not change during component lifecycle
+  }, []); // Empty deps - zoom behavior should persist
+
+  // Watchdog: Ensure zoom behavior stays attached
+  // This helps recover if something breaks the event listeners
+  useEffect(() => {
+    if (!isZoomInitialized) return;
+
+    const checkInterval = setInterval(() => {
+      const viewport = viewportRef.current;
+      const zoom = zoomBehaviorRef.current;
+
+      if (!viewport || !zoom) return;
+
+      // Check if zoom listeners are still attached by checking for __zoom property
+      const selection = d3.select(viewport);
+      const hasZoomProperty = selection.property("__zoom");
+
+      if (!hasZoomProperty) {
+        console.warn("Canvas zoom behavior lost, reattaching...");
+        // Reattach zoom behavior
+        selection.call(zoom);
+        // Restore current transform
+        const currentTransform = transformRef.current;
+        selection.call(
+          zoom.transform,
+          d3.zoomIdentity
+            .translate(currentTransform.x, currentTransform.y)
+            .scale(currentTransform.k)
+        );
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(checkInterval);
+  }, [isZoomInitialized]);
 
   return {
     transform,

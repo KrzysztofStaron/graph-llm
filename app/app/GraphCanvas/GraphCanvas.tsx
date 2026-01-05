@@ -382,6 +382,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
             animate={{ opacity: 1 }}
             transition={{ duration: 0.2 }}
             className="w-full h-screen overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
+            style={{ touchAction: "none" }}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onContextMenu={handleContextMenu}
