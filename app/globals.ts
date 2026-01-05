@@ -11,8 +11,8 @@ export class globals {
     "input-1": {
       id: "input-1",
       type: "input",
-      x: 800,
-      y: 473 - 136 / 2,
+      x: 0,
+      y: 0,
       value: "",
       parentIds: [],
       childrenIds: [],

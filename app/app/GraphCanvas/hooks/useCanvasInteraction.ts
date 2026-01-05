@@ -251,6 +251,35 @@ export function useCanvasInteraction({
     return () => clearInterval(checkInterval);
   }, [isZoomInitialized]);
 
+  // Apply transform changes to zoom behavior if it's already initialized
+  // This allows programmatic transform updates to work after zoom is set up
+  useEffect(() => {
+    if (!isZoomInitialized || !zoomBehaviorRef.current || !viewportRef.current) return;
+
+    const viewport = viewportRef.current;
+    const zoom = zoomBehaviorRef.current;
+    const selection = d3.select(viewport);
+    
+    // Get current zoom transform
+    const currentZoomTransform = selection.property("__zoom") as d3.ZoomTransform | undefined;
+    
+    // Only update if the transform state differs from the zoom transform
+    // This prevents infinite loops (zoom handler updates transform, which triggers this effect)
+    if (currentZoomTransform) {
+      const transformMatches =
+        Math.abs(currentZoomTransform.x - transform.x) < 0.01 &&
+        Math.abs(currentZoomTransform.y - transform.y) < 0.01 &&
+        Math.abs(currentZoomTransform.k - transform.k) < 0.01;
+      
+      if (!transformMatches) {
+        selection.call(
+          zoom.transform,
+          d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k)
+        );
+      }
+    }
+  }, [transform, isZoomInitialized]);
+
   return {
     transform,
     setTransform,
