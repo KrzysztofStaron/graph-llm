@@ -316,7 +316,7 @@ export class TreeManager {
       ...messages.reverse(),
     ] as ChatMessage[];
 
-    console.log(ret);
+    console.log("ChatML messages (excluding system prompt):", ret.filter(m => m.role !== 'system'));
 
     return ret;
   }
