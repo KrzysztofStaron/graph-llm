@@ -1,5 +1,6 @@
 import { globals } from "../globals";
 import { getOrCreateClientId } from "../utils/clientId";
+import logger from "../utils/logger";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -46,20 +47,30 @@ export class aiService {
       // Differentiate between network errors and other issues
       if (error instanceof TypeError) {
         // TypeError typically indicates network failure, CORS, or DNS issues
-        throw new Error(
+        const networkError = new Error(
           `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
         );
+        logger.error("Network error in chat", { error, originalError: error });
+        throw networkError;
       }
+
+      logger.error("Error in chat", { error });
       // Re-throw other errors as-is
       throw error;
     }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      console.error("Backend error:", errorText);
-      throw new Error(
+      const error = new Error(
         `Server error (${response.status}): ${errorText || response.statusText}`
       );
+      logger.error("Backend error in chat", { 
+        status: response.status, 
+        statusText: response.statusText, 
+        errorText,
+        error 
+      });
+      throw error;
     }
 
     return response.text();
@@ -123,24 +134,35 @@ export class aiService {
     } catch (fetchError) {
       // Handle specific error types
       if (fetchError instanceof Error && fetchError.name === "AbortError") {
-        throw new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
+        const timeoutError = new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
+        logger.error("Request timeout in streamChat", { error: fetchError, timeoutMs: TIMEOUT_MS });
+        throw timeoutError;
       }
       if (fetchError instanceof TypeError) {
         // TypeError typically indicates network failure, CORS, or DNS issues
-        throw new Error(
+        const networkError = new Error(
           `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
         );
+        logger.error("Network error in streamChat", { error: fetchError, originalError: fetchError });
+        throw networkError;
       }
       // Re-throw other errors as-is
+      logger.error("Fetch error in streamChat", { error: fetchError });
       throw fetchError;
     }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      console.error("Backend error:", errorText);
-      throw new Error(
+      const error = new Error(
         `Server error (${response.status}): ${errorText || response.statusText}`
       );
+      logger.error("Backend error in streamChat", { 
+        status: response.status, 
+        statusText: response.statusText, 
+        errorText,
+        error 
+      });
+      throw error;
     }
 
     // Additional check: if response.body or getReader is not available, fall back
@@ -183,7 +205,12 @@ export class aiService {
         while (true) {
           // Check for inactivity timeout
           if (Date.now() - lastChunkTime > INACTIVITY_TIMEOUT_MS) {
-            throw new Error("Stream timeout: No data received for 30 seconds");
+            const timeoutError = new Error("Stream timeout: No data received for 30 seconds");
+            logger.error("Stream inactivity timeout", { 
+              error: timeoutError, 
+              inactivityTimeoutMs: INACTIVITY_TIMEOUT_MS 
+            });
+            throw timeoutError;
           }
 
           const { done, value } = await reader.read();
@@ -196,7 +223,9 @@ export class aiService {
               }
               return fullResponse;
             }
-            throw new Error("Stream ended without any content");
+            const streamError = new Error("Stream ended without any content");
+            logger.error("Stream ended without content", { error: streamError });
+            throw streamError;
           }
 
           lastChunkTime = Date.now();
@@ -221,11 +250,13 @@ export class aiService {
                   throttledOnChunk(fullResponse);
                 }
                 if (parsed.error) {
-                  throw new Error(parsed.error);
+                  const streamError = new Error(parsed.error);
+                  logger.error("Stream error from backend", { error: streamError, parsedError: parsed.error });
+                  throw streamError;
                 }
-              } catch {
+              } catch (parseError) {
                 // Skip invalid JSON but log it for debugging
-                console.warn("Failed to parse SSE data:", data);
+                logger.warn("Failed to parse SSE data", { data, error: parseError });
               }
             }
           }

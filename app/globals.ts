@@ -1,6 +1,7 @@
 import { GraphNodes } from "./types/";
 
-const local = process.env.NODE_ENV === "development";
+let local = process.env.NODE_ENV === "development";
+local = false;
 
 export class globals {
   static readonly graphLLMBackendUrl = local
