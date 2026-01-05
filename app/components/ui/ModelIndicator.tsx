@@ -2,7 +2,7 @@ import React from "react";
 import { useAppSelector } from "../../store/hooks";
 import { availableModels } from "../../store/settingsSlice";
 
-export const ModelIndicator = () => {
+export const ModelIndicator = ({onClick}: {onClick: () => void}) => {
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
 
   const currentModel = availableModels.find(
@@ -12,7 +12,7 @@ export const ModelIndicator = () => {
   if (!currentModel) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 pointer-events-none">
+    <button className="fixed bottom-4 right-4 z-40 pointer-events-auto cursor-pointer" onClick={onClick}>
       <div className="px-3 py-1.5 rounded-md border border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm shadow-lg">
         <div className="flex items-center gap-2">
           <div className="size-2 rounded-full bg-green-500 animate-pulse" />
@@ -21,6 +21,6 @@ export const ModelIndicator = () => {
           </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 };

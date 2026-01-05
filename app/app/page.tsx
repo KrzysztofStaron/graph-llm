@@ -127,7 +127,7 @@ const AppPageContent = () => {
           <AudioPlayerIndicator onStop={stopAudio} isLoading={isLoadingAudio} />
         )}
       </AnimatePresence>
-      <ModelIndicator />
+      <ModelIndicator onClick={() => setQuickMenuOpen(prev => !prev)} />
       <input
         ref={fileInputRef}
         type="file"
