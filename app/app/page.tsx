@@ -71,7 +71,6 @@ const AppPageContent = () => {
   useKeyboardShortcuts({
     onQuickMenu: () => {
       setQuickMenuOpen((prev) => {
-        console.log("prev", prev);
         return !prev;
       });
     },

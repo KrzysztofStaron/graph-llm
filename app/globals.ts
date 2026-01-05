@@ -20,8 +20,7 @@ export class globals {
   };
 }
 
-console.log("local", globals.graphLLMBackendUrl);
-// http://localhost:995
+console.log(local ? "local" : "production", globals.graphLLMBackendUrl);
 
 /**
  * Auto-layout tuning constants
