@@ -30,6 +30,9 @@ class Logger {
       consoleMethod(`[${level.toUpperCase()}]`, message, meta);
     }
 
+    if (process.env.NODE_ENV === 'development') {
+      return;
+    }
     // Send to Loki asynchronously (fire and forget)
     sendToLoki(logEntry).catch(() => {
       // Silently fail - don't break app if Loki is down
