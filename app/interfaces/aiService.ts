@@ -238,16 +238,16 @@ export class aiService {
               const data = line.slice(6);
               if (data === "[DONE]") {
                 if (pendingUpdate) {
-                  onChunk(fullResponse);
+                  onChunk(this.cleanResponse(fullResponse));
                 }
-                return fullResponse;
+                return this.cleanResponse(fullResponse);
               }
 
               try {
                 const parsed = JSON.parse(data);
                 if (parsed.content) {
                   fullResponse += parsed.content;
-                  throttledOnChunk(fullResponse);
+                  throttledOnChunk(this.cleanResponse(fullResponse));
                 }
                 if (parsed.error) {
                   const streamError = new Error(parsed.error);
@@ -267,5 +267,16 @@ export class aiService {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  static cleanResponse(response: string) {
+    // Remove <node ...>...</node> if response is wrapped in those tags (including attributes)
+    const trimmed = response.trim();
+    const match = trimmed.match(/^<node[^>]*>([\s\S]*?)<\/node>$/i);
+    if (match) {
+      console.log("cleanResponse", match[1].trim());
+      return match[1].trim();
+    }
+    return response;
   }
 }

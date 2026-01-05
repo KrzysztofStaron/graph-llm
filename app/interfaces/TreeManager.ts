@@ -273,15 +273,28 @@ export class TreeManager {
           only the content of the nodes. As metadata is only for the LLM to understand the connections between the nodes, 
           it's not part of the response. You can use markdown and latex for formatting purposes. Try not to send walls of text.
 
-          Don't leak <separatorOfContextualData /> in your responses.
-          Don't leak <node id="..." parentIds="..." type="...">...</node> in your responses.
+          CRITICAL FORMATTING RULE:
+          User messages will contain XML-style metadata tags like <node id="..." parentIds="..." type="...">content</node> and <separatorOfContextualData />.
+          These tags are ONLY for internal graph structure and MUST NEVER appear in your responses.
           
-          CRUCIAL:
-          - don't include internal tags in your responses
-          - don't include internal tags in your responses
-          - don't include internal tags in your responses
+          ❌ WRONG: <node id="abc" parentIds="xyz" type="response">Your answer here</node>
+          ✅ CORRECT: Your answer here
+          
+          Examples:
+          User: <node id="1" parentIds="" type="input">What is 2+2?</node>
+          You: 4
+          
+          User: <node id="2" parentIds="1" type="input">Explain photosynthesis</node>
+          You: Photosynthesis is the process by which plants convert light energy into chemical energy...
+          
+          RULES:
+          - NEVER wrap your responses in <node> tags
+          - NEVER include id, parentIds, or type attributes
+          - NEVER include <separatorOfContextualData /> in responses
+          - Your responses should be pure content, markdown, and LaTeX only
+          - The system handles all graph metadata automatically
 
-          Core rule:  Responses = content only. Tags/metadata stay invisible (backend graph only). No more leaks. Clean slate!
+          Try not to send walls of text. Use markdown and latex for formatting.
 
           Supported Document Types:
           The system can parse and process various document formats:
@@ -296,6 +309,8 @@ export class TreeManager {
           - CSV files (.csv)
           
           When document nodes are provided, they contain parsed text content from these file formats. Use the content as context for your responses.
+
+          Your creator is @krzysztofstaron at X
           `,
       },
       ...messages.reverse(),
