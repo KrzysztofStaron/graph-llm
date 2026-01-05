@@ -73,7 +73,8 @@ export class aiService {
       throw error;
     }
 
-    return response.text();
+    const rawText = await response.text();
+    return this.cleanResponse(rawText);
   }
 
   static async streamChat(
@@ -171,9 +172,10 @@ export class aiService {
         "Response body streaming not available, falling back to non-streaming"
       );
       clearTimeout(timeoutId);
-      const result = await response.text();
-      onChunk(result);
-      return result;
+      const rawResult = await response.text();
+      const cleanedResult = this.cleanResponse(rawResult);
+      onChunk(cleanedResult);
+      return cleanedResult;
     }
 
     try {
@@ -217,14 +219,19 @@ export class aiService {
 
           if (done) {
             // Stream ended without [DONE] signal - treat as complete
-            if (fullResponse.length > 0) {
+            const cleanedResponse = this.cleanResponse(fullResponse);
+            if (cleanedResponse.length > 0) {
               if (pendingUpdate) {
-                onChunk(fullResponse);
+                onChunk(cleanedResponse);
               }
-              return fullResponse;
+              return cleanedResponse;
             }
             const streamError = new Error("Stream ended without any content");
-            logger.error("Stream ended without content", { error: streamError });
+            logger.error("Stream ended without content", { 
+              error: streamError,
+              rawResponse: fullResponse.substring(0, 200),
+              cleanedResponse: cleanedResponse
+            });
             throw streamError;
           }
 
@@ -269,14 +276,53 @@ export class aiService {
     }
   }
 
-  static cleanResponse(response: string) {
-    // Remove <node ...>...</node> if response is wrapped in those tags (including attributes)
-    const trimmed = response.trim();
-    const match = trimmed.match(/^<node[^>]*>([\s\S]*?)<\/node>$/i);
-    if (match) {
-      console.log("cleanResponse", match[1].trim());
-      return match[1].trim();
+  static cleanResponse(response: string): string {
+    let cleaned = response.trim();
+    
+    // Pattern 1: Remove opening and closing node tags if response is fully wrapped
+    // Handles: <node ...>content</node>
+    const fullWrapMatch = cleaned.match(/^<node[^>]*>([\s\S]*?)<\/node>$/i);
+    if (fullWrapMatch) {
+      logger.warn("Model leaked node tags (full wrap) - cleaning response", {
+        original: cleaned.substring(0, 200),
+        cleaned: fullWrapMatch[1].trim().substring(0, 200)
+      });
+      cleaned = fullWrapMatch[1].trim();
     }
-    return response;
+    
+    // Pattern 2: Remove any remaining node tags (opening or closing) anywhere in response
+    // This catches partial leaks or multiple nodes
+    const beforeClean = cleaned;
+    cleaned = cleaned
+      .replace(/<node[^>]*>/gi, '') // Remove all opening tags
+      .replace(/<\/node>/gi, ''); // Remove all closing tags
+    
+    if (beforeClean !== cleaned) {
+      logger.warn("Model leaked partial node tags - cleaning response", {
+        original: beforeClean.substring(0, 200),
+        cleaned: cleaned.substring(0, 200)
+      });
+    }
+    
+    // Pattern 3: Remove separator tags
+    const beforeSeparatorClean = cleaned;
+    cleaned = cleaned.replace(/<separatorOfContextualData\s*\/>/gi, '');
+    
+    if (beforeSeparatorClean !== cleaned) {
+      logger.warn("Model leaked separator tags - cleaning response");
+    }
+    
+    // Final trim
+    cleaned = cleaned.trim();
+    
+    // If cleaning resulted in empty string, return original (better than nothing)
+    if (cleaned.length === 0 && response.trim().length > 0) {
+      logger.error("Cleaning resulted in empty response - returning original", {
+        original: response.substring(0, 200)
+      });
+      return response.trim();
+    }
+    
+    return cleaned;
   }
 }
