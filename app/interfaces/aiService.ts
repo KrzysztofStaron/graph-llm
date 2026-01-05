@@ -1,4 +1,5 @@
 import { globals } from "../globals";
+import { getOrCreateClientId } from "../utils/clientId";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -31,6 +32,7 @@ export class aiService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Client-Id": getOrCreateClientId(),
         },
         body: JSON.stringify({
           messages: Array.isArray(message)
@@ -96,6 +98,7 @@ export class aiService {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "X-Client-Id": getOrCreateClientId(),
           },
           body: payload,
           signal: timeoutController.signal,
