@@ -218,21 +218,20 @@ export class aiService {
           const { done, value } = await reader.read();
 
           if (done) {
-            // Stream ended without [DONE] signal - treat as complete
-            const cleanedResponse = this.cleanResponse(fullResponse);
-            if (cleanedResponse.length > 0) {
-              if (pendingUpdate) {
-                onChunk(cleanedResponse);
-              }
-              return cleanedResponse;
+            // Stream ended without [DONE] signal - clean and return
+            if (fullResponse.length === 0) {
+              const streamError = new Error("Stream ended without any content");
+              logger.error("Stream ended without content (empty fullResponse)", { 
+                error: streamError
+              });
+              throw streamError;
             }
-            const streamError = new Error("Stream ended without any content");
-            logger.error("Stream ended without content", { 
-              error: streamError,
-              rawResponse: fullResponse.substring(0, 200),
-              cleanedResponse: cleanedResponse
-            });
-            throw streamError;
+            
+            const cleanedResponse = this.cleanResponse(fullResponse);
+            if (pendingUpdate) {
+              onChunk(cleanedResponse);
+            }
+            return cleanedResponse;
           }
 
           lastChunkTime = Date.now();
@@ -244,17 +243,18 @@ export class aiService {
             if (line.startsWith("data: ")) {
               const data = line.slice(6);
               if (data === "[DONE]") {
+                const cleanedResponse = this.cleanResponse(fullResponse);
                 if (pendingUpdate) {
-                  onChunk(this.cleanResponse(fullResponse));
+                  onChunk(cleanedResponse);
                 }
-                return this.cleanResponse(fullResponse);
+                return cleanedResponse;
               }
 
               try {
                 const parsed = JSON.parse(data);
                 if (parsed.content) {
                   fullResponse += parsed.content;
-                  throttledOnChunk(this.cleanResponse(fullResponse));
+                  throttledOnChunk(fullResponse);
                 }
                 if (parsed.error) {
                   const streamError = new Error(parsed.error);
@@ -277,17 +277,30 @@ export class aiService {
   }
 
   static cleanResponse(response: string): string {
+    if (!response || response.trim().length === 0) {
+      return response;
+    }
+    
     let cleaned = response.trim();
+    const originalLength = cleaned.length;
     
     // Pattern 1: Remove opening and closing node tags if response is fully wrapped
     // Handles: <node ...>content</node>
     const fullWrapMatch = cleaned.match(/^<node[^>]*>([\s\S]*?)<\/node>$/i);
     if (fullWrapMatch) {
-      logger.warn("Model leaked node tags (full wrap) - cleaning response", {
-        original: cleaned.substring(0, 200),
-        cleaned: fullWrapMatch[1].trim().substring(0, 200)
-      });
-      cleaned = fullWrapMatch[1].trim();
+      const extracted = fullWrapMatch[1].trim();
+      if (extracted.length > 0) {
+        logger.warn("Model leaked node tags (full wrap) - cleaning response", {
+          original: cleaned.substring(0, 200),
+          cleaned: extracted.substring(0, 200)
+        });
+        cleaned = extracted;
+      } else {
+        // Empty node tags - log but continue to other cleaning patterns
+        logger.warn("Model sent empty node tags - keeping original", {
+          original: cleaned.substring(0, 200)
+        });
+      }
     }
     
     // Pattern 2: Remove any remaining node tags (opening or closing) anywhere in response
@@ -315,10 +328,11 @@ export class aiService {
     // Final trim
     cleaned = cleaned.trim();
     
-    // If cleaning resulted in empty string, return original (better than nothing)
-    if (cleaned.length === 0 && response.trim().length > 0) {
-      logger.error("Cleaning resulted in empty response - returning original", {
-        original: response.substring(0, 200)
+    // Safety check: If cleaning removed everything, return original (better than losing content)
+    if (cleaned.length === 0 && originalLength > 0) {
+      logger.error("Cleaning resulted in empty response - returning original to prevent data loss", {
+        original: response.substring(0, 200),
+        originalLength: originalLength
       });
       return response.trim();
     }
