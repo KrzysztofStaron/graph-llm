@@ -1,4 +1,5 @@
 import { globals } from "../globals";
+import logger from "../utils/logger";
 
 export interface WordTimestamp {
   word: string;
@@ -39,7 +40,12 @@ export class audioService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Backend error:", errorText);
+      logger.error("TTS backend error", { 
+        status: response.status,
+        errorText,
+        textLength: text.length,
+        includeTimestamps 
+      });
       throw new Error(
         `HTTP error! status: ${response.status}, message: ${errorText}`
       );

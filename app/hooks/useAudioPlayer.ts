@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import type { GraphNode, GraphNodes } from "../types/";
 import { audioService } from "../interfaces/audioService";
+import logger from "../utils/logger";
 
 /**
  * Extract text content from a node, handling FILENAME prefix for document nodes
@@ -111,7 +112,7 @@ export const useAudioPlayer = () => {
     const combinedText = extractTextFromNodes(nodeIds, nodes);
 
     if (!combinedText) {
-      console.warn("No text content found in selected nodes");
+      logger.warn("No text content found in selected nodes", { nodeIds });
       setIsLoadingAudio(false);
       return;
     }
@@ -129,15 +130,19 @@ export const useAudioPlayer = () => {
         includeTimestamps
       );
     } catch (error) {
-      console.error("Failed to generate speech:", error);
+      logger.error("Failed to generate speech", { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        nodeIds,
+        textLength: combinedText.length 
+      });
       setIsLoadingAudio(false);
       return;
     }
 
     const { audio, audioUrl, words: wordsData } = audioResult;
     if (wordsData) {
-      console.log("wordsData", wordsData);
-
+      logger.debug("Received word timestamps", { wordCount: wordsData.length });
       setWords(wordsData);
     }
 
@@ -179,7 +184,19 @@ export const useAudioPlayer = () => {
     };
 
     audio.play().catch((error) => {
-      console.error("Failed to play audio:", error);
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      logger.error("Failed to play audio", { 
+        errorName,
+        errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        nodeIds,
+        textLength: combinedText.length,
+        includeTimestamps,
+        isNotAllowedError: errorName === 'NotAllowedError'
+      });
+      
       cleanup();
     });
 
