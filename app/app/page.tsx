@@ -11,6 +11,7 @@ import { ContextSidebar } from "./ContextSidebar";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { ModelIndicator } from "../components/ui/ModelIndicator";
+import TipsModal from "../components/ui/TipsModal";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { useFileUpload } from "../hooks/useFileUpload";
 import { useContextMenu } from "../hooks/useContextMenu";
@@ -18,6 +19,7 @@ import { useAIChat } from "../hooks/useAIChat";
 import { globals } from "../globals";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import QuickMenu from "./QuickMenu";
+import { HelpCircle } from "lucide-react";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
@@ -67,6 +69,7 @@ const AppPageContent = () => {
   };
 
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const [tipsOpen, setTipsOpen] = useState(false);
 
   useKeyboardShortcuts({
     onQuickMenu: () => {
@@ -127,6 +130,21 @@ const AppPageContent = () => {
         )}
       </AnimatePresence>
       <ModelIndicator onClick={() => setQuickMenuOpen(prev => !prev)} />
+      <button
+        onClick={() => setTipsOpen(true)}
+        className="fixed top-4 right-4 z-40 pointer-events-auto cursor-pointer"
+        aria-label="Show tips and keyboard shortcuts"
+      >
+        <div className="px-3 py-1.5 rounded-md border border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm shadow-lg hover:bg-white/5 transition-colors">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="size-4 text-white/60" />
+            <span className="text-xs font-mono text-white/60">
+              Tips
+            </span>
+          </div>
+        </div>
+      </button>
+      <TipsModal isOpen={tipsOpen} onClose={() => setTipsOpen(false)} />
       <input
         ref={fileInputRef}
         type="file"
