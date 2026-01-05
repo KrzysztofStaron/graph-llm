@@ -355,40 +355,61 @@ export class aiService {
     let cleaned = response.trim();
     const originalLength = cleaned.length;
     
-    // Pattern 1: Remove opening and closing node tags if response is fully wrapped
+    // Pattern 1: Remove bracket-style metadata tags with replying-to attribute (new format)
+    // Handles: [Q1 replying-to="A2"]content[/Q1], [A1]content[/A1], etc.
+    const bracketWrapMatch = cleaned.match(/^\[(Q|A|DOC|CTX|[A-Z]+)\d+(?:\s+replying-to="[^"]*")?\]\s*([\s\S]*?)\s*\[\/\1\d+\]$/i);
+    if (bracketWrapMatch) {
+      const extracted = bracketWrapMatch[2].trim();
+      if (extracted.length > 0) {
+        logger.warn("Model leaked bracket metadata tags (full wrap) - cleaning response", {
+          original: cleaned.substring(0, 200),
+          cleaned: extracted.substring(0, 200)
+        });
+        cleaned = extracted;
+      }
+    }
+    
+    // Pattern 2: Remove any remaining bracket tags anywhere in response
+    const beforeBracketClean = cleaned;
+    cleaned = cleaned
+      .replace(/\[(Q|A|DOC|CTX|[A-Z]+)\d+(?:\s+replying-to="[^"]*")?\]/gi, '') // Remove opening tags with optional replying-to
+      .replace(/\[\/(Q|A|DOC|CTX|[A-Z]+)\d+\]/gi, ''); // Remove closing tags
+    
+    if (beforeBracketClean !== cleaned) {
+      logger.warn("Model leaked partial bracket metadata tags - cleaning response", {
+        original: beforeBracketClean.substring(0, 200),
+        cleaned: cleaned.substring(0, 200)
+      });
+    }
+    
+    // Pattern 3: Remove old-style XML node tags (backward compatibility)
     // Handles: <node ...>content</node>
     const fullWrapMatch = cleaned.match(/^<node[^>]*>([\s\S]*?)<\/node>$/i);
     if (fullWrapMatch) {
       const extracted = fullWrapMatch[1].trim();
       if (extracted.length > 0) {
-        logger.warn("Model leaked node tags (full wrap) - cleaning response", {
+        logger.warn("Model leaked old-style node tags (full wrap) - cleaning response", {
           original: cleaned.substring(0, 200),
           cleaned: extracted.substring(0, 200)
         });
         cleaned = extracted;
-      } else {
-        // Empty node tags - log but continue to other cleaning patterns
-        logger.warn("Model sent empty node tags - keeping original", {
-          original: cleaned.substring(0, 200)
-        });
       }
     }
     
-    // Pattern 2: Remove any remaining node tags (opening or closing) anywhere in response
-    // This catches partial leaks or multiple nodes
-    const beforeClean = cleaned;
+    // Pattern 4: Remove any remaining old-style XML tags
+    const beforeXmlClean = cleaned;
     cleaned = cleaned
       .replace(/<node[^>]*>/gi, '') // Remove all opening tags
       .replace(/<\/node>/gi, ''); // Remove all closing tags
     
-    if (beforeClean !== cleaned) {
-      logger.warn("Model leaked partial node tags - cleaning response", {
-        original: beforeClean.substring(0, 200),
+    if (beforeXmlClean !== cleaned) {
+      logger.warn("Model leaked partial old-style node tags - cleaning response", {
+        original: beforeXmlClean.substring(0, 200),
         cleaned: cleaned.substring(0, 200)
       });
     }
     
-    // Pattern 3: Remove separator tags
+    // Pattern 5: Remove separator tags
     const beforeSeparatorClean = cleaned;
     cleaned = cleaned.replace(/<separatorOfContextualData\s*\/>/gi, '');
     
