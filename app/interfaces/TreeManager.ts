@@ -8,9 +8,10 @@ import type {
   ContextNode,
   DocumentNode,
   ImageContextNode,
+  SummaryNode,
 } from "../types/graph";
 
-import type { ChatMessage } from "./aiService";
+import { aiService, type ChatMessage } from "./aiService";
 
 export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -156,7 +157,33 @@ export class TreeManager {
       0: [],
     };
 
+    // Global visited set to prevent processing the same node multiple times
+    const visited = new Set<string>();
+    
+    // Track how many times a node appears in the current path (for loop detection)
+    const pathCount = new Map<string, number>();
+
     const traverse = (currentNode: GraphNode, level: number) => {
+      // Check if we've already visited this node globally
+      if (visited.has(currentNode.id)) {
+        return;
+      }
+
+      // Track visits in the current path for loop detection
+      const currentPathCount = pathCount.get(currentNode.id) || 0;
+      
+      // If this node has appeared 3 times in the current path, terminate this branch
+      if (currentPathCount >= 3) {
+        console.warn(`buildChatML: Loop detected for node ${currentNode.id}, terminating path`);
+        return;
+      }
+
+      // Mark as visited globally
+      visited.add(currentNode.id);
+      
+      // Increment path count
+      pathCount.set(currentNode.id, currentPathCount + 1);
+
       if (!normalizedTree[level]) {
         normalizedTree[level] = [];
       }
@@ -175,6 +202,9 @@ export class TreeManager {
           console.warn(`buildChatML: Parent node ${parentId} not found`);
         }
       });
+      
+      // Decrement path count after traversing children (backtrack)
+      pathCount.set(currentNode.id, currentPathCount);
     };
 
     traverse(startNode, 0);
@@ -205,6 +235,11 @@ export class TreeManager {
     const messages = [];
 
     const wrapContextMetadata = (node: GraphNode) => {
+      if (node.type === "summary") {
+        // Parse summary nodes as straight assistant messages (no metadata wrappers)
+        return node.value;
+      }
+
       // Use a simpler format that won't trigger data leakage safety filters
       // Map UUIDs to sequential numbers to avoid looking like leaked credentials
       const nodeNum = nodeIdMap.get(node.id) || 0;
@@ -226,6 +261,7 @@ export class TreeManager {
                              parentNode.type === "image-response" ? "IMG" :
                              parentNode.type === "document" ? "DOC" :
                              parentNode.type === "context" ? "CTX" : 
+                             parentNode.type === "summary" ? "SUM" :
                              parentNode.type.toUpperCase();
           return `${parentLabel}${parentNum}`;
         })
@@ -656,6 +692,11 @@ export function createNode(
   x: number,
   y: number
 ): DocumentNode;
+export function createNode(
+  type: "summary",
+  x: number,
+  y: number
+): SummaryNode;
 
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
@@ -680,4 +721,128 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
   }
 
   return baseNode as GraphNode;
+}
+
+export async function summarizeNodes(nodes: GraphNodes): Promise<{
+  summary: string;
+  images: string[];
+}> {
+  // Step 1: Identify image nodes and get their transcriptions in parallel
+  const imageNodes = Object.values(nodes).filter(
+    (node) => node.type === "image-context" || node.type === "image-response"
+  );
+
+  const imageTranscripts = new Map<string, string>();
+
+  if (imageNodes.length > 0) {
+    const transcriptionPromises = imageNodes.map(async (node) => {
+      const visionMessages: ChatMessage[] = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Describe this image in detail. Focus on the key content and information it conveys.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: node.value },
+            },
+          ],
+        },
+      ];
+
+      const transcript = await aiService.chat(visionMessages);
+      return { id: node.id, transcript };
+    });
+
+    const results = await Promise.all(transcriptionPromises);
+    results.forEach(({ id, transcript }) => {
+      imageTranscripts.set(id, transcript);
+    });
+  }
+
+  // Step 2: Build context with proper parent relationships
+  // Create a mapping from node UUID to sequential node number
+  const nodeIdMap = new Map<string, number>();
+  let nodeCounter = 1;
+
+  Object.keys(nodes).forEach((nodeId) => {
+    nodeIdMap.set(nodeId, nodeCounter++);
+  });
+
+  // Step 3: Build structured content for each node
+  const nodeContents: string[] = [];
+
+  Object.values(nodes).forEach((node) => {
+    const nodeNum = nodeIdMap.get(node.id) || 0;
+    const typeLabel =
+      node.type === "input"
+        ? "Q"
+        : node.type === "response"
+          ? "A"
+          : node.type === "image-response"
+            ? "IMG"
+            : node.type === "document"
+              ? "DOC"
+              : node.type === "context"
+                ? "CTX"
+                : node.type.toUpperCase();
+
+    // Include parent references
+    const parentRefs = node.parentIds
+      .map((pid) => {
+        const parentNode = nodes[pid];
+        if (!parentNode) return null;
+        const parentNum = nodeIdMap.get(pid);
+        const parentLabel =
+          parentNode.type === "input"
+            ? "Q"
+            : parentNode.type === "response"
+              ? "A"
+              : parentNode.type === "image-response"
+                ? "IMG"
+                : parentNode.type === "document"
+                  ? "DOC"
+                  : parentNode.type === "context"
+                    ? "CTX"
+                    : parentNode.type.toUpperCase();
+        return `${parentLabel}${parentNum}`;
+      })
+      .filter((ref) => ref !== null)
+      .join(",");
+
+    const parentInfo = parentRefs ? ` (replying to: ${parentRefs})` : "";
+
+    // Get content - use transcript for images, otherwise use node value
+    let content: string;
+    if (node.type === "image-context" || node.type === "image-response") {
+      const transcript = imageTranscripts.get(node.id);
+      content = transcript
+        ? `[Image: ${transcript}]`
+        : `[Image at ${node.value}]`;
+    } else {
+      content = node.value;
+    }
+
+    nodeContents.push(`[${typeLabel}${nodeNum}${parentInfo}]\n${content}`);
+  });
+
+  // Step 4: Create summary request
+  const allContent = nodeContents.join("\n\n");
+
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content:
+        "You are a helpful assistant that creates concise summaries. The content you receive is structured as a graph of interconnected nodes. Each node is labeled with its type and ID, and may reference parent nodes it replies to.",
+    },
+    {
+      role: "user",
+      content: `Please provide a concise summary of the following graph content:\n\n${allContent}`,
+    },
+  ];
+
+  const response = await aiService.fastChat(messages);
+  return {summary: response, images: imageNodes.map((node) => node.value)};
 }

@@ -9,6 +9,7 @@ import { ImageResponseNode } from "./ImageResponseNode";
 import { ContextNode } from "./ContextNode";
 import { ImageContextNode } from "./ImageContextNode";
 import { DocumentNode } from "./DocumentNode";
+import { SummaryNode } from "./SummaryNode";
 
 import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 
@@ -95,6 +96,9 @@ const NodesRenderer = ({
               )}
               {node.type === "document" && (
                 <DocumentNode node={node} isSelected={isSelected} />
+              )}
+              {node.type === "summary" && (
+                <SummaryNode node={node} isSelected={isSelected} />
               )}
             </motion.div>
           );

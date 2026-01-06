@@ -477,4 +477,32 @@ export class aiService {
     
     return cleaned;
   }
+
+  static async fastChat(messages: ChatMessage[]) {
+    const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Client-Id": getOrCreateClientId(),
+      },
+      body: JSON.stringify({
+        messages,
+        model: "openai/gpt-oss-120b",
+        provider: {
+          sort: "latency",
+        },
+      }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      const error = new Error(
+        `Server error (${response.status}): ${errorText || response.statusText}`
+      );
+      logger.error("Backend error in fastChat", { error });
+      throw error;
+    }
+    
+    const rawText = await response.text();
+    return this.cleanResponse(rawText);
+  }
 }

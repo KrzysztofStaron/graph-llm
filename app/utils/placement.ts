@@ -40,6 +40,8 @@ export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
       return { width: 400, height: 120 };
     case "response":
       return { width: 400, height: 80 };
+    case "summary":
+      return { width: 520, height: 180 };
   }
 }
 

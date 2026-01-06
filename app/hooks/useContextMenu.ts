@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/refs */
 import { useState } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { createNode } from "../interfaces/TreeManager";
+import { createNode, summarizeNodes } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { ContextMenuItem } from "../components/ui/ContextMenu";
 
@@ -329,6 +329,86 @@ export function useContextMenu({
     }
   };
 
+  const handleSummarize = async (selectedNodeIds: Set<string>) => {
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
+
+    const selectedArray = Array.from(selectedNodeIds);
+    if (selectedArray.length < 2) return;
+
+    const selectedNodes: Record<string, (typeof nodesRef.current)[string]> = {};
+    selectedArray.forEach((id) => {
+      const node = nodesRef.current[id];
+      if (node) selectedNodes[id] = node;
+    });
+
+    const externalParentIds = new Set<string>();
+    const externalChildIds = new Set<string>();
+
+    selectedArray.forEach((id) => {
+      const node = nodesRef.current[id];
+      if (!node) return;
+
+      node.parentIds.forEach((pid) => {
+        if (!selectedNodeIds.has(pid)) externalParentIds.add(pid);
+      });
+
+      node.childrenIds.forEach((cid) => {
+        if (!selectedNodeIds.has(cid)) externalChildIds.add(cid);
+      });
+    });
+
+    const centroid = selectedArray.reduce(
+      (acc, id) => {
+        const node = nodesRef.current[id];
+        if (!node) return acc;
+        return { x: acc.x + node.x, y: acc.y + node.y, n: acc.n + 1 };
+      },
+      { x: 0, y: 0, n: 0 }
+    );
+
+    const targetX = centroid.n > 0 ? centroid.x / centroid.n : 0;
+    const targetY = centroid.n > 0 ? centroid.y / centroid.n : 0;
+
+    const { summary, images } = await summarizeNodes(selectedNodes);
+    const summaryValue =
+      `Summary:\n${summary}\n\n` +
+      `Images:\n` +
+      (images.length > 0 ? images.map((url) => `- ${url}`).join("\n") : "- (none)");
+
+    const newNodeDim = getDefaultNodeDimensions("summary");
+    const freePos = findFreePosition(
+      targetX,
+      targetY,
+      newNodeDim.width,
+      newNodeDim.height,
+      nodesRef.current,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const summaryNode = createNode("summary", freePos.x, freePos.y);
+    treeManager.addNode(summaryNode);
+    treeManager.patchNode(summaryNode.id, { value: summaryValue });
+
+    // Reconnect external edges through the summary node
+    Array.from(externalParentIds).forEach((pid) => {
+      treeManager.linkNodes(pid, summaryNode.id);
+    });
+    Array.from(externalChildIds).forEach((cid) => {
+      treeManager.linkNodes(summaryNode.id, cid);
+    });
+
+    // Remove the selected nodes (after we've re-linked external edges)
+    selectedArray.forEach((id) => {
+      treeManager.deleteNodeDetach(id);
+    });
+
+    graphCanvasRef.current?.clearSelection();
+  };
+
   // Build context menu items based on state
   const getContextMenuItems = (): ContextMenuItem[] => {
     if (!contextMenu) return [];
@@ -391,6 +471,15 @@ export function useContextMenu({
 
       if (hasTextContent) {
         items.push({ label: "Listen", onClick: handleListen });
+      }
+
+      if (selectedNodeIds.size >= 2) {
+        items.push({
+          label: "Summarize",
+          onClick: () => {
+            void handleSummarize(selectedNodeIds);
+          },
+        });
       }
 
       // Separate / Remove edge logic
