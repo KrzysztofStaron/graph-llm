@@ -64,6 +64,15 @@ export function useContextMenu({
     setContextMenu(null);
   };
 
+  // Helper predicates for node types
+  const isResponseLike = (node: { type: string }) =>
+    node.type === "response" || node.type === "image-response";
+
+  const isContextLike = (node: { type: string }) =>
+    node.type === "context" ||
+    node.type === "image-context" ||
+    node.type === "document";
+
   // Delete handlers
   const handleDeleteSingle = (nodeId: string) => {
     const treeManager = graphCanvasRef.current?.treeManager;
@@ -269,6 +278,53 @@ export function useContextMenu({
     onListen(targetNodeIds);
   };
 
+  // Link context-like nodes to a response-like node
+  const handleLink = () => {
+    const nodes = graphCanvasRef.current?.nodes;
+    const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (!nodes || !selectedNodeIds || !treeManager) return;
+
+    const selectedArray = Array.from(selectedNodeIds);
+    
+    // Find the single response-like node
+    const responseLikeIds = selectedArray.filter((id) => {
+      const node = nodes[id];
+      return node && isResponseLike(node);
+    });
+
+    // Find all context-like nodes
+    const contextLikeIds = selectedArray.filter((id) => {
+      const node = nodes[id];
+      return node && isContextLike(node);
+    });
+
+    if (responseLikeIds.length !== 1 || contextLikeIds.length === 0) return;
+
+    const responseId = responseLikeIds[0];
+
+    // Link each context-like node to the response node
+    contextLikeIds.forEach((ctxId) => {
+      treeManager.linkNodes(ctxId, responseId);
+    });
+  };
+
+  // Separate (single node): disconnect all parents and children
+  const handleSeparate = (nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.detachNode(nodeId);
+    }
+  };
+
+  // Remove edges between selected nodes (multi-select)
+  const handleRemoveEdgesBetween = (selectedNodeIds: Set<string>) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.removeEdgesBetween(Array.from(selectedNodeIds));
+    }
+  };
+
   // Build context menu items based on state
   const getContextMenuItems = (): ContextMenuItem[] => {
     if (!contextMenu) return [];
@@ -284,8 +340,10 @@ export function useContextMenu({
     if (isActingUponNodes) {
       const items: ContextMenuItem[] = [];
 
+      const selectedArray = Array.from(selectedNodeIds);
+
       // Check if at least one selected node is non-input
-      const hasNonInputSelected = Array.from(selectedNodeIds).some((nodeId) => {
+      const hasNonInputSelected = selectedArray.some((nodeId) => {
         const node = nodes[nodeId];
         return node && node.type !== "input";
       });
@@ -295,8 +353,28 @@ export function useContextMenu({
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
       }
 
+      // Check for Link visibility: exactly 1 response-like + at least 1 context-like (and nothing else)
+      const responseLikeCount = selectedArray.filter((id) => {
+        const node = nodes[id];
+        return node && isResponseLike(node);
+      }).length;
+
+      const contextLikeCount = selectedArray.filter((id) => {
+        const node = nodes[id];
+        return node && isContextLike(node);
+      }).length;
+
+      const showLink =
+        responseLikeCount === 1 &&
+        contextLikeCount >= 1 &&
+        responseLikeCount + contextLikeCount === selectedNodeIds.size;
+
+      if (showLink) {
+        items.push({ label: "Link", onClick: handleLink });
+      }
+
       // Show "Listen" for any selected nodes that have text content (but not images or image responses)
-      const hasTextContent = Array.from(selectedNodeIds).some((nodeId) => {
+      const hasTextContent = selectedArray.some((nodeId) => {
         const node = nodes[nodeId];
         return (
           node &&
@@ -309,6 +387,39 @@ export function useContextMenu({
 
       if (hasTextContent) {
         items.push({ label: "Listen", onClick: handleListen });
+      }
+
+      // Separate / Remove edge logic
+      if (selectedNodeIds.size === 1) {
+        const nodeId = selectedArray[0];
+        const node = nodes[nodeId];
+        // Show "Separate" only if node has connections
+        if (
+          node &&
+          (node.parentIds.length > 0 || node.childrenIds.length > 0)
+        ) {
+          items.push({
+            label: "Separate",
+            onClick: () => handleSeparate(nodeId),
+          });
+        }
+      } else if (selectedNodeIds.size >= 2) {
+        // Check if there's at least one edge among selected nodes
+        const hasEdgeBetweenSelected = selectedArray.some((nodeId) => {
+          const node = nodes[nodeId];
+          if (!node) return false;
+          return (
+            node.parentIds.some((pid) => selectedNodeIds.has(pid)) ||
+            node.childrenIds.some((cid) => selectedNodeIds.has(cid))
+          );
+        });
+
+        if (hasEdgeBetweenSelected) {
+          items.push({
+            label: "Remove edge",
+            onClick: () => handleRemoveEdgesBetween(selectedNodeIds),
+          });
+        }
       }
 
       const nodeId = Array.from(selectedNodeIds)[0];
@@ -377,6 +488,14 @@ export function useContextMenu({
       node.value.trim().length > 0
     ) {
       items.push({ label: "Listen", onClick: handleListen });
+    }
+
+    // Show "Separate" if node has connections
+    if (node.parentIds.length > 0 || node.childrenIds.length > 0) {
+      items.push({
+        label: "Separate",
+        onClick: () => handleSeparate(node.id),
+      });
     }
 
     // Always show "Delete"

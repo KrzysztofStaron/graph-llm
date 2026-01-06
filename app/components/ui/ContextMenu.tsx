@@ -10,6 +10,8 @@ import {
   Minus,
   Delete,
   Headphones,
+  Link2,
+  Unlink2,
 } from "lucide-react";
 import MonoLabel from "./MonoLabel";
 
@@ -94,6 +96,13 @@ export const ContextMenu = ({
                 Icon = ImageUp;
               } else if (item.label.includes("Listen")) {
                 Icon = Headphones;
+              } else if (item.label === "Link") {
+                Icon = Link2;
+              } else if (
+                item.label === "Separate" ||
+                item.label === "Remove edge"
+              ) {
+                Icon = Unlink2;
               }
 
               // Parse label to extract "[ with children ]" part

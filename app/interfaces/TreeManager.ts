@@ -16,6 +16,9 @@ export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
   | { type: "ADD_NODE"; node: GraphNode }
   | { type: "LINK"; fromId: string; toId: string }
+  | { type: "UNLINK"; fromId: string; toId: string }
+  | { type: "DETACH_NODE"; id: string }
+  | { type: "REMOVE_EDGES_BETWEEN"; nodeIds: string[] }
   | {
       type: "MOVE_NODE";
       id: string;
@@ -391,6 +394,18 @@ export class TreeManager {
     this.dispatch({ type: "LINK", fromId, toId });
   }
 
+  unlinkNodes(fromId: string, toId: string): void {
+    this.dispatch({ type: "UNLINK", fromId, toId });
+  }
+
+  detachNode(id: string): void {
+    this.dispatch({ type: "DETACH_NODE", id });
+  }
+
+  removeEdgesBetween(nodeIds: string[]): void {
+    this.dispatch({ type: "REMOVE_EDGES_BETWEEN", nodeIds });
+  }
+
   moveNode(id: string, dx: number, dy: number, setPinned?: boolean): void {
     this.dispatch({ type: "MOVE_NODE", id, dx, dy, setPinned });
   }
@@ -453,6 +468,69 @@ export function graphReducer(
             : [...toNode.parentIds, action.fromId],
         },
       };
+    }
+    case "UNLINK": {
+      const fromNode = nodes[action.fromId];
+      const toNode = nodes[action.toId];
+      if (!fromNode || !toNode) return nodes;
+
+      return {
+        ...nodes,
+        [action.fromId]: {
+          ...fromNode,
+          childrenIds: fromNode.childrenIds.filter((id) => id !== action.toId),
+        },
+        [action.toId]: {
+          ...toNode,
+          parentIds: toNode.parentIds.filter((id) => id !== action.fromId),
+        },
+      };
+    }
+    case "DETACH_NODE": {
+      const nodeToDetach = nodes[action.id];
+      if (!nodeToDetach) return nodes;
+
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        if (nodeId === action.id) {
+          // For the target node, clear all connections
+          updatedNodes[nodeId] = {
+            ...node,
+            parentIds: [],
+            childrenIds: [],
+          };
+        } else {
+          // For other nodes, remove references to the detached node
+          updatedNodes[nodeId] = {
+            ...node,
+            parentIds: node.parentIds.filter((pid) => pid !== action.id),
+            childrenIds: node.childrenIds.filter((cid) => cid !== action.id),
+          };
+        }
+      }
+
+      return updatedNodes;
+    }
+    case "REMOVE_EDGES_BETWEEN": {
+      const selectedSet = new Set(action.nodeIds);
+      const updatedNodes: GraphNodes = {};
+
+      for (const [nodeId, node] of Object.entries(nodes)) {
+        if (selectedSet.has(nodeId)) {
+          // For nodes in the selection, filter out edges to other selected nodes
+          updatedNodes[nodeId] = {
+            ...node,
+            parentIds: node.parentIds.filter((pid) => !selectedSet.has(pid)),
+            childrenIds: node.childrenIds.filter((cid) => !selectedSet.has(cid)),
+          };
+        } else {
+          // For nodes outside the selection, keep them unchanged
+          updatedNodes[nodeId] = node;
+        }
+      }
+
+      return updatedNodes;
     }
     case "MOVE_NODE": {
       const node = nodes[action.id];
