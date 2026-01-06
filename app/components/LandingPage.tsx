@@ -7,12 +7,12 @@ interface LandingPageProps {
 
 const LandingPage = ({ onStart }: LandingPageProps) => {
   return (
-    <main className="flex flex-col items-center justify-center h-screen relative z-10 max-w-[1024px] mx-auto px-4 md:px-0">
+    <main className="flex flex-col items-center justify-center h-screen relative z-10 max-w-[1024px] mx-auto">
       <h1 className="text-4xl font-bold">Understand the universe </h1>
 
       <MonoLabel text="WITH AI" />
 
-      <div className="mt-10 w-full md:min-w-lg border-l-2 rounded-bl-full border-white/10 px-8 md:px-24 p-10 pb-32 md:pb-[200px] relative overflow-hidden">
+      <div className="mt-10 min-w-lg border-l-2 rounded-bl-full border-white/10 px-24 p-10 pb-[200px] relative overflow-hidden">
         <h3 className="text-2xl relative z-10">Graph UX</h3>
         <p className="text-secondary mt-2 relative z-10">
           Free yourself from contrains of linearity, embrace exploration. <br />
