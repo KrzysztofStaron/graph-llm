@@ -278,7 +278,7 @@ export function useContextMenu({
     onListen(targetNodeIds);
   };
 
-  // Link context-like nodes to a response-like node
+  // Link context-like nodes to a target node (response-like or input)
   const handleLink = () => {
     const nodes = graphCanvasRef.current?.nodes;
     const selectedNodeIds = graphCanvasRef.current?.selectedNodeIds;
@@ -287,10 +287,10 @@ export function useContextMenu({
 
     const selectedArray = Array.from(selectedNodeIds);
     
-    // Find the single response-like node
-    const responseLikeIds = selectedArray.filter((id) => {
+    // Find the single target node (response-like or input)
+    const targetIds = selectedArray.filter((id) => {
       const node = nodes[id];
-      return node && isResponseLike(node);
+      return node && (isResponseLike(node) || node.type === "input");
     });
 
     // Find all context-like nodes
@@ -299,13 +299,13 @@ export function useContextMenu({
       return node && isContextLike(node);
     });
 
-    if (responseLikeIds.length !== 1 || contextLikeIds.length === 0) return;
+    if (targetIds.length !== 1 || contextLikeIds.length === 0) return;
 
-    const responseId = responseLikeIds[0];
+    const targetId = targetIds[0];
 
-    // Link each context-like node to the response node
+    // Link each context-like node to the target node
     contextLikeIds.forEach((ctxId) => {
-      treeManager.linkNodes(ctxId, responseId);
+      treeManager.linkNodes(ctxId, targetId);
     });
   };
 
@@ -353,10 +353,10 @@ export function useContextMenu({
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
       }
 
-      // Check for Link visibility: exactly 1 response-like + at least 1 context-like (and nothing else)
-      const responseLikeCount = selectedArray.filter((id) => {
+      // Check for Link visibility: exactly 1 target node (response-like or input) + at least 1 context-like (and nothing else)
+      const targetNodeCount = selectedArray.filter((id) => {
         const node = nodes[id];
-        return node && isResponseLike(node);
+        return node && (isResponseLike(node) || node.type === "input");
       }).length;
 
       const contextLikeCount = selectedArray.filter((id) => {
@@ -365,9 +365,9 @@ export function useContextMenu({
       }).length;
 
       const showLink =
-        responseLikeCount === 1 &&
+        targetNodeCount === 1 &&
         contextLikeCount >= 1 &&
-        responseLikeCount + contextLikeCount === selectedNodeIds.size;
+        targetNodeCount + contextLikeCount === selectedNodeIds.size;
 
       if (showLink) {
         items.push({ label: "Link", onClick: handleLink });

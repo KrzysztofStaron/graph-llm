@@ -129,6 +129,7 @@ export const InputFieldNode = memo(
                 onClick={handleEdit}
                 className="cursor-pointer absolute right-4 top-1/2 -translate-y-1/2"
                 onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               >
                 <Pencil className="size-4 hidden group-hover:block opacity-50 hover:opacity-100 transition-opacity" />
               </button>
@@ -150,6 +151,7 @@ export const InputFieldNode = memo(
                       onDelete();
                     }}
                     onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onMouseEnter={() => setIsDeleteHovered(true)}
                     onMouseLeave={() => setIsDeleteHovered(false)}
                     className="absolute right-1 p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-50 hover:opacity-200 hidden group-hover:block"
@@ -167,6 +169,7 @@ export const InputFieldNode = memo(
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
                 onWheel={(e) => {
                   e.stopPropagation();
                 }}
@@ -188,6 +191,15 @@ export const InputFieldNode = memo(
                   className="aspect-square rounded-full p-2.5 bg-white text-black hover:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   disabled={query.trim().length === 0}
                   onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit();
+                  }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleSubmit();

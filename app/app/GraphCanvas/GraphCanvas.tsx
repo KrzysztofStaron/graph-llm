@@ -26,6 +26,7 @@ import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useNodeParticles } from "./hooks/useNodeParticles";
 import { useGraphHistory } from "./hooks/useGraphHistory";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
+import { usePointerGestures } from "./hooks/usePointerGestures";
 import { getDefaultNodeDimensions } from "../../utils/placement";
 
 export interface GraphCanvasRef {
@@ -34,7 +35,7 @@ export interface GraphCanvasRef {
   nodes: GraphNodes;
   nodesRef: React.MutableRefObject<GraphNodes>;
   treeManager: TreeManager;
-  handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
+  handleNodePointerDown: (e: React.PointerEvent, nodeId: string) => void;
   nodeDimensions: NodeDimensions;
   nodeDimensionsRef: React.MutableRefObject<NodeDimensions>;
   selectedNodeIds: Set<string>;
@@ -135,50 +136,18 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       dispatch,
     });
 
-    // Dragging state
-    const draggingRef = useRef<{
-      type: "node";
-      nodeId: string;
-      hasMoved: boolean;
-    } | null>(null);
-    const lastMousePos = useRef({ x: 0, y: 0 });
-
-    // Handle mouse down
-    const handleMouseDown = useCallback(
-      (e: React.MouseEvent, nodeId?: string) => {
-        if (!nodeId) {
-          // Click on canvas - clear selection if shift not held
-          if (!e.shiftKey) {
-            clearSelection();
-          }
-          return; // d3-zoom will handle canvas panning
-        }
-
-        // If shift is held, toggle selection instead of starting drag
-        if (e.shiftKey) {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleNodeSelection(nodeId);
-          return;
-        }
-
-        // Click on node without shift - start dragging
-        const isNodeSelected = selectedNodeIds.has(nodeId);
-        if (!isNodeSelected) {
-          // Node is not selected - clear all selections and drag just this node
-          clearSelection();
-        }
-        // If node is selected, keep the selection and drag all selected nodes
-
-        // IMPORTANT: Prevent event from reaching d3-zoom
-        e.preventDefault();
-        e.stopPropagation();
-
-        lastMousePos.current = { x: e.clientX, y: e.clientY };
-        draggingRef.current = { type: "node", nodeId, hasMoved: false };
-      },
-      [clearSelection, toggleNodeSelection, selectedNodeIds]
-    );
+    // Pointer gestures (drag + mobile selection + long-press)
+    const { handleNodePointerDown, handleCanvasPointerDown, handleCanvasPointerUp } =
+      usePointerGestures({
+        transform,
+        selectedNodeIds,
+        toggleNodeSelection,
+        clearSelection,
+        moveNode: (nodeId, dx, dy, setPinned) => {
+          treeManager.moveNode(nodeId, dx, dy, setPinned);
+        },
+        onRequestContextMenu,
+      });
 
     // Expose values to parent via ref
     useImperativeHandle(
@@ -189,7 +158,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         nodes,
         nodesRef,
         treeManager,
-        handleMouseDown,
+        handleNodePointerDown,
         nodeDimensions,
         nodeDimensionsRef,
         selectedNodeIds,
@@ -201,7 +170,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         nodes,
         nodesRef,
         treeManager,
-        handleMouseDown,
+        handleNodePointerDown,
         nodeDimensions,
         nodeDimensionsRef,
         selectedNodeIds,
@@ -275,51 +244,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         requestAnimationFrame(centerNode);
       });
     }, [nodes, treeManager, setTransform]);
-
-    // Handle mouse move and mouse up for dragging
-    useEffect(() => {
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!draggingRef.current) return;
-
-        // Prevent any default behavior while dragging
-        e.preventDefault();
-
-        const dx = (e.clientX - lastMousePos.current.x) / transform.k;
-        const dy = (e.clientY - lastMousePos.current.y) / transform.k;
-        lastMousePos.current = { x: e.clientX, y: e.clientY };
-
-        if (draggingRef.current.type === "node" && draggingRef.current.nodeId) {
-          // On first move, mark as pinned
-          const setPinned = !draggingRef.current.hasMoved;
-          draggingRef.current.hasMoved = true;
-
-          // If the dragged node is selected, move all selected nodes together
-          if (selectedNodeIds.has(draggingRef.current.nodeId)) {
-            selectedNodeIds.forEach((nodeId) => {
-              treeManager.moveNode(nodeId, dx, dy, setPinned);
-            });
-          } else {
-            // Move only the dragged node
-            treeManager.moveNode(draggingRef.current.nodeId, dx, dy, setPinned);
-          }
-        }
-      };
-
-      const handleMouseUp = (e: MouseEvent) => {
-        if (draggingRef.current) {
-          // Prevent any click events from firing after drag
-          e.preventDefault();
-        }
-        draggingRef.current = null;
-      };
-
-      window.addEventListener("mousemove", handleMouseMove, { passive: false });
-      window.addEventListener("mouseup", handleMouseUp);
-      return () => {
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-    }, [treeManager, transform.k, selectedNodeIds]);
 
     const updateNodeDimension = useCallback(
       (nodeId: string, width: number, height: number) => {
@@ -446,8 +370,26 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onContextMenu={handleContextMenu}
+            onPointerDown={(e) => {
+              const target = e.target as HTMLElement;
+              const closestNode = target.closest("[data-node-id]");
+              
+              // Only handle canvas pointer events (not on nodes)
+              if (!closestNode) {
+                handleCanvasPointerDown(e);
+              }
+            }}
+            onPointerUp={(e) => {
+              const target = e.target as HTMLElement;
+              const closestNode = target.closest("[data-node-id]");
+              
+              // Only handle canvas pointer events (not on nodes)
+              if (!closestNode) {
+                handleCanvasPointerUp(e);
+              }
+            }}
             onMouseDown={(e) => {
-              // Handle canvas clicks for selection clearing
+              // Handle canvas clicks for selection clearing (desktop only)
               // Don't handle right-clicks
               if (e.button === 2) return;
 
@@ -476,7 +418,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
               />
               <NodesRenderer
                 selectedNodeIds={selectedNodeIds}
-                handleMouseDown={handleMouseDown}
+                handleNodePointerDown={handleNodePointerDown}
                 setEditingContextNodeId={setEditingContextNodeId}
                 onInputSubmit={onInputSubmit}
                 onDeleteNode={(nodeId) => treeManager.deleteNode(nodeId)}

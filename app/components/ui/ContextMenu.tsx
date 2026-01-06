@@ -42,7 +42,7 @@ export const ContextMenu = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: PointerEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -54,12 +54,12 @@ export const ContextMenu = ({
       }
     };
 
-    // Use capture phase to catch clicks before they bubble
-    document.addEventListener("mousedown", handleClickOutside, true);
+    // Use capture phase to catch clicks/taps before they bubble
+    document.addEventListener("pointerdown", handleClickOutside, true);
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside, true);
+      document.removeEventListener("pointerdown", handleClickOutside, true);
       document.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen, onClose]);

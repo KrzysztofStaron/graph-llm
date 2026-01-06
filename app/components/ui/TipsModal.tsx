@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Keyboard, MousePointer2, Hand, Upload } from "lucide-react";
-import React, { useEffect } from "react";
+import { X, Keyboard, MousePointer2, Hand, Upload, Smartphone } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 
 interface TipsModalProps {
@@ -9,6 +9,32 @@ interface TipsModalProps {
 }
 
 const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // Detect mobile by pointer capability (coarse pointer = touch)
+    const checkMobile = () => {
+      const hasCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const hasNoHover = window.matchMedia("(hover: none)").matches;
+      setIsMobile(hasCoarsePointer || hasNoHover);
+    };
+
+    checkMobile();
+    
+    // Listen for changes (e.g., external monitor connected)
+    const coarsePointerQuery = window.matchMedia("(pointer: coarse)");
+    const hoverQuery = window.matchMedia("(hover: none)");
+    
+    const handleChange = () => checkMobile();
+    
+    coarsePointerQuery.addEventListener?.("change", handleChange);
+    hoverQuery.addEventListener?.("change", handleChange);
+    
+    return () => {
+      coarsePointerQuery.removeEventListener?.("change", handleChange);
+      hoverQuery.removeEventListener?.("change", handleChange);
+    };
+  }, []);
   useEffect(() => {
     if (!isOpen) return;
 
@@ -43,7 +69,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[700px] max-h-[85vh] overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-[700px] max-h-[85vh] overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
             role="dialog"
             aria-labelledby="tips-modal-title"
             aria-modal="true"
@@ -54,7 +80,11 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                 id="tips-modal-title"
                 className="text-white font-medium text-lg tracking-tight flex items-center gap-2"
               >
-                <Keyboard className="size-5" />
+                {isMobile ? (
+                  <Smartphone className="size-5" />
+                ) : (
+                  <Keyboard className="size-5" />
+                )}
                 How to Use GraphAI
               </h2>
               <button
@@ -68,76 +98,137 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
 
             {/* Content */}
             <div className="px-6 py-5 space-y-6">
-              {/* Keyboard Shortcuts Section */}
-              <section>
-                <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
-                  Keyboard Shortcuts
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-3">
-                    <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
-                      ⌘/Ctrl+K
-                    </kbd>
-                    <p className="text-white/70 text-sm leading-relaxed">
-                      Open model selection menu
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
-                      F
-                    </kbd>
-                    <p className="text-white/70 text-sm leading-relaxed">
-                      Auto-center and fit the entire tree to viewport
-                    </p>
-                  </div>
-                </div>
-              </section>
+              {isMobile ? (
+                /* Mobile Touch Gestures */
+                <>
+                  <section>
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                      Touch Gestures
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <Hand className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Drag
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Drag nodes with one finger
+                        </p>
+                      </div>
 
-              {/* Mouse Actions Section */}
-              <section>
-                <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
-                  Mouse Actions
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center  gap-2 min-w-[80px]">
-                      <MousePointer2 className="size-4 text-white/60" />
-                      <span className="text-white/90 font-mono text-xs">
-                        Right click
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white/70 text-sm leading-relaxed mb-2">
-                        Open context menu with actions
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <Hand className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Long press
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Long press (~450ms) on a node or empty canvas to open context menu
+                        </p>
+                      </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center gap-2 min-w-[80px]">
-                      <Hand className="size-4 text-white/60" />
-                      <span className="text-white/90 font-mono text-xs">
-                        Shift+click
-                      </span>
-                    </div>
-                    <p className="text-white/70 text-sm leading-relaxed">
-                      Multi-select nodes (hold Shift and click multiple nodes)
-                    </p>
-                  </div>
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <Hand className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Tap
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Tap a node to select it; tap empty canvas to clear selection
+                        </p>
+                      </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center gap-2 min-w-[80px]">
-                      <Upload className="size-4 text-white/60" />
-                      <span className="text-white/90 font-mono text-xs">
-                        Drag & drop
-                      </span>
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[100px]">
+                          <Hand className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Two-finger tap
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Two-finger tap on a node to toggle multi-select
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-white/70 text-sm leading-relaxed">
-                      Drag and drop files onto the canvas to upload them as context
-                    </p>
-                  </div>
-                </div>
-              </section>
+                  </section>
+                </>
+              ) : (
+                /* Desktop Keyboard & Mouse */
+                <>
+                  <section>
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                      Keyboard Shortcuts
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-3">
+                        <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
+                          ⌘/Ctrl+K
+                        </kbd>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Open model selection menu
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
+                          F
+                        </kbd>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Auto-center and fit the entire tree to viewport
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                      Mouse Actions
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center  gap-2 min-w-[80px]">
+                          <MousePointer2 className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Right click
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white/70 text-sm leading-relaxed mb-2">
+                            Open context menu with actions
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                          <Hand className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Shift+click
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Multi-select nodes (hold Shift and click multiple nodes)
+                        </p>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                          <Upload className="size-4 text-white/60" />
+                          <span className="text-white/90 font-mono text-xs">
+                            Drag & drop
+                          </span>
+                        </div>
+                        <p className="text-white/70 text-sm leading-relaxed">
+                          Drag and drop files onto the canvas to upload them as context
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </>
+              )}
 
               {/* Workflows Section */}
               <section>
@@ -153,13 +244,13 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
                       <li>
                         <span className="font-mono text-xs bg-white/5 px-1 rounded">
-                          Shift+click
+                          {isMobile ? "Two-finger tap" : "Shift+click"}
                         </span>{" "}
                         to select multiple nodes
                       </li>
                       <li>
                         <span className="font-mono text-xs bg-white/5 px-1 rounded">
-                          Right click
+                          {isMobile ? "Long press" : "Right click"}
                         </span>{" "}
                         on any selected node
                       </li>
@@ -190,7 +281,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
                       <li>
                         <span className="font-mono text-xs bg-white/5 px-1 rounded">
-                          Right click
+                          {isMobile ? "Long press" : "Right click"}
                         </span>{" "}
                         on the node you want to branch from
                       </li>
@@ -222,7 +313,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
                       <li>
                         <span className="font-mono text-xs bg-white/5 px-1 rounded">
-                          Right click
+                          {isMobile ? "Long press" : "Right click"}
                         </span>{" "}
                         on any empty space on the canvas
                       </li>

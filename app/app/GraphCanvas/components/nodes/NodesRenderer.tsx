@@ -14,13 +14,13 @@ import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 
 const NodesRenderer = ({
   selectedNodeIds,
-  handleMouseDown,
+  handleNodePointerDown,
   setEditingContextNodeId,
   onInputSubmit,
   onDeleteNode,
 }: {
   selectedNodeIds: Set<string>;
-  handleMouseDown: (e: React.MouseEvent, nodeId?: string) => void;
+  handleNodePointerDown: (e: React.PointerEvent, nodeId: string) => void;
   setEditingContextNodeId?: (nodeId: string | null) => void;
   onInputSubmit: (query: string, node: GraphNode) => void;
   onDeleteNode: (nodeId: string) => void;
@@ -62,8 +62,8 @@ const NodesRenderer = ({
                   ease: "easeIn",
                 },
               }}
-              onMouseDown={(e) => {
-                handleMouseDown(e, node.id);
+              onPointerDown={(e) => {
+                handleNodePointerDown(e, node.id);
               }}
               onDoubleClick={(e) => {
                 if (node.type === "context" && setEditingContextNodeId) {
