@@ -36,6 +36,7 @@ export function usePointerGestures({
 
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressFiredRef = useRef(false);
+  const previousSelectionRef = useRef<Set<string>>(new Set());
 
   const canvasTapRef = useRef<{
     pointerId: number;
@@ -79,8 +80,18 @@ export function usePointerGestures({
 
       const isNodeSelected = selectedNodeIds.has(nodeId);
 
+      // Store previous selection for potential long-press restoration
+      if (isTouch) {
+        previousSelectionRef.current = new Set(selectedNodeIds);
+      }
+
       // Desktop: if node not selected, clear others
       if (isMouse && !isNodeSelected) {
+        clearSelection();
+      }
+
+      // Mobile: clear selection on touch (will be restored if long-press fires)
+      if (isTouch && !isNodeSelected) {
         clearSelection();
       }
 
@@ -99,6 +110,12 @@ export function usePointerGestures({
         longPressFiredRef.current = false;
         longPressTimerRef.current = setTimeout(() => {
           longPressFiredRef.current = true;
+          // Restore previous selection when long-press fires
+          previousSelectionRef.current.forEach((id) => {
+            if (!selectedNodeIds.has(id)) {
+              toggleNodeSelection(id);
+            }
+          });
           onRequestContextMenu(e.clientX, e.clientY, nodeId);
           draggingRef.current = null; // Cancel drag
         }, LONG_PRESS_DURATION);
@@ -122,6 +139,9 @@ export function usePointerGestures({
       
       if (!isTouch) return; // Desktop handles via onMouseDown
 
+      // Store previous selection for potential long-press restoration
+      previousSelectionRef.current = new Set(selectedNodeIds);
+
       // Track for tap-to-clear or long-press
       canvasTapRef.current = {
         pointerId: e.pointerId,
@@ -136,11 +156,17 @@ export function usePointerGestures({
         longPressFiredRef.current = false;
         longPressTimerRef.current = setTimeout(() => {
           longPressFiredRef.current = true;
+          // Restore previous selection when long-press fires on canvas
+          previousSelectionRef.current.forEach((id) => {
+            if (!selectedNodeIds.has(id)) {
+              toggleNodeSelection(id);
+            }
+          });
           onRequestContextMenu(e.clientX, e.clientY);
         }, LONG_PRESS_DURATION);
       }
     },
-    [onRequestContextMenu, clearLongPressTimer]
+    [onRequestContextMenu, clearLongPressTimer, selectedNodeIds, toggleNodeSelection]
   );
 
   const handleCanvasPointerUp = useCallback(

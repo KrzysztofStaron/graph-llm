@@ -100,7 +100,7 @@ const SettingsModal = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-[500px] h-min rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-[500px] max-w-[calc(100vw-32px)] h-min rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
           >
             <div className="py-1 w-full">
               <div className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
@@ -123,7 +123,7 @@ const SettingsModal = ({
                       buttonRefs.current[index] = el;
                     }}
                     onClick={() => handleModelSelect(model.value, false)}
-                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 ${
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 ${
                       isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
                       isSelected && !isFocused
@@ -139,14 +139,14 @@ const SettingsModal = ({
                       } ${isFocused ? "translate-x-2" : ""}`}
                     />
                     <span
-                      className={`group-hover:translate-x-2 transition-all duration-200 ${
+                      className={`min-w-0 flex-1 truncate group-hover:translate-x-2 transition-all duration-200 ${
                         isFocused ? "translate-x-2" : ""
                       }`}
                     >
                       {model.label}
                     </span>
                     <span
-                      className={`ml-auto text-xs opacity-40 group-hover:opacity-60 ${
+                      className={`ml-auto shrink-0 text-xs opacity-40 group-hover:opacity-60 ${
                         isFocused ? "opacity-60" : ""
                       }`}
                     >
@@ -173,7 +173,7 @@ const SettingsModal = ({
                       buttonRefs.current[actualIndex] = el;
                     }}
                     onClick={() => handleModelSelect(model.value, true)}
-                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 ${
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 ${
                       isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
                       isSelected && !isFocused
@@ -189,14 +189,14 @@ const SettingsModal = ({
                       } ${isFocused ? "translate-x-2" : ""}`}
                     />
                     <span
-                      className={`group-hover:translate-x-2 transition-all duration-200 ${
+                      className={`min-w-0 flex-1 truncate group-hover:translate-x-2 transition-all duration-200 ${
                         isFocused ? "translate-x-2" : ""
                       }`}
                     >
                       {model.label}
                     </span>
                     <span
-                      className={`ml-auto text-xs opacity-40 group-hover:opacity-60 ${
+                      className={`ml-auto shrink-0 text-xs opacity-40 group-hover:opacity-60 ${
                         isFocused ? "opacity-60" : ""
                       }`}
                     >
