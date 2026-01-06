@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, Check } from "lucide-react";
+import { ChevronRight, Check, Globe } from "lucide-react";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { 
   setSelectedModel, 
   setSelectedImageModel,
+  setWebSearchEnabled,
   availableModels, 
   availableImageModels,
   ModelOption 
@@ -20,6 +21,7 @@ const SettingsModal = ({
   const dispatch = useAppDispatch();
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
   const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
+  const webSearchEnabled = useAppSelector((state) => state.settings.webSearchEnabled);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const allModels = [...availableModels, ...availableImageModels];
@@ -237,6 +239,31 @@ const SettingsModal = ({
                   </button>
                 );
               })}
+
+              {/* Web Search Feature Section */}
+              <div className="px-4 py-2 mt-4 text-xs font-mono text-white/30 uppercase tracking-wider">
+                Features
+              </div>
+              <button
+                onClick={() => dispatch(setWebSearchEnabled(!webSearchEnabled))}
+                className="w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0"
+              >
+                <Globe
+                  className={`size-4 transition-all duration-200 ${
+                    webSearchEnabled ? "opacity-100 text-green-400" : "opacity-40"
+                  } group-hover:opacity-100`}
+                />
+                <span className="min-w-0 flex-1 truncate text-white/70 group-hover:text-black">
+                  Web Search
+                </span>
+                <div className={`ml-auto shrink-0 w-10 h-5 rounded-full transition-colors duration-200 relative ${
+                  webSearchEnabled ? "bg-green-500" : "bg-white/20"
+                }`}>
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                    webSearchEnabled ? "translate-x-5" : "translate-x-0"
+                  }`} />
+                </div>
+              </button>
             </div>
           </motion.div>
         </React.Fragment>

@@ -30,6 +30,7 @@ export class aiService {
         sort?: "latency" | "price" | "throughput";
         allow_fallbacks?: boolean;
       };
+      webSearchEnabled?: boolean;
     }
   ): Promise<string> {
     let response: Response;
@@ -48,6 +49,14 @@ export class aiService {
           ...(options?.model && { model: options.model }),
           ...(options?.imageModel && { imageModel: options.imageModel }),
           ...(options?.provider && { provider: options.provider }),
+          ...(options?.webSearchEnabled && { 
+            plugins: [
+              {
+                id: "web",
+                max_results: 5,
+              }
+            ]
+          }),
         }),
       });
     } catch (error) {
@@ -81,6 +90,10 @@ export class aiService {
     }
 
     const rawText = await response.text();
+    logger.info("Raw response from AI service (non-streaming)", { 
+      rawText,
+      length: rawText.length 
+    });
     return this.cleanResponse(rawText);
   }
 
@@ -96,6 +109,7 @@ export class aiService {
       };
       timeoutMs?: number;
       retries?: number;
+      webSearchEnabled?: boolean;
     },
     onImage?: (imageUrl: string, prompt?: string) => void
   ): Promise<StreamResponse> {
@@ -163,6 +177,7 @@ export class aiService {
         allow_fallbacks?: boolean;
       };
       timeoutMs?: number;
+      webSearchEnabled?: boolean;
     },
     onImage?: (imageUrl: string, prompt?: string) => void
   ): Promise<{ success: true; data: StreamResponse } | { success: false; error: Error }> {
@@ -175,6 +190,14 @@ export class aiService {
         ...(options?.model && { model: options.model }),
         ...(options?.imageModel && { imageModel: options.imageModel }),
         ...(options?.provider && { provider: options.provider }),
+        ...(options?.webSearchEnabled && { 
+          plugins: [
+            {
+              id: "web",
+              max_results: 5,
+            }
+          ]
+        }),
       });
 
       const TIMEOUT_MS = options?.timeoutMs || 120000; // 2 minutes default timeout
@@ -239,6 +262,10 @@ export class aiService {
         );
         clearTimeout(timeoutId);
         const rawResult = await response.text();
+        logger.info("Raw response from AI service (fallback non-streaming)", { 
+          rawResult,
+          length: rawResult.length 
+        });
         const cleanedResult = this.cleanResponse(rawResult);
         onChunk(cleanedResult);
         return { success: true, data: { type: "text", content: cleanedResult } };
@@ -293,6 +320,11 @@ export class aiService {
                 };
               }
               
+              logger.info("Stream ended - raw fullResponse from AI service", { 
+                fullResponse,
+                length: fullResponse.length 
+              });
+              
               // Stream ended without [DONE] signal - clean and return
               if (fullResponse.length === 0) {
                 const streamError = new Error(
@@ -336,6 +368,11 @@ export class aiService {
                       data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
                     };
                   }
+                  
+                  logger.info("Stream completed with [DONE] - raw fullResponse from AI service", { 
+                    fullResponse,
+                    length: fullResponse.length 
+                  });
                   
                   const cleanedResponse = this.cleanResponse(fullResponse);
                   if (pendingUpdate) {
@@ -503,6 +540,10 @@ export class aiService {
     }
     
     const rawText = await response.text();
+    logger.info("Raw response from AI service (fastChat)", { 
+      rawText,
+      length: rawText.length 
+    });
     return this.cleanResponse(rawText);
   }
 }

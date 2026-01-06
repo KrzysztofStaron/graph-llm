@@ -39,11 +39,13 @@ export const availableImageModels: ModelOption[] = [
 interface SettingsState {
   selectedModel: string;
   selectedImageModel: string;
+  webSearchEnabled: boolean;
 }
 
 const initialState: SettingsState = {
   selectedModel: availableModels[0].value, // Default to Grok
   selectedImageModel: availableImageModels[1].value, // Default to Nano Banana pro
+  webSearchEnabled: false, // Default to disabled
 };
 
 const settingsSlice = createSlice({
@@ -56,8 +58,11 @@ const settingsSlice = createSlice({
     setSelectedImageModel: (state, action: PayloadAction<string>) => {
       state.selectedImageModel = action.payload;
     },
+    setWebSearchEnabled: (state, action: PayloadAction<boolean>) => {
+      state.webSearchEnabled = action.payload;
+    },
   },
 });
 
-export const { setSelectedModel, setSelectedImageModel } = settingsSlice.actions;
+export const { setSelectedModel, setSelectedImageModel, setWebSearchEnabled } = settingsSlice.actions;
 export default settingsSlice.reducer;

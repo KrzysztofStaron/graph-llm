@@ -17,6 +17,7 @@ interface UseAIChatReturn {
 export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
   const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
+  const webSearchEnabled = useAppSelector((state) => state.settings.webSearchEnabled);
   /**
    * Recursively updates all descendant response nodes in breadth-first order.
    * Updates all nodes at each depth level in parallel, then moves to the next level.
@@ -74,7 +75,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                     error: undefined,
                   };
                 },
-                { model: selectedModel, imageModel: selectedImageModel },
+                { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
                 // onImage callback for cascade regeneration
                 (imageUrl, prompt) => {
                   // Immediately swap to image-response type to show image loading animation
@@ -134,7 +135,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         );
       }
     },
-    [graphCanvasRef]
+    [graphCanvasRef, selectedModel, selectedImageModel, webSearchEnabled]
   );
 
   const onInputSubmit = useCallback(
@@ -219,7 +220,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               error: undefined,
             };
           },
-          { model: selectedModel, imageModel: selectedImageModel },
+          { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
             // Immediately swap to image-response type to show image loading animation
@@ -318,7 +319,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Cascading updates: find all descendant response nodes and update them level by level
       await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
     },
-    [graphCanvasRef, cascadeUpdateDescendants, selectedModel, selectedImageModel]
+    [graphCanvasRef, cascadeUpdateDescendants, selectedModel, selectedImageModel, webSearchEnabled]
   );
 
   return {

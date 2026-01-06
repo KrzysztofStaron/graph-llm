@@ -48,7 +48,7 @@ const markdownComponents = {
     </h6>
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-2 last:mb-0">{children}</p>
+    <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
@@ -60,7 +60,7 @@ const markdownComponents = {
     <li className="ml-2">{children}</li>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold">{children}</strong>
+    <strong className="font-semibold inline">{children}</strong>
   ),
   em: ({ children }: { children?: React.ReactNode }) => (
     <em className="italic">{children}</em>
@@ -68,7 +68,7 @@ const markdownComponents = {
   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
     <a
       href={href}
-      className="underline underline-offset-4 decoration-white/30 hover:decoration-white/70"
+      className="underline underline-offset-4 decoration-white/30 hover:decoration-white/70 inline-block"
       rel="noreferrer"
       target="_blank"
     >
@@ -205,7 +205,7 @@ export const ResponseNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
-          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none">
+          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words">
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
@@ -245,9 +245,11 @@ export const ResponseNode = memo(
                 </div>
               </div>
             ) : (
-              chunks.map((chunk, index) => (
-                <MarkdownChunk key={index} content={chunk} />
-              ))
+              <div className="space-y-0">
+                {chunks.map((chunk, index) => (
+                  <MarkdownChunk key={index} content={chunk} />
+                ))}
+              </div>
             )}
           </div>
         </div>
