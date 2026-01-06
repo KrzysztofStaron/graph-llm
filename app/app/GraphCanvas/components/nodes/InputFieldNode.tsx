@@ -1,7 +1,7 @@
 import { InputNode, GraphNodes } from "@/app/types/graph";
 import { TreeManager } from "@/app/interfaces/TreeManager";
 import { ArrowUp, ChevronRight, Pencil, X } from "lucide-react";
-import { memo, useRef, useState, useEffect } from "react";
+import { memo, useRef, useState, useEffect, useCallback } from "react";
 
 enum Mode {
   ASK = "ask",
@@ -95,17 +95,47 @@ export const InputFieldNode = memo(
       performCancel();
     };
 
-    const handleEdit = () => {
-      // Ask mode allows for free text input
-      setMode(Mode.ASK);
-    };
+  const handleEdit = useCallback(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEdit',message:'handleEdit called',data:{currentMode:mode,nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    
+    // Ask mode allows for free text input
+    setMode(Mode.ASK);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEdit-after',message:'setMode called',data:{newMode:'ASK',nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+  }, [mode, node.id]);
 
-    return (
-      <div
-        ref={containerRef}
-        className="w-[400px] group"
-        data-node-id={node.id}
-      >
+  // Listen for custom edit event from context menu
+  useEffect(() => {
+    const handleEditEvent = () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEditEvent',message:'editInput event received',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      
+      handleEdit();
+    };
+    
+    const element = containerRef.current;
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:useEffect-listener',message:'Event listener setup',data:{elementExists:!!element,nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+    
+    if (element) {
+      element.addEventListener("editInput", handleEditEvent);
+      return () => element.removeEventListener("editInput", handleEditEvent);
+    }
+  }, [handleEdit, node.id]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-[400px] group"
+      data-node-id={node.id}
+    >
         <div
           className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-200 ${
             isDeleteHovered && "rounded-3xl rounded-tr-xl"

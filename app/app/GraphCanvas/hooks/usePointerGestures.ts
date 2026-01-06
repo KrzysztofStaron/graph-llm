@@ -37,6 +37,8 @@ export function usePointerGestures({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressFiredRef = useRef(false);
   const previousSelectionRef = useRef<Set<string>>(new Set());
+  const selectionClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMultiTouchRef = useRef(false);
 
   const canvasTapRef = useRef<{
     pointerId: number;
@@ -53,15 +55,28 @@ export function usePointerGestures({
     longPressFiredRef.current = false;
   }, []);
 
+  const clearSelectionClearTimer = useCallback(() => {
+    if (selectionClearTimerRef.current) {
+      clearTimeout(selectionClearTimerRef.current);
+      selectionClearTimerRef.current = null;
+    }
+  }, []);
+
   const handleNodePointerDown = useCallback(
     (e: React.PointerEvent, nodeId: string) => {
       const isMouse = e.pointerType === "mouse";
       const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
 
-      // Two-finger tap toggle (multi-select on mobile) - DON'T clear selection
+      // Two-finger tap toggle (multi-select on mobile)
       if (isTouch && !e.isPrimary) {
         e.preventDefault();
         e.stopPropagation();
+        
+        // Mark as multi-touch and cancel any pending selection clear
+        isMultiTouchRef.current = true;
+        clearSelectionClearTimer();
+        
+        // Just toggle the node
         toggleNodeSelection(nodeId);
         return;
       }
@@ -83,6 +98,7 @@ export function usePointerGestures({
       // Store previous selection for potential long-press restoration
       if (isTouch) {
         previousSelectionRef.current = new Set(selectedNodeIds);
+        isMultiTouchRef.current = false;
       }
 
       // Desktop: if node not selected, clear others
@@ -90,10 +106,15 @@ export function usePointerGestures({
         clearSelection();
       }
 
-      // Mobile: ONLY clear selection on single-finger touch if node not already selected
-      // (will be restored if long-press fires)
+      // Mobile: delay clearing selection to allow for two-finger detection
       if (isTouch && !isNodeSelected) {
-        clearSelection();
+        clearSelectionClearTimer();
+        // Small delay (100ms) to detect if second finger comes down
+        selectionClearTimerRef.current = setTimeout(() => {
+          if (!isMultiTouchRef.current) {
+            clearSelection();
+          }
+        }, 100);
       }
 
       // Start tracking for drag or tap
@@ -131,6 +152,7 @@ export function usePointerGestures({
       clearSelection,
       onRequestContextMenu,
       clearLongPressTimer,
+      clearSelectionClearTimer,
     ]
   );
 
@@ -255,8 +277,9 @@ export function usePointerGestures({
 
       // If touch tap (no move, no long-press): select node exclusively
       if (isTouch && !dragging.hasMoved && !longPressFiredRef.current) {
+        clearSelectionClearTimer();
         const isNodeSelected = selectedNodeIds.has(dragging.nodeId);
-        if (!isNodeSelected) {
+        if (!isNodeSelected && !isMultiTouchRef.current) {
           clearSelection();
           toggleNodeSelection(dragging.nodeId);
         }
@@ -266,6 +289,7 @@ export function usePointerGestures({
         e.preventDefault();
       }
       draggingRef.current = null;
+      isMultiTouchRef.current = false;
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
@@ -301,8 +325,9 @@ export function usePointerGestures({
   useEffect(() => {
     return () => {
       clearLongPressTimer();
+      clearSelectionClearTimer();
     };
-  }, [clearLongPressTimer]);
+  }, [clearLongPressTimer, clearSelectionClearTimer]);
 
   return {
     handleNodePointerDown,

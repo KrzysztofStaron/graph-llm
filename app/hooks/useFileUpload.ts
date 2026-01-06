@@ -19,8 +19,8 @@ interface UseFileUploadReturn {
   handleFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const ACCEPTED_EXTENSIONS = [".txt", ".md", ".json", ".csv"];
-const DOCUMENT_EXTENSIONS = [
+export const PLAIN_TEXT_EXTENSIONS = [".txt", ".md", ".json", ".csv"];
+export const DOCUMENT_EXTENSIONS = [
   ".pdf",
   ".docx",
   ".pptx",
@@ -28,6 +28,12 @@ const DOCUMENT_EXTENSIONS = [
   ".html",
   ".htm",
 ];
+
+export const UPLOAD_CONTEXT_ACCEPT = [
+  "image/*",
+  ...PLAIN_TEXT_EXTENSIONS,
+  ...DOCUMENT_EXTENSIONS,
+].join(",");
 
 export function useFileUpload({
   graphCanvasRef,
@@ -55,7 +61,7 @@ export function useFileUpload({
     // Include plain text files in document files now
     const documentFiles = fileArray.filter(
       (file) =>
-        ACCEPTED_EXTENSIONS.some((ext) =>
+        PLAIN_TEXT_EXTENSIONS.some((ext) =>
           file.name.toLowerCase().endsWith(ext)
         ) ||
         DOCUMENT_EXTENSIONS.some((ext) =>
@@ -115,7 +121,7 @@ export function useFileUpload({
       // For plain text files (.txt, .md, .json, .csv), parse directly
       // For other document types, use the parser with fallback
       let parseResult;
-      const isPlainText = ACCEPTED_EXTENSIONS.some((ext) =>
+      const isPlainText = PLAIN_TEXT_EXTENSIONS.some((ext) =>
         file.name.toLowerCase().endsWith(ext)
       );
 

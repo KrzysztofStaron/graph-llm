@@ -6,12 +6,13 @@ import {
   MessageCircle,
   Eraser,
   Plus,
-  ImageUp,
+  Upload,
   Minus,
   Delete,
   Headphones,
   Link2,
   Unlink2,
+  Pencil,
 } from "lucide-react";
 import MonoLabel from "./MonoLabel";
 
@@ -88,12 +89,14 @@ export const ContextMenu = ({
                 Icon = item.label.includes("[ with children ]")
                   ? Trash2
                   : Delete;
+              } else if (item.label === "Edit") {
+                Icon = Pencil;
               } else if (item.label.toLowerCase().includes("new")) {
                 Icon = Plus;
               } else if (item.label.includes("Ask Question")) {
                 Icon = MessageCircle;
               } else if (item.label.includes("Upload Context")) {
-                Icon = ImageUp;
+                Icon = Upload;
               } else if (item.label.includes("Listen")) {
                 Icon = Headphones;
               } else if (item.label === "Link") {

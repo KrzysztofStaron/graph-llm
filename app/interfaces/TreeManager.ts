@@ -369,7 +369,7 @@ export class TreeManager {
 
           Supported Document Types:
           The system can parse and process various document formats:
-          - PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), HTML, TXT, MD, JSON, CSV.
+          - PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), HTML (.html/.htm), TXT (.txt), MD (.md), JSON (.json), CSV (.csv).
           - When document nodes are provided, they contain parsed text content. Use it as context.
 
           Your creator is @krzysztofstaron at X

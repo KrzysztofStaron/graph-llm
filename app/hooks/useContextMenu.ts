@@ -18,6 +18,8 @@ interface UseContextMenuProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
   onUploadContext: (canvasPoint: { x: number; y: number }) => void;
   onListen: (targetNodeIds: string[]) => void;
+  onEditContext?: (nodeId: string) => void;
+  onEditInput?: (nodeId: string) => void;
 }
 
 interface UseContextMenuReturn {
@@ -35,6 +37,8 @@ export function useContextMenu({
   graphCanvasRef,
   onUploadContext,
   onListen,
+  onEditContext,
+  onEditInput,
 }: UseContextMenuProps): UseContextMenuReturn {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
@@ -474,6 +478,13 @@ export function useContextMenu({
     if (!node) return [];
 
     const items: ContextMenuItem[] = [];
+
+    // Show "Edit" for context and input nodes
+    if (node.type === "context" && onEditContext) {
+      items.push({ label: "Edit", onClick: () => onEditContext(node.id) });
+    } else if (node.type === "input" && onEditInput) {
+      items.push({ label: "Edit", onClick: () => onEditInput(node.id) });
+    }
 
     // Show "Ask Question" for non-input nodes (creates and links)
     if (node.type !== "input") {

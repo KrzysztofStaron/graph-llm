@@ -13,7 +13,7 @@ import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { ModelIndicator } from "../components/ui/ModelIndicator";
 import TipsModal from "../components/ui/TipsModal";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
-import { useFileUpload } from "../hooks/useFileUpload";
+import { UPLOAD_CONTEXT_ACCEPT, useFileUpload } from "../hooks/useFileUpload";
 import { useContextMenu } from "../hooks/useContextMenu";
 import { useAIChat } from "../hooks/useAIChat";
 import { globals } from "../globals";
@@ -54,6 +54,23 @@ const AppPageContent = () => {
       const nodes = graphCanvasRef.current?.nodes;
       if (nodes) {
         playAudio(targetNodeIds, nodes, true);
+      }
+    },
+    onEditContext: (nodeId) => {
+      setEditingContextNodeId(nodeId);
+    },
+    onEditInput: (nodeId) => {
+      // Input nodes handle their own edit mode internally
+      // We can trigger it by dispatching a custom event or updating state
+      const node = graphCanvasRef.current?.nodes[nodeId];
+      if (node && node.type === "input") {
+        // The InputFieldNode will handle entering edit mode on double-click
+        // For context menu, we'll use the same mechanism
+        const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
+        if (nodeElement) {
+          const event = new CustomEvent("editInput");
+          nodeElement.dispatchEvent(event);
+        }
       }
     },
   });
@@ -160,7 +177,7 @@ const AppPageContent = () => {
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".txt,.md,.json,.csv,image/*"
+        accept={UPLOAD_CONTEXT_ACCEPT}
         onChange={handleFileInputChange}
         className="hidden"
       />
