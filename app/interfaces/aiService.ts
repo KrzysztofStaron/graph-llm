@@ -15,6 +15,11 @@ export type ChatMessage = {
   content: string | ContentPart[];
 };
 
+// Response types for streaming
+export type StreamResponse = 
+  | { type: "text"; content: string }
+  | { type: "image"; content: string; prompt?: string };
+
 export class aiService {
   static async chat(
     message: string | ChatMessage[],
@@ -88,8 +93,9 @@ export class aiService {
       };
       timeoutMs?: number;
       retries?: number;
-    }
-  ): Promise<string> {
+    },
+    onImage?: (imageUrl: string, prompt?: string) => void
+  ): Promise<StreamResponse> {
     const maxRetries = options?.retries ?? 2;
     let lastError: Error | null = null;
 
@@ -106,7 +112,7 @@ export class aiService {
       );
       const result = await this.chat(message, options);
       onChunk(result);
-      return result;
+      return { type: "text", content: result };
     }
 
     // Retry logic with exponential backoff
@@ -119,7 +125,7 @@ export class aiService {
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
 
-      const result = await this._attemptStreamChat(message, onChunk, options);
+      const result = await this._attemptStreamChat(message, onChunk, options, onImage);
       if (result.success) {
         return result.data;
       }
@@ -153,8 +159,9 @@ export class aiService {
         allow_fallbacks?: boolean;
       };
       timeoutMs?: number;
-    }
-  ): Promise<{ success: true; data: string } | { success: false; error: Error }> {
+    },
+    onImage?: (imageUrl: string, prompt?: string) => void
+  ): Promise<{ success: true; data: StreamResponse } | { success: false; error: Error }> {
 
     try {
       const payload = JSON.stringify({
@@ -229,7 +236,7 @@ export class aiService {
         const rawResult = await response.text();
         const cleanedResult = this.cleanResponse(rawResult);
         onChunk(cleanedResult);
-        return { success: true, data: cleanedResult };
+        return { success: true, data: { type: "text", content: cleanedResult } };
       }
 
       try {
@@ -240,6 +247,7 @@ export class aiService {
         let fullResponse = "";
         let lastUpdateTime = 0;
         let pendingUpdate = false;
+        let imageResponse: { url: string; prompt?: string } | null = null;
         const THROTTLE_MS = 500;
 
         const throttledOnChunk = (content: string) => {
@@ -256,12 +264,12 @@ export class aiService {
 
         try {
           let lastChunkTime = Date.now();
-          const INACTIVITY_TIMEOUT_MS = 30000; // 30 seconds of no data
+          const INACTIVITY_TIMEOUT_MS = 60000; // 60 seconds of no data (increased for image generation)
 
           while (true) {
             // Check for inactivity timeout
             if (Date.now() - lastChunkTime > INACTIVITY_TIMEOUT_MS) {
-              const timeoutError = new Error("Stream timeout: No data received for 30 seconds");
+              const timeoutError = new Error("Stream timeout: No data received for 60 seconds");
               logger.error("Stream inactivity timeout", { 
                 error: timeoutError, 
                 inactivityTimeoutMs: INACTIVITY_TIMEOUT_MS 
@@ -272,6 +280,14 @@ export class aiService {
             const { done, value } = await reader.read();
 
             if (done) {
+              // If we got an image response, return it
+              if (imageResponse) {
+                return { 
+                  success: true, 
+                  data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
+                };
+              }
+              
               // Stream ended without [DONE] signal - clean and return
               if (fullResponse.length === 0) {
                 const streamError = new Error(
@@ -296,7 +312,7 @@ export class aiService {
               if (pendingUpdate) {
                 onChunk(cleanedResponse);
               }
-              return { success: true, data: cleanedResponse };
+              return { success: true, data: { type: "text", content: cleanedResponse } };
             }
 
             lastChunkTime = Date.now();
@@ -308,19 +324,47 @@ export class aiService {
               if (line.startsWith("data: ")) {
                 const data = line.slice(6);
                 if (data === "[DONE]") {
+                  // If we got an image response, return it
+                  if (imageResponse) {
+                    return { 
+                      success: true, 
+                      data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
+                    };
+                  }
+                  
                   const cleanedResponse = this.cleanResponse(fullResponse);
                   if (pendingUpdate) {
                     onChunk(cleanedResponse);
                   }
-                  return { success: true, data: cleanedResponse };
+                  return { success: true, data: { type: "text", content: cleanedResponse } };
                 }
 
                 try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.content) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'aiService.ts:320',message:'Raw SSE data received',data:{data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+                  // #endregion
+                  const parsed = JSON.parse(data) as { 
+                    content?: string; 
+                    error?: string;
+                    type?: "image";
+                    prompt?: string;
+                  };
+                  
+                  // Handle image response from backend
+                  if (parsed.type === "image" && parsed.content) {
+                    logger.info("Received image response", { 
+                      url: parsed.content.substring(0, 100),
+                      prompt: parsed.prompt 
+                    });
+                    imageResponse = { url: parsed.content, prompt: parsed.prompt };
+                    if (onImage) {
+                      onImage(parsed.content, parsed.prompt);
+                    }
+                  } else if (parsed.content) {
                     fullResponse += parsed.content;
                     throttledOnChunk(fullResponse);
                   }
+                  
                   if (parsed.error) {
                     const streamError = new Error(parsed.error);
                     logger.error("Stream error from backend", { error: streamError, parsedError: parsed.error });

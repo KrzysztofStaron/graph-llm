@@ -1,6 +1,7 @@
 export type NodeType =
   | "input"
   | "response"
+  | "image-response"
   | "context"
   | "image-context"
   | "document";
@@ -28,6 +29,12 @@ export interface ResponseNode extends BaseNode {
   type: "response";
 }
 
+export interface ImageResponseNode extends BaseNode {
+  type: "image-response";
+  // The image generation prompt (for display/debugging)
+  prompt?: string;
+}
+
 export interface InputNode extends BaseNode {
   type: "input";
 }
@@ -47,6 +54,7 @@ export interface DocumentNode extends BaseNode {
 export type GraphNode =
   | InputNode
   | ResponseNode
+  | ImageResponseNode
   | ContextNode
   | ImageContextNode
   | DocumentNode;

@@ -4,6 +4,7 @@ import type {
   InputNode,
   NodeType,
   ResponseNode,
+  ImageResponseNode,
   ContextNode,
   DocumentNode,
   ImageContextNode,
@@ -205,6 +206,7 @@ export class TreeManager {
       const nodeNum = nodeIdMap.get(node.id) || 0;
       const typeLabel = node.type === "input" ? "Q" : 
                        node.type === "response" ? "A" : 
+                       node.type === "image-response" ? "IMG" :
                        node.type === "document" ? "DOC" :
                        node.type === "context" ? "CTX" : 
                        node.type.toUpperCase();
@@ -217,6 +219,7 @@ export class TreeManager {
           const parentNum = nodeIdMap.get(pid);
           const parentLabel = parentNode.type === "input" ? "Q" : 
                              parentNode.type === "response" ? "A" : 
+                             parentNode.type === "image-response" ? "IMG" :
                              parentNode.type === "document" ? "DOC" :
                              parentNode.type === "context" ? "CTX" : 
                              parentNode.type.toUpperCase();
@@ -247,6 +250,7 @@ export class TreeManager {
       const roleType = levelNodes[0].type;
 
       // Determine the role based on node type
+      // response and image-response are assistant messages, everything else is user
       const role: "user" | "assistant" =
         roleType === "context" ||
         roleType === "input" ||
@@ -313,10 +317,18 @@ export class TreeManager {
     const ret = [
       {
         role: "system",
-        content: `You are an experimental LLM based on graphs called GraphAI at graphai.one, each piece of information is a node in the graph, 
-          and the connections between the nodes are the edges. When responding don't include metadata tags, 
-          only the content of the nodes. As metadata is only for the LLM to understand the connections between the nodes, 
-          it's not part of the response. You can use markdown and latex for formatting purposes. Try not to send walls of text.
+        content: `You are an experimental LLM based on graphs called GraphAI at graphai.one.
+          
+          IMAGE GENERATION (CRITICAL):
+          - You have access to a 'generate_image' tool.
+          - If the user asks for ANY visual content (image, drawing, visualization, diagram, car, cat, etc.), you MUST call 'generate_image'.
+          - DO NOT write any text response when you call the tool.
+          - Call 'generate_image' IMMEDIATELY with a descriptive prompt.
+          
+          GRAPH STRUCTURE:
+          Each piece of information is a node in the graph, and connections between the nodes are the edges. 
+          When responding don't include metadata tags, only the content of the nodes. 
+          You can use markdown and latex for formatting. Try not to send walls of text.
 
           CRITICAL FORMATTING RULE:
           User messages contain metadata markers showing the graph structure:
@@ -350,21 +362,10 @@ export class TreeManager {
           - Your responses should be pure content, markdown, and LaTeX only
           - The system handles all graph metadata automatically
 
-          Try not to send walls of text. Use markdown and latex for formatting.
-
           Supported Document Types:
           The system can parse and process various document formats:
-          - PDF files (.pdf) - Text-based and scanned PDFs
-          - Microsoft Word documents (.docx)
-          - Microsoft Excel spreadsheets (.xlsx) - Converted to CSV format
-          - Microsoft PowerPoint presentations (.pptx)
-          - HTML files (.html, .htm)
-          - Plain text files (.txt)
-          - Markdown files (.md)
-          - JSON files (.json)
-          - CSV files (.csv)
-          
-          When document nodes are provided, they contain parsed text content from these file formats. Use the content as context for your responses.
+          - PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), HTML, TXT, MD, JSON, CSV.
+          - When document nodes are provided, they contain parsed text content. Use it as context.
 
           Your creator is @krzysztofstaron at X
           `,
@@ -559,6 +560,11 @@ export function createNode(
   x: number,
   y: number
 ): ResponseNode;
+export function createNode(
+  type: "image-response",
+  x: number,
+  y: number
+): ImageResponseNode;
 export function createNode(type: "context", x: number, y: number): ContextNode;
 export function createNode(
   type: "image-context",
@@ -574,7 +580,7 @@ export function createNode(
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
 
-  return {
+  const baseNode = {
     id,
     type,
     x,
@@ -583,4 +589,15 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
     parentIds: [],
     childrenIds: [],
   };
+
+  // Add prompt field for image-response nodes
+  if (type === "image-response") {
+    return {
+      ...baseNode,
+      type: "image-response",
+      prompt: undefined,
+    } as ImageResponseNode;
+  }
+
+  return baseNode as GraphNode;
 }

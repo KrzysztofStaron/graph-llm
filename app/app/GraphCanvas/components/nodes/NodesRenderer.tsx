@@ -5,6 +5,7 @@ import React, { useContext } from "react";
 
 import { InputFieldNode } from "./InputFieldNode";
 import { ResponseNode } from "./ResponseNode";
+import { ImageResponseNode } from "./ImageResponseNode";
 import { ContextNode } from "./ContextNode";
 import { ImageContextNode } from "./ImageContextNode";
 import { DocumentNode } from "./DocumentNode";
@@ -82,6 +83,9 @@ const NodesRenderer = ({
               )}
               {node.type === "response" && (
                 <ResponseNode node={node} isSelected={isSelected} />
+              )}
+              {node.type === "image-response" && (
+                <ImageResponseNode node={node} isSelected={isSelected} />
               )}
               {node.type === "context" && (
                 <ContextNode node={node} isSelected={isSelected} />

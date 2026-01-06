@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { GraphNode, GraphNodes } from "../types/";
+import { GraphNode, GraphNodes, ImageResponseNode } from "../types/";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
-import { aiService } from "../interfaces/aiService";
+import { aiService, StreamResponse } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
 
 interface UseAIChatProps {
@@ -107,11 +107,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       const currentCaller = nodesRef.current[caller.id] || caller;
 
       // Find the first response child node
-      let responseNodeId = currentCaller.childrenIds.find((childId: string) => {
+      const existingResponseNodeId = currentCaller.childrenIds.find((childId: string) => {
         const childNode = nodesRef.current[childId];
         return childNode?.type === "response";
       });
 
+      let responseNodeId: string;
       let responseNode: GraphNode;
 
       // Create updated nodes object with the query value set - this will be mutated as we stream responses
@@ -124,9 +125,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Set the value to query of the InputFieldNode
       treeManager.patchNode(caller.id, { value: query });
 
-      // Prepare the response node
-      if (responseNodeId) {
+      // Prepare the response node (will be replaced with image-response if AI generates an image)
+      if (existingResponseNodeId) {
         // put existing response node into loading state
+        responseNodeId = existingResponseNodeId;
         treeManager.patchNode(responseNodeId, { value: "", error: undefined });
         responseNode = nodesRef.current[responseNodeId];
       } else {
@@ -158,6 +160,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         nodesWithQuery[newNode.id] = newNode;
       }
 
+      // Track if we receive an image response
+      let imageResult: { url: string; prompt?: string } | null = null;
+
       // Send the query - use the locally updated nodes object
       const result = await aiService
         .streamChat(
@@ -173,7 +178,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               error: undefined,
             };
           },
-          { model: selectedModel }
+          { model: selectedModel },
+          // onImage callback - called when image is generated
+          (imageUrl, prompt) => {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAIChat.ts:182',message:'onImage callback triggered',data:{imageUrl:imageUrl.substring(0,50),prompt},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            imageResult = { url: imageUrl, prompt };
+          }
         )
         .catch((error) => {
           const errorMessage =
@@ -191,19 +203,39 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         return;
       }
 
+      // Handle image response - convert the response node to an image-response node
+      if (result.type === "image") {
+        // Delete the text response node and create an image-response node in its place
+        const imageNode = createNode("image-response", responseNode.x, responseNode.y) as ImageResponseNode;
+        imageNode.value = result.content;
+        imageNode.prompt = result.prompt;
+        
+        // Remove the old response node and replace with image node
+        treeManager.deleteNodeDetach(responseNodeId);
+        treeManager.addNode(imageNode);
+        treeManager.linkNodes(caller.id, imageNode.id);
+        
+        // Update tracking
+        responseNodeId = imageNode.id;
+        responseNode = imageNode;
+        nodesWithQuery[imageNode.id] = imageNode;
+      }
+
       // If response has no Input Node, create a new one
+      // Use nodesRef to get fresh data after potential node replacement
+      const currentResponseNode = nodesRef.current[responseNodeId] || responseNode;
       if (
-        responseNode.childrenIds.some(
-          (childId) => nodesRef.current[childId].type === "input"
-        ) === false
+        !currentResponseNode.childrenIds.some(
+          (childId) => nodesRef.current[childId]?.type === "input"
+        )
       ) {
         const responseNodeDim =
-          nodeDimensionsRef.current[responseNode.id] ||
-          getDefaultNodeDimensions("response");
+          nodeDimensionsRef.current[responseNodeId] ||
+          getDefaultNodeDimensions(currentResponseNode.type);
 
         // Place directly below the response node
-        const targetX = responseNode.x;
-        const targetY = responseNode.y + responseNodeDim.height + 90;
+        const targetX = currentResponseNode.x;
+        const targetY = currentResponseNode.y + responseNodeDim.height + 90;
 
         const newNodeDim = getDefaultNodeDimensions("input");
         const freePos = findFreePosition(
@@ -224,7 +256,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       }
 
       // Cascading updates: find all descendant response nodes and update them level by level
-      await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
+      // Skip cascade for image responses as they don't have text continuations
+      if (result.type === "text") {
+        await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
+      }
     },
     [graphCanvasRef, cascadeUpdateDescendants, selectedModel]
   );
