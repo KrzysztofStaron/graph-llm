@@ -109,15 +109,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                 prompt: result.prompt,
               };
             } else {
-              // For text responses, ensure type is "response" and clear any prompt
+              // For text responses, ensure type is "response"
               treeManager.patchNode(responseNode.id, {
                 type: "response",
-                prompt: undefined,
               });
               currentNodes[responseNode.id] = {
                 ...currentNodes[responseNode.id],
                 type: "response",
-                prompt: undefined,
               };
             }
           })
@@ -250,15 +248,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         };
         responseNode = nodesWithQuery[responseNodeId];
       } else {
-        // For text responses, ensure type is "response" and clear any prompt
+        // For text responses, ensure type is "response"
         treeManager.patchNode(responseNodeId, {
           type: "response",
-          prompt: undefined,
         });
         nodesWithQuery[responseNodeId] = {
           ...nodesWithQuery[responseNodeId],
           type: "response",
-          prompt: undefined,
         };
         responseNode = nodesWithQuery[responseNodeId];
       }
