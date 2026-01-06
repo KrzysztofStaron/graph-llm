@@ -16,6 +16,7 @@ interface UseAIChatReturn {
 
 export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
+  const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
   /**
    * Recursively updates all descendant response nodes in breadth-first order.
    * Updates all nodes at each depth level in parallel, then moves to the next level.
@@ -73,7 +74,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                     error: undefined,
                   };
                 },
-                { model: selectedModel },
+                { model: selectedModel, imageModel: selectedImageModel },
                 // onImage callback for cascade regeneration
                 (imageUrl, prompt) => {
                   // Immediately swap to image-response type to show image loading animation
@@ -218,7 +219,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               error: undefined,
             };
           },
-          { model: selectedModel },
+          { model: selectedModel, imageModel: selectedImageModel },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
             // Immediately swap to image-response type to show image loading animation
@@ -317,7 +318,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Cascading updates: find all descendant response nodes and update them level by level
       await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
     },
-    [graphCanvasRef, cascadeUpdateDescendants, selectedModel]
+    [graphCanvasRef, cascadeUpdateDescendants, selectedModel, selectedImageModel]
   );
 
   return {

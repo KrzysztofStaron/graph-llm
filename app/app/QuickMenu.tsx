@@ -2,9 +2,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, Check } from "lucide-react";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { setSelectedModel, availableModels } from "../store/settingsSlice";
+import { 
+  setSelectedModel, 
+  setSelectedImageModel,
+  availableModels, 
+  availableImageModels,
+  ModelOption 
+} from "../store/settingsSlice";
 
-const QuickMenu = ({
+const SettingsModal = ({
   isOpen,
   onClose,
 }: {
@@ -13,11 +19,14 @@ const QuickMenu = ({
 }) => {
   const dispatch = useAppDispatch();
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
+  const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  const allModels = [...availableModels, ...availableImageModels];
+  
   const getInitialIndex = () => {
-    const currentIndex = availableModels.findIndex(
-      (model) => model.value === selectedModel
+    const currentIndex = allModels.findIndex(
+      (model) => model.value === selectedModel || model.value === selectedImageModel
     );
     return currentIndex >= 0 ? currentIndex : 0;
   };
@@ -25,8 +34,12 @@ const QuickMenu = ({
   const [focusedIndex, setFocusedIndex] = useState(getInitialIndex);
 
   const handleModelSelect = useCallback(
-    (modelValue: string) => {
-      dispatch(setSelectedModel(modelValue));
+    (modelValue: string, isImageModel: boolean) => {
+      if (isImageModel) {
+        dispatch(setSelectedImageModel(modelValue));
+      } else {
+        dispatch(setSelectedModel(modelValue));
+      }
       onClose();
     },
     [dispatch, onClose]
@@ -38,24 +51,26 @@ const QuickMenu = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setFocusedIndex((prev) => (prev + 1) % availableModels.length);
+        setFocusedIndex((prev) => (prev + 1) % allModels.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setFocusedIndex((prev) =>
-          prev === 0 ? availableModels.length - 1 : prev - 1
+          prev === 0 ? allModels.length - 1 : prev - 1
         );
       } else if (e.key === "Tab") {
         e.preventDefault();
         if (e.shiftKey) {
           setFocusedIndex((prev) =>
-            prev === 0 ? availableModels.length - 1 : prev - 1
+            prev === 0 ? allModels.length - 1 : prev - 1
           );
         } else {
-          setFocusedIndex((prev) => (prev + 1) % availableModels.length);
+          setFocusedIndex((prev) => (prev + 1) % allModels.length);
         }
       } else if (e.key === "Enter") {
         e.preventDefault();
-        handleModelSelect(availableModels[focusedIndex].value);
+        const model = allModels[focusedIndex];
+        const isImageModel = availableImageModels.some(m => m.value === model.value);
+        handleModelSelect(model.value, isImageModel);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onClose();
@@ -64,7 +79,7 @@ const QuickMenu = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, focusedIndex, handleModelSelect, onClose]);
+  }, [isOpen, focusedIndex, handleModelSelect, onClose, allModels]);
 
   return (
     <AnimatePresence>
@@ -89,7 +104,12 @@ const QuickMenu = ({
           >
             <div className="py-1 w-full">
               <div className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
-                Select Model
+                Settings
+              </div>
+              
+              {/* Main Model Section */}
+              <div className="px-4 py-2 text-xs font-mono text-white/30 uppercase tracking-wider">
+                Main Model
               </div>
               {availableModels.map((model, index) => {
                 const isSelected = selectedModel === model.value;
@@ -102,8 +122,58 @@ const QuickMenu = ({
                     ref={(el) => {
                       buttonRefs.current[index] = el;
                     }}
-                    onClick={() => handleModelSelect(model.value)}
-                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-all duration-200 flex items-center gap-2 ${
+                    onClick={() => handleModelSelect(model.value, false)}
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 ${
+                      isFocused ? "bg-white/90 text-black" : "bg-transparent"
+                    } ${
+                      isSelected && !isFocused
+                        ? "text-white"
+                        : !isFocused
+                        ? "text-white/70"
+                        : ""
+                    }`}
+                  >
+                    <Icon
+                      className={`size-4 opacity-60 group-hover:translate-x-2 transition-all duration-200 ${
+                        isSelected || isFocused ? "opacity-100" : ""
+                      } ${isFocused ? "translate-x-2" : ""}`}
+                    />
+                    <span
+                      className={`group-hover:translate-x-2 transition-all duration-200 ${
+                        isFocused ? "translate-x-2" : ""
+                      }`}
+                    >
+                      {model.label}
+                    </span>
+                    <span
+                      className={`ml-auto text-xs opacity-40 group-hover:opacity-60 ${
+                        isFocused ? "opacity-60" : ""
+                      }`}
+                    >
+                      {model.value.split("/")[0]}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Image Generation Model Section */}
+              <div className="px-4 py-2 mt-4 text-xs font-mono text-white/30 uppercase tracking-wider">
+                Image Generation Model
+              </div>
+              {availableImageModels.map((model, index) => {
+                const actualIndex = availableModels.length + index;
+                const isSelected = selectedImageModel === model.value;
+                const isFocused = focusedIndex === actualIndex;
+                const Icon = isSelected ? Check : ChevronRight;
+
+                return (
+                  <button
+                    key={model.value}
+                    ref={(el) => {
+                      buttonRefs.current[actualIndex] = el;
+                    }}
+                    onClick={() => handleModelSelect(model.value, true)}
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 ${
                       isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
                       isSelected && !isFocused
@@ -143,4 +213,4 @@ const QuickMenu = ({
   );
 };
 
-export default QuickMenu;
+export default SettingsModal;

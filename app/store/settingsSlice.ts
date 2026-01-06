@@ -19,6 +19,17 @@ export const availableModels: ModelOption[] = [
     value: "anthropic/claude-sonnet-4.5",
   },
 ];
+
+export const availableImageModels: ModelOption[] = [
+  {
+    label: "Nano Banana",
+    value: "google/gemini-2.5-flash-image",
+  },
+  {
+    label: "Nano Banana Pro",
+    value: "google/gemini-3-pro-image-preview",
+  },
+];
 /*   {
     label: "Kimi K2",
     value: "moonshotai/kimi-k2-thinking",
@@ -27,10 +38,12 @@ export const availableModels: ModelOption[] = [
   */
 interface SettingsState {
   selectedModel: string;
+  selectedImageModel: string;
 }
 
 const initialState: SettingsState = {
   selectedModel: availableModels[0].value, // Default to Grok
+  selectedImageModel: availableImageModels[1].value, // Default to Nano Banana pro
 };
 
 const settingsSlice = createSlice({
@@ -40,8 +53,11 @@ const settingsSlice = createSlice({
     setSelectedModel: (state, action: PayloadAction<string>) => {
       state.selectedModel = action.payload;
     },
+    setSelectedImageModel: (state, action: PayloadAction<string>) => {
+      state.selectedImageModel = action.payload;
+    },
   },
 });
 
-export const { setSelectedModel } = settingsSlice.actions;
+export const { setSelectedModel, setSelectedImageModel } = settingsSlice.actions;
 export default settingsSlice.reducer;

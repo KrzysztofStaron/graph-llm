@@ -25,6 +25,7 @@ export class aiService {
     message: string | ChatMessage[],
     options?: {
       model?: string;
+      imageModel?: string;
       provider?: {
         sort?: "latency" | "price" | "throughput";
         allow_fallbacks?: boolean;
@@ -45,6 +46,7 @@ export class aiService {
             ? message
             : [{ role: "user", content: message }],
           ...(options?.model && { model: options.model }),
+          ...(options?.imageModel && { imageModel: options.imageModel }),
           ...(options?.provider && { provider: options.provider }),
         }),
       });
@@ -87,6 +89,7 @@ export class aiService {
     onChunk: (chunk: string) => void,
     options?: {
       model?: string;
+      imageModel?: string;
       provider?: {
         sort?: "latency" | "price" | "throughput";
         allow_fallbacks?: boolean;
@@ -154,6 +157,7 @@ export class aiService {
     onChunk: (chunk: string) => void,
     options?: {
       model?: string;
+      imageModel?: string;
       provider?: {
         sort?: "latency" | "price" | "throughput";
         allow_fallbacks?: boolean;
@@ -169,6 +173,7 @@ export class aiService {
           ? message
           : [{ role: "user", content: message }],
         ...(options?.model && { model: options.model }),
+        ...(options?.imageModel && { imageModel: options.imageModel }),
         ...(options?.provider && { provider: options.provider }),
       });
 

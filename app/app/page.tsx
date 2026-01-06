@@ -18,8 +18,8 @@ import { useContextMenu } from "../hooks/useContextMenu";
 import { useAIChat } from "../hooks/useAIChat";
 import { globals } from "../globals";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import QuickMenu from "./QuickMenu";
-import { HelpCircle } from "lucide-react";
+import SettingsModal from "./QuickMenu";
+import { HelpCircle, Settings } from "lucide-react";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
@@ -91,7 +91,7 @@ const AppPageContent = () => {
         onRequestContextMenu={handleRequestContextMenu}
       />
       {quickMenuOpen && (
-        <QuickMenu
+        <SettingsModal
           isOpen={quickMenuOpen}
           onClose={() => setQuickMenuOpen(false)}
         />
@@ -129,7 +129,18 @@ const AppPageContent = () => {
           <AudioPlayerIndicator onStop={stopAudio} isLoading={isLoadingAudio} />
         )}
       </AnimatePresence>
-      <ModelIndicator onClick={() => setQuickMenuOpen(prev => !prev)} />
+      <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 pointer-events-auto">
+        <ModelIndicator onClick={() => setQuickMenuOpen(prev => !prev)} />
+        <button
+          onClick={() => setQuickMenuOpen(prev => !prev)}
+          className="pointer-events-auto cursor-pointer"
+          aria-label="Open settings"
+        >
+          <div className="px-3 py-1.5 rounded-md border border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm shadow-lg hover:bg-white/5 transition-colors">
+            <Settings className="size-4 text-white/60" />
+          </div>
+        </button>
+      </div>
       <button
         onClick={() => setTipsOpen(true)}
         className="fixed top-4 right-4 z-40 pointer-events-auto cursor-pointer"

@@ -12,8 +12,8 @@ export const ModelIndicator = ({onClick}: {onClick: () => void}) => {
   if (!currentModel) return null;
 
   return (
-    <button className="fixed bottom-4 right-4 z-40 pointer-events-auto cursor-pointer" onClick={onClick}>
-      <div className="px-3 py-1.5 rounded-md border border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm shadow-lg">
+    <button className="pointer-events-auto cursor-pointer" onClick={onClick}>
+      <div className="px-3 py-1.5 rounded-md border border-white/10 bg-[#0a0a0a]/80 backdrop-blur-sm shadow-lg hover:bg-white/5 transition-colors">
         <div className="flex items-center gap-2">
           <div className="size-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-xs font-mono text-white/60">
