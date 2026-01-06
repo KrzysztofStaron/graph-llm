@@ -9,6 +9,43 @@ type ImageResponseNodeProps = {
 const arraysEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
+// Animated loading indicator component
+const ImageLoadingIndicator = () => (
+  <div className="flex flex-col items-center justify-center gap-4 p-12">
+    {/* Animated image icon */}
+    <div className="relative w-16 h-16">
+      {/* Outer rotating ring */}
+      <div className="absolute inset-0 rounded-lg border-2 border-white/20 border-t-white/70 animate-spin" />
+      
+      {/* Inner image icon */}
+      <div className="absolute inset-2 flex items-center justify-center">
+        <svg
+          className="w-8 h-8 text-white/70"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      </div>
+      
+      {/* Pulsing dots */}
+      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" style={{ animationDelay: '0ms' }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" style={{ animationDelay: '150ms' }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+    
+    <p className="text-sm font-mono text-white/70">Processing image…</p>
+  </div>
+);
+
 export const ImageResponseNode = memo(
   function ImageResponseNode({
     node,
@@ -34,22 +71,19 @@ export const ImageResponseNode = memo(
     };
 
     return (
-      <div className="flex items-center group max-w-[520px]">
+      <div className="max-w-[808px] min-w-[200px] flex items-center group">
         <div
-          className="relative w-full inline-flex items-center justify-center overflow-hidden rounded-3xl bg-linear-to-tr p-px from-emerald-500/20 to-teal-400/30"
+          className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
           style={{
             boxShadow: isSelected
-              ? "0 0 0 2px rgba(16, 185, 129, 0.6), 0 0 24px rgba(16, 185, 129, 0.3)"
+              ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
               : undefined,
             transition: "box-shadow 0.2s ease",
           }}
         >
           <div className="flex flex-col items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden w-full">
             {isLoading ? (
-              <div className="flex items-center justify-center gap-3 p-8 text-white/70">
-                <div className="size-5 rounded-full border-2 border-emerald-500/30 border-t-emerald-400 animate-spin" />
-                <p className="text-sm font-mono">Generating image…</p>
-              </div>
+              <ImageLoadingIndicator />
             ) : node.error || hasError ? (
               <div className="flex items-start gap-3 p-6 text-red-400">
                 <div className="size-4 mt-0.5 shrink-0">
@@ -87,13 +121,13 @@ export const ImageResponseNode = memo(
               <div className="relative">
                 {!isLoaded && (
                   <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
-                    <div className="size-5 rounded-full border-2 border-emerald-500/30 border-t-emerald-400 animate-spin" />
+                    <div className="size-5 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
                   </div>
                 )}
                 <img
                   src={node.value}
                   alt={node.prompt || "Generated image"}
-                  className={`max-w-[500px] h-auto object-contain transition-opacity duration-300 ${
+                  className={`w-full h-auto object-contain transition-opacity duration-300 ${
                     isLoaded ? "opacity-100" : "opacity-0"
                   }`}
                   onLoad={() => setIsLoaded(true)}
@@ -105,6 +139,7 @@ export const ImageResponseNode = memo(
                   <div className="flex gap-2 p-3">
                     <button
                       onClick={handleDownload}
+                      onMouseDown={(e) => e.stopPropagation()}
                       className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-medium hover:bg-white/20 transition-colors flex items-center gap-1.5"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,6 +151,7 @@ export const ImageResponseNode = memo(
                       href={node.value}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onMouseDown={(e) => e.stopPropagation()}
                       className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-medium hover:bg-white/20 transition-colors flex items-center gap-1.5"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

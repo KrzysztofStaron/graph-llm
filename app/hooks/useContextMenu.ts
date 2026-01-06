@@ -295,12 +295,13 @@ export function useContextMenu({
         items.push({ label: "Ask Question", onClick: handleAskQuestion });
       }
 
-      // Show "Listen" for any selected nodes that have text content (but not images)
+      // Show "Listen" for any selected nodes that have text content (but not images or image responses)
       const hasTextContent = Array.from(selectedNodeIds).some((nodeId) => {
         const node = nodes[nodeId];
         return (
           node &&
           node.type !== "image-context" &&
+          node.type !== "image-response" &&
           node.value &&
           node.value.trim().length > 0
         );
@@ -368,9 +369,10 @@ export function useContextMenu({
       items.push({ label: "Ask Question", onClick: handleAskQuestion });
     }
 
-    // Show "Listen" if node has text content (but not for images)
+    // Show "Listen" if node has text content (but not for images or image responses)
     if (
       node.type !== "image-context" &&
+      node.type !== "image-response" &&
       node.value &&
       node.value.trim().length > 0
     ) {
