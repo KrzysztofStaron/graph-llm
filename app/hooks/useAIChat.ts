@@ -221,10 +221,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           { model: selectedModel },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAIChat.ts:182',message:'onImage callback triggered',data:{imageUrl:imageUrl.substring(0,50),prompt},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-            // #endregion
-            
             // Immediately swap to image-response type to show image loading animation
             treeManager.patchNode(responseNodeId, {
               type: "image-response",

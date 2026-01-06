@@ -340,9 +340,6 @@ export class aiService {
                 }
 
                 try {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'aiService.ts:320',message:'Raw SSE data received',data:{data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-                  // #endregion
                   const parsed = JSON.parse(data) as { 
                     content?: string; 
                     error?: string;
