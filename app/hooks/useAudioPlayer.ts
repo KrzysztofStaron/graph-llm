@@ -96,6 +96,11 @@ export const useAudioPlayer = () => {
   const [words, setWords] = useState<
     Array<{ word: string; start: number; end: number }>
   >([]);
+  const eventListenersRef = useRef<{
+    timeupdate?: () => void;
+    ended?: () => void;
+    error?: () => void;
+  }>({});
 
   const playAudio = async (
     nodeIds: string[],
@@ -154,9 +159,8 @@ export const useAudioPlayer = () => {
     setIsPlayingAudio(true);
 
     // Set up word tracking if we have timestamps
-    let updateCurrentWordHandler: (() => void) | null = null;
     if (wordsData && wordsData.length > 0) {
-      updateCurrentWordHandler = () => {
+      const updateCurrentWordHandler = () => {
         if (!audioRef.current) return;
         const currentTime = audioRef.current.currentTime;
         const wordIndex = wordsData.findIndex(
@@ -166,6 +170,7 @@ export const useAudioPlayer = () => {
       };
 
       audio.addEventListener("timeupdate", updateCurrentWordHandler);
+      eventListenersRef.current.timeupdate = updateCurrentWordHandler;
     }
 
     const cleanup = () => {
@@ -173,9 +178,19 @@ export const useAudioPlayer = () => {
       setIsLoadingAudio(false);
       setCurrentWordIndex(null);
       setWords([]);
-      if (updateCurrentWordHandler) {
-        audio.removeEventListener("timeupdate", updateCurrentWordHandler);
+      
+      // Remove all event listeners
+      if (eventListenersRef.current.timeupdate) {
+        audio.removeEventListener("timeupdate", eventListenersRef.current.timeupdate);
       }
+      if (eventListenersRef.current.ended) {
+        audio.removeEventListener("ended", eventListenersRef.current.ended);
+      }
+      if (eventListenersRef.current.error) {
+        audio.removeEventListener("error", eventListenersRef.current.error);
+      }
+      eventListenersRef.current = {};
+      
       if (audioUrlRef.current) {
         URL.revokeObjectURL(audioUrlRef.current);
         audioUrlRef.current = null;
@@ -200,6 +215,10 @@ export const useAudioPlayer = () => {
       cleanup();
     });
 
+    // Store cleanup handlers for later removal
+    eventListenersRef.current.ended = cleanup;
+    eventListenersRef.current.error = cleanup;
+
     // Clean up when audio finishes
     audio.addEventListener("ended", cleanup);
 
@@ -208,14 +227,30 @@ export const useAudioPlayer = () => {
   };
 
   const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio) {
+      // Remove all event listeners before pausing
+      if (eventListenersRef.current.timeupdate) {
+        audio.removeEventListener("timeupdate", eventListenersRef.current.timeupdate);
+      }
+      if (eventListenersRef.current.ended) {
+        audio.removeEventListener("ended", eventListenersRef.current.ended);
+      }
+      if (eventListenersRef.current.error) {
+        audio.removeEventListener("error", eventListenersRef.current.error);
+      }
+      eventListenersRef.current = {};
+      
+      // Stop and cleanup audio
+      audio.pause();
+      audio.currentTime = 0;
     }
+    
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    
     audioRef.current = null;
     setIsPlayingAudio(false);
     setIsLoadingAudio(false);
