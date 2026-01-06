@@ -260,9 +260,9 @@ export class TreeManager {
           ? "user"
           : "assistant";
 
-      // Check if there are any image nodes at this level
+      // Check if there are any image nodes at this level (context images or response images)
       const hasImages = levelNodes.some(
-        (node) => node.type === "image-context"
+        (node) => node.type === "image-context" || node.type === "image-response"
       );
 
       if (hasImages) {
@@ -272,9 +272,9 @@ export class TreeManager {
           | { type: "image_url"; image_url: { url: string } }
         > = [];
 
-        // Collect all text nodes
+        // Collect all text nodes (exclude both image-context and image-response)
         const textNodes = levelNodes.filter(
-          (node) => node.type !== "image-context"
+          (node) => node.type !== "image-context" && node.type !== "image-response"
         );
         if (textNodes.length > 0) {
           const mergedText = textNodes
@@ -287,9 +287,9 @@ export class TreeManager {
           });
         }
 
-        // Add image nodes
+        // Add image nodes (both image-context and image-response)
         const imageNodes = levelNodes.filter(
-          (node) => node.type === "image-context"
+          (node) => node.type === "image-context" || node.type === "image-response"
         );
         imageNodes.forEach((node) => {
           contentArray.push({
@@ -335,6 +335,7 @@ export class TreeManager {
           User messages contain metadata markers showing the graph structure:
           - [Q1 replying-to="A2"]...[/Q1] = Question node #1, replying to Answer #2
           - [A1]...[/A1] = Answer node #1 (no parent)
+          - [IMG1]...[/IMG1] = Image response node #1 (may appear with images in context)
           - [DOC1 replying-to="Q3"]...[/DOC1] = Document node #1, replying to Question #3
           - [CTX1]...[/CTX1] = Context node #1
           - <separatorOfContextualData /> = Separates multiple nodes at the same level
@@ -357,7 +358,7 @@ export class TreeManager {
           You: Addition is the mathematical operation that combines two numbers...
           
           RULES:
-          - NEVER wrap your responses in [Q], [A], [DOC], [CTX] or any metadata markers
+          - NEVER wrap your responses in [Q], [A], [IMG], [DOC], [CTX] or any metadata markers
           - NEVER include replying-to attributes or <separatorOfContextualData /> in responses
           - Use the replying-to information to understand conversation context and thread relationships
           - Your responses should be pure content, markdown, and LaTeX only

@@ -76,7 +76,18 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                 { model: selectedModel },
                 // onImage callback for cascade regeneration
                 (imageUrl, prompt) => {
-                  // Image result will be handled after streamChat completes
+                  // Immediately swap to image-response type to show image loading animation
+                  treeManager.patchNode(responseNode.id, {
+                    type: "image-response",
+                    value: "",
+                    error: undefined,
+                  });
+                  currentNodes[responseNode.id] = {
+                    ...currentNodes[responseNode.id],
+                    type: "image-response",
+                    value: "",
+                    error: undefined,
+                  };
                 }
               )
               .catch((error) => {
@@ -208,11 +219,25 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             };
           },
           { model: selectedModel },
-          // onImage callback - called when image is generated
+          // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAIChat.ts:182',message:'onImage callback triggered',data:{imageUrl:imageUrl.substring(0,50),prompt},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
             // #endregion
+            
+            // Immediately swap to image-response type to show image loading animation
+            treeManager.patchNode(responseNodeId, {
+              type: "image-response",
+              value: "",
+              error: undefined,
+            });
+            nodesWithQuery[responseNodeId] = {
+              ...nodesWithQuery[responseNodeId],
+              type: "image-response",
+              value: "",
+              error: undefined,
+            };
+            
             imageResult = { url: imageUrl, prompt };
           }
         )
