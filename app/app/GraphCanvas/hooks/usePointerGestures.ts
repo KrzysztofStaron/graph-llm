@@ -58,7 +58,7 @@ export function usePointerGestures({
       const isMouse = e.pointerType === "mouse";
       const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
 
-      // Two-finger tap toggle (multi-select on mobile)
+      // Two-finger tap toggle (multi-select on mobile) - DON'T clear selection
       if (isTouch && !e.isPrimary) {
         e.preventDefault();
         e.stopPropagation();
@@ -90,7 +90,8 @@ export function usePointerGestures({
         clearSelection();
       }
 
-      // Mobile: clear selection on touch (will be restored if long-press fires)
+      // Mobile: ONLY clear selection on single-finger touch if node not already selected
+      // (will be restored if long-press fires)
       if (isTouch && !isNodeSelected) {
         clearSelection();
       }
@@ -173,9 +174,16 @@ export function usePointerGestures({
     (e: React.PointerEvent) => {
       const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
 
-      if (isTouch && canvasTapRef.current && !canvasTapRef.current.hasMoved && !longPressFiredRef.current) {
-        // Tap on empty canvas clears selection
-        clearSelection();
+      // Only clear selection if it was truly a tap (not a pan/drag) and not a long-press
+      if (isTouch && canvasTapRef.current) {
+        const dx = e.clientX - canvasTapRef.current.startX;
+        const dy = e.clientY - canvasTapRef.current.startY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only clear if tap (not moved) and not long-press
+        if (distance <= MOVE_THRESHOLD && !canvasTapRef.current.hasMoved && !longPressFiredRef.current) {
+          clearSelection();
+        }
       }
 
       canvasTapRef.current = null;
