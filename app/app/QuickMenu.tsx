@@ -24,7 +24,23 @@ const SettingsModal = ({
 
   const allModels = [...availableModels, ...availableImageModels];
   
+  // Detect mobile device
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const hasCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const hasNoHover = window.matchMedia("(hover: none)").matches;
+      setIsMobile(hasCoarsePointer || hasNoHover);
+    };
+    checkMobile();
+  }, []);
+  
   const getInitialIndex = () => {
+    // On mobile, don't pre-select/focus any model
+    if (isMobile) return -1;
+    
+    // On desktop, focus the currently selected model
     const currentIndex = allModels.findIndex(
       (model) => model.value === selectedModel || model.value === selectedImageModel
     );
@@ -32,6 +48,13 @@ const SettingsModal = ({
   };
 
   const [focusedIndex, setFocusedIndex] = useState(getInitialIndex);
+
+  // Reset focus when modal opens, respecting mobile/desktop state
+  useEffect(() => {
+    if (isOpen) {
+      setFocusedIndex(getInitialIndex());
+    }
+  }, [isOpen, isMobile]);
 
   const handleModelSelect = useCallback(
     (modelValue: string, isImageModel: boolean) => {
@@ -51,23 +74,32 @@ const SettingsModal = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setFocusedIndex((prev) => (prev + 1) % allModels.length);
+        setFocusedIndex((prev) => {
+          if (prev === -1) return 0; // Start from first item if no focus
+          return (prev + 1) % allModels.length;
+        });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setFocusedIndex((prev) =>
-          prev === 0 ? allModels.length - 1 : prev - 1
-        );
+        setFocusedIndex((prev) => {
+          if (prev === -1) return allModels.length - 1; // Start from last item if no focus
+          return prev === 0 ? allModels.length - 1 : prev - 1;
+        });
       } else if (e.key === "Tab") {
         e.preventDefault();
         if (e.shiftKey) {
-          setFocusedIndex((prev) =>
-            prev === 0 ? allModels.length - 1 : prev - 1
-          );
+          setFocusedIndex((prev) => {
+            if (prev === -1) return allModels.length - 1;
+            return prev === 0 ? allModels.length - 1 : prev - 1;
+          });
         } else {
-          setFocusedIndex((prev) => (prev + 1) % allModels.length);
+          setFocusedIndex((prev) => {
+            if (prev === -1) return 0;
+            return (prev + 1) % allModels.length;
+          });
         }
       } else if (e.key === "Enter") {
         e.preventDefault();
+        if (focusedIndex === -1) return; // No action if nothing focused
         const model = allModels[focusedIndex];
         const isImageModel = availableImageModels.some(m => m.value === model.value);
         handleModelSelect(model.value, isImageModel);
