@@ -96,39 +96,21 @@ export const InputFieldNode = memo(
     };
 
   const handleEdit = useCallback(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEdit',message:'handleEdit called',data:{currentMode:mode,nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
-    
-    // Ask mode allows for free text input
     setMode(Mode.ASK);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEdit-after',message:'setMode called',data:{newMode:'ASK',nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
-  }, [mode, node.id]);
+  }, []);
 
   // Listen for custom edit event from context menu
   useEffect(() => {
     const handleEditEvent = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:handleEditEvent',message:'editInput event received',data:{nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      
       handleEdit();
     };
     
     const element = containerRef.current;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InputFieldNode.tsx:useEffect-listener',message:'Event listener setup',data:{elementExists:!!element,nodeId:node.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
-    
     if (element) {
       element.addEventListener("editInput", handleEditEvent);
       return () => element.removeEventListener("editInput", handleEditEvent);
     }
-  }, [handleEdit, node.id]);
+  }, [handleEdit]);
 
   return (
     <div

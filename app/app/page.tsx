@@ -60,16 +60,15 @@ const AppPageContent = () => {
       setEditingContextNodeId(nodeId);
     },
     onEditInput: (nodeId) => {
-      // Input nodes handle their own edit mode internally
-      // We can trigger it by dispatching a custom event or updating state
       const node = graphCanvasRef.current?.nodes[nodeId];
       if (node && node.type === "input") {
-        // The InputFieldNode will handle entering edit mode on double-click
-        // For context menu, we'll use the same mechanism
         const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
         if (nodeElement) {
-          const event = new CustomEvent("editInput");
-          nodeElement.dispatchEvent(event);
+          // Find the inner container div where the listener is attached
+          const innerElement = nodeElement.querySelector('.w-\\[400px\\]');
+          const targetElement = innerElement || nodeElement;
+          const event = new CustomEvent("editInput", { bubbles: true });
+          targetElement.dispatchEvent(event);
         }
       }
     },
