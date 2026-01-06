@@ -103,9 +103,9 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       });
     }, []);
 
-    const clearSelection = useCallback(() => {
-      setSelectedNodeIds(new Set());
-    }, []);
+  const clearSelection = useCallback(() => {
+    setSelectedNodeIds(new Set());
+  }, []);
 
     const [localNodeDimensions, setLocalNodeDimensions] =
       useState<NodeDimensions>({});
@@ -125,6 +125,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       localNodeDimensions,
       onDropFilesAsContext,
       onRequestContextMenu,
+      onCanvasClick: clearSelection,
     });
 
     // History management and tree manager
@@ -451,9 +452,11 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
               if (e.button === 2) return;
 
               const target = e.target as HTMLElement;
+              
+              // Check if we clicked on or inside a node
               const closestNode = target.closest("[data-node-id]");
 
-              // Only clear selection if clicking on canvas (not on a node) and shift not held
+              // Clear selection if not clicking on a node and shift not held
               if (!closestNode && !e.shiftKey) {
                 clearSelection();
               }

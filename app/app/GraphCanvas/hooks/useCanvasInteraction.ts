@@ -15,6 +15,7 @@ interface UseCanvasInteractionProps {
     clientY: number,
     nodeId?: string
   ) => void;
+  onCanvasClick?: () => void;
 }
 
 interface UseCanvasInteractionReturn {
@@ -33,6 +34,7 @@ export function useCanvasInteraction({
   localNodeDimensions,
   onDropFilesAsContext,
   onRequestContextMenu,
+  onCanvasClick,
 }: UseCanvasInteractionProps): UseCanvasInteractionReturn {
   // Transform state
   const [transform, setTransform] = useReducer(
@@ -155,6 +157,12 @@ export function useCanvasInteraction({
     transformRef.current = transform;
   }, [transform]);
 
+  // Store callback refs to avoid recreating zoom behavior
+  const onCanvasClickRef = useRef(onCanvasClick);
+  useEffect(() => {
+    onCanvasClickRef.current = onCanvasClick;
+  }, [onCanvasClick]);
+
   // Initialize zoom behavior
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -164,6 +172,20 @@ export function useCanvasInteraction({
     const zoom = d3
       .zoom<HTMLDivElement, unknown>()
       .scaleExtent([0.1, 4])
+      .on("start", (event) => {
+        // Clear selection when starting pan on empty canvas (not on a node)
+        const target = event.sourceEvent?.target as HTMLElement | undefined;
+        if (!target) return;
+        
+        const isNode = target.closest("[data-node-id]");
+        const isRightClick = event.sourceEvent?.button === 2;
+        const isShiftHeld = event.sourceEvent?.shiftKey;
+        
+        // Clear selection if clicking on canvas (not node), not right-click, and not shift
+        if (!isNode && !isRightClick && !isShiftHeld && onCanvasClickRef.current) {
+          onCanvasClickRef.current();
+        }
+      })
       .on("zoom", (event) => {
         const { x, y, k } = event.transform;
         if (contentRef.current) {
@@ -177,6 +199,9 @@ export function useCanvasInteraction({
 
         // Always allow zoom with wheel (unless stopped by stopPropagation)
         if (event.type === "wheel") return true;
+
+        // Disable double-click zoom
+        if (event.type === "dblclick") return false;
 
         // For other events (mousedown, touchstart), filter out interactive elements
         // Prevent zoom/pan on nodes - the node drag handler will handle it
@@ -194,6 +219,10 @@ export function useCanvasInteraction({
 
     const selection = d3.select(viewport);
     selection.call(zoom);
+    
+    // Explicitly disable double-click to zoom
+    selection.on("dblclick.zoom", null);
+    
     zoomBehaviorRef.current = zoom;
     setIsZoomInitialized(true);
 
