@@ -73,7 +73,11 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                     error: undefined,
                   };
                 },
-                { model: selectedModel }
+                { model: selectedModel },
+                // onImage callback for cascade regeneration
+                (imageUrl, prompt) => {
+                  // Image result will be handled after streamChat completes
+                }
               )
               .catch((error) => {
                 const errorMessage =
@@ -88,6 +92,33 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
             if (result === null) {
               return;
+            }
+
+            // Handle result type switching (text <-> image) in-place
+            if (result.type === "image") {
+              // Patch the existing node to change its type to image-response
+              treeManager.patchNode(responseNode.id, {
+                type: "image-response",
+                value: result.content,
+                prompt: result.prompt,
+              });
+              currentNodes[responseNode.id] = {
+                ...currentNodes[responseNode.id],
+                type: "image-response",
+                value: result.content,
+                prompt: result.prompt,
+              };
+            } else {
+              // For text responses, ensure type is "response" and clear any prompt
+              treeManager.patchNode(responseNode.id, {
+                type: "response",
+                prompt: undefined,
+              });
+              currentNodes[responseNode.id] = {
+                ...currentNodes[responseNode.id],
+                type: "response",
+                prompt: undefined,
+              };
             }
           })
         );
@@ -106,10 +137,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Get the current node from nodesRef to use up-to-date position (may have been moved by collision resolution)
       const currentCaller = nodesRef.current[caller.id] || caller;
 
-      // Find the first response child node
+      // Find the first response child node (text or image)
       const existingResponseNodeId = currentCaller.childrenIds.find((childId: string) => {
         const childNode = nodesRef.current[childId];
-        return childNode?.type === "response";
+        return childNode?.type === "response" || childNode?.type === "image-response";
       });
 
       let responseNodeId: string;
@@ -203,22 +234,33 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         return;
       }
 
-      // Handle image response - convert the response node to an image-response node
+      // Handle image response - convert the response node to an image-response node in-place
       if (result.type === "image") {
-        // Delete the text response node and create an image-response node in its place
-        const imageNode = createNode("image-response", responseNode.x, responseNode.y) as ImageResponseNode;
-        imageNode.value = result.content;
-        imageNode.prompt = result.prompt;
-        
-        // Remove the old response node and replace with image node
-        treeManager.deleteNodeDetach(responseNodeId);
-        treeManager.addNode(imageNode);
-        treeManager.linkNodes(caller.id, imageNode.id);
-        
-        // Update tracking
-        responseNodeId = imageNode.id;
-        responseNode = imageNode;
-        nodesWithQuery[imageNode.id] = imageNode;
+        // Patch the existing node to change its type to image-response
+        treeManager.patchNode(responseNodeId, {
+          type: "image-response",
+          value: result.content,
+          prompt: result.prompt,
+        });
+        nodesWithQuery[responseNodeId] = {
+          ...nodesWithQuery[responseNodeId],
+          type: "image-response",
+          value: result.content,
+          prompt: result.prompt,
+        };
+        responseNode = nodesWithQuery[responseNodeId];
+      } else {
+        // For text responses, ensure type is "response" and clear any prompt
+        treeManager.patchNode(responseNodeId, {
+          type: "response",
+          prompt: undefined,
+        });
+        nodesWithQuery[responseNodeId] = {
+          ...nodesWithQuery[responseNodeId],
+          type: "response",
+          prompt: undefined,
+        };
+        responseNode = nodesWithQuery[responseNodeId];
       }
 
       // If response has no Input Node, create a new one
@@ -256,10 +298,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       }
 
       // Cascading updates: find all descendant response nodes and update them level by level
-      // Skip cascade for image responses as they don't have text continuations
-      if (result.type === "text") {
-        await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
-      }
+      await cascadeUpdateDescendants(responseNodeId, nodesWithQuery);
     },
     [graphCanvasRef, cascadeUpdateDescendants, selectedModel]
   );

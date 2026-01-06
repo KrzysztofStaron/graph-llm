@@ -83,12 +83,13 @@ export class TreeManager {
    * Finds all descendant response nodes starting from a given node, grouped by depth level (BFS).
    * Returns an array of arrays, where each inner array contains response nodes at the same depth.
    * Depth is measured by the number of response nodes encountered, not total nodes.
+   * Includes both text responses and image responses.
    */
   static findDescendantResponseNodes(
     startNodeId: string,
     nodes: GraphNodes
-  ): ResponseNode[][] {
-    const result: ResponseNode[][] = [];
+  ): (ResponseNode | ImageResponseNode)[][] {
+    const result: (ResponseNode | ImageResponseNode)[][] = [];
     const visited = new Set<string>();
 
     // Queue contains [nodeId, responseDepth] pairs
@@ -115,12 +116,12 @@ export class TreeManager {
 
       let nextDepth = responseDepth;
 
-      // If it's a response node, add it to the appropriate depth level
-      if (node.type === "response") {
+      // If it's a response node (text or image), add it to the appropriate depth level
+      if (node.type === "response" || node.type === "image-response") {
         while (result.length <= responseDepth) {
           result.push([]);
         }
-        result[responseDepth].push(node as ResponseNode);
+        result[responseDepth].push(node as ResponseNode | ImageResponseNode);
         // Increment depth for children since we passed through a response node
         nextDepth = responseDepth + 1;
       }
