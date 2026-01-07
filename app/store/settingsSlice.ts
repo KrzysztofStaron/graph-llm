@@ -45,7 +45,7 @@ interface SettingsState {
 const initialState: SettingsState = {
   selectedModel: availableModels[0].value, // Default to Grok
   selectedImageModel: availableImageModels[1].value, // Default to Nano Banana pro
-  webSearchEnabled: false, // Default to disabled
+  webSearchEnabled: true, // Default to enabled
 };
 
 const settingsSlice = createSlice({
