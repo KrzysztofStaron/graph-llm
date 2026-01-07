@@ -418,6 +418,7 @@ export function useContextMenu({
 
     if (!nodes || !selectedNodeIds) return [];
 
+    const isMobile = window.innerWidth < 768;
     const isActingUponNodes = selectedNodeIds.size > 0;
 
     // State 1: Acting upon nodes (when nodes are selected)
@@ -453,7 +454,7 @@ export function useContextMenu({
         contextLikeCount >= 1 &&
         targetNodeCount + contextLikeCount === selectedNodeIds.size;
 
-      if (showLink) {
+      if (showLink && !isMobile) {
         items.push({ label: "Link", onClick: handleLink });
       }
 
@@ -483,35 +484,37 @@ export function useContextMenu({
       }
 
       // Separate / Remove edge logic
-      if (selectedNodeIds.size === 1) {
-        const nodeId = selectedArray[0];
-        const node = nodes[nodeId];
-        // Show "Separate" only if node has connections
-        if (
-          node &&
-          (node.parentIds.length > 0 || node.childrenIds.length > 0)
-        ) {
-          items.push({
-            label: "Separate",
-            onClick: () => handleSeparate(nodeId),
-          });
-        }
-      } else if (selectedNodeIds.size >= 2) {
-        // Check if there's at least one edge among selected nodes
-        const hasEdgeBetweenSelected = selectedArray.some((nodeId) => {
+      if (!isMobile) {
+        if (selectedNodeIds.size === 1) {
+          const nodeId = selectedArray[0];
           const node = nodes[nodeId];
-          if (!node) return false;
-          return (
-            node.parentIds.some((pid) => selectedNodeIds.has(pid)) ||
-            node.childrenIds.some((cid) => selectedNodeIds.has(cid))
-          );
-        });
-
-        if (hasEdgeBetweenSelected) {
-          items.push({
-            label: "Remove edge",
-            onClick: () => handleRemoveEdgesBetween(selectedNodeIds),
+          // Show "Separate" only if node has connections
+          if (
+            node &&
+            (node.parentIds.length > 0 || node.childrenIds.length > 0)
+          ) {
+            items.push({
+              label: "Separate",
+              onClick: () => handleSeparate(nodeId),
+            });
+          }
+        } else if (selectedNodeIds.size >= 2) {
+          // Check if there's at least one edge among selected nodes
+          const hasEdgeBetweenSelected = selectedArray.some((nodeId) => {
+            const node = nodes[nodeId];
+            if (!node) return false;
+            return (
+              node.parentIds.some((pid) => selectedNodeIds.has(pid)) ||
+              node.childrenIds.some((cid) => selectedNodeIds.has(cid))
+            );
           });
+
+          if (hasEdgeBetweenSelected) {
+            items.push({
+              label: "Remove edge",
+              onClick: () => handleRemoveEdgesBetween(selectedNodeIds),
+            });
+          }
         }
       }
 
@@ -590,8 +593,8 @@ export function useContextMenu({
       items.push({ label: "Listen", onClick: handleListen });
     }
 
-    // Show "Separate" if node has connections
-    if (node.parentIds.length > 0 || node.childrenIds.length > 0) {
+    // Show "Separate" if node has connections (not on mobile)
+    if (!isMobile && (node.parentIds.length > 0 || node.childrenIds.length > 0)) {
       items.push({
         label: "Separate",
         onClick: () => handleSeparate(node.id),
