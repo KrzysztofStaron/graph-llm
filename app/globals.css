@@ -69,3 +69,45 @@ body {
 .unstable {
   animation: unstable 1s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite both;
 }
+
+/* Markdown content styling for proper text rendering */
+.markdown-content {
+  word-break: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: none;
+  white-space: normal;
+}
+
+.markdown-content p,
+.markdown-content span,
+.markdown-content strong,
+.markdown-content em {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Preserve table structure and layout */
+.markdown-content table {
+  display: table;
+  table-layout: auto;
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: normal;
+}
+
+.markdown-content thead,
+.markdown-content tbody {
+  display: table-row-group;
+}
+
+.markdown-content tr {
+  display: table-row;
+}
+
+.markdown-content th,
+.markdown-content td {
+  display: table-cell;
+  word-break: normal;
+  overflow-wrap: normal;
+}

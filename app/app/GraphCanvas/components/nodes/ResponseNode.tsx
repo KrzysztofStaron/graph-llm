@@ -63,7 +63,7 @@ const markdownComponents = {
     <strong className="font-semibold inline">{children}</strong>
   ),
   em: ({ children }: { children?: React.ReactNode }) => (
-    <em className="italic">{children}</em>
+    <em className="italic inline">{children}</em>
   ),
   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
     <a
@@ -103,8 +103,8 @@ const markdownComponents = {
   ),
   hr: () => <hr className="border-white/10 my-6" />,
   table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="overflow-x-auto mb-2">
-      <table className="w-full border-collapse text-sm">{children}</table>
+    <div className="overflow-x-auto mb-2 not-prose">
+      <table className="w-full border-collapse text-sm table-auto">{children}</table>
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => (
@@ -117,43 +117,85 @@ const markdownComponents = {
     <tr className="border-b border-white/10 last:border-b-0">{children}</tr>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-white/10 px-2 py-1 text-left font-semibold align-top">
+    <th className="border border-white/10 px-3 py-2 text-left font-semibold align-top whitespace-nowrap">
       {children}
     </th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-white/10 px-2 py-1 align-top">{children}</td>
+    <td className="border border-white/10 px-3 py-2 align-top">{children}</td>
   ),
 };
 
 // Memoized chunk renderer - only re-renders when its specific content changes
 const MarkdownChunk = memo(
   function MarkdownChunk({ content }: { content: string }) {
+    // Only enable math rendering if content contains actual LaTeX delimiters
+    const hasMath = /\$\$[\s\S]+?\$\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(content);
+    
     return (
-      <ReactMarkdown
-        remarkPlugins={[remarkMath, remarkGfm]}
-        rehypePlugins={[rehypeKatex]}
-        components={markdownComponents}
-      >
-        {content}
-      </ReactMarkdown>
+      <div className="markdown-content">
+        <ReactMarkdown
+          remarkPlugins={[
+            remarkGfm,
+            ...(hasMath ? [remarkMath] : [])
+          ]}
+          rehypePlugins={hasMath ? [rehypeKatex] : []}
+          components={markdownComponents}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
     );
   },
   (prev, next) => prev.content === next.content
 );
 
-// Normalize math delimiters in content
+// Normalize math delimiters and fix common markdown issues
 function normalizeMath(raw: string) {
-  return raw
+  let normalized = raw
     .replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => `$$${math}$$`)
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
+  
+  // Escape dollar signs that are part of currency (not math delimiters)
+  // Match $ followed by digits (currency amounts like $20, $230, etc.)
+  normalized = normalized.replace(/\$(\d)/g, '\\$$1');
+  
+  // Check if content contains markdown tables - if so, skip normalization to avoid breaking them
+  const hasTable = /\|.*\|.*\n\|[\s:-]+\|/.test(normalized);
+  
+  if (hasTable) {
+    // Only do minimal processing for table content
+    return normalized;
+  }
+  
+  // Fix common markdown formatting issues from AI responses
+  // particularly from web search results that may have malformed emphasis
+  normalized = normalized
+    // Fix orphaned asterisks that are separated by spaces (e.g., "* *text")
+    // This often happens when markdown emphasis is malformed
+    // But NOT in list items or tables
+    .replace(/([^*\n])\*\s+\*([^*])/g, '$1$2')
+    // Fix cases where there's no space between text and emphasis markers
+    .replace(/([a-zA-Z0-9])(\*+)([a-zA-Z])/g, '$1 $2$3')
+    .replace(/([a-zA-Z])(\*+)([a-zA-Z0-9])/g, '$1$2 $3')
+    // Clean up any malformed emphasis markers (odd number of asterisks that would break parsing)
+    .replace(/(\*{3,})/g, (match) => {
+      const len = match.length;
+      // Convert odd sequences of 3+ asterisks to proper pairs
+      return len % 2 === 0 ? match : match.slice(0, len - 1);
+    })
+    // Fix multiple spaces that might have been introduced
+    .replace(/  +/g, ' ');
+  
+  return normalized;
 }
 
-// Split markdown into stable chunks (by double newlines, preserving code blocks)
+// Split markdown into stable chunks (by double newlines, preserving code blocks and tables)
 function splitIntoChunks(content: string): string[] {
   const chunks: string[] = [];
   let currentChunk = "";
   let inCodeBlock = false;
+  let inTable = false;
 
   const lines = content.split("\n");
 
@@ -165,10 +207,27 @@ function splitIntoChunks(content: string): string[] {
       inCodeBlock = !inCodeBlock;
     }
 
+    // Track table state - tables have pipes in them
+    const isTableLine = line.includes("|") && !inCodeBlock;
+    const isTableDelimiter = /^\|[\s:-]+\|/.test(line.trim());
+    
+    if (isTableLine || isTableDelimiter) {
+      inTable = true;
+    } else if (inTable && line.trim() === "") {
+      // Empty line after table content - table might be ending
+      // Check if next line is also a table line
+      const nextLine = lines[i + 1];
+      if (nextLine && !nextLine.includes("|")) {
+        inTable = false;
+      }
+    } else if (inTable && !isTableLine) {
+      inTable = false;
+    }
+
     currentChunk += (currentChunk ? "\n" : "") + line;
 
-    // Split on empty lines, but not inside code blocks
-    if (!inCodeBlock && line === "" && currentChunk.trim()) {
+    // Split on empty lines, but not inside code blocks or tables
+    if (!inCodeBlock && !inTable && line === "" && currentChunk.trim()) {
       chunks.push(currentChunk);
       currentChunk = "";
     }
@@ -205,7 +264,7 @@ export const ResponseNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
-          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words">
+          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed">
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
