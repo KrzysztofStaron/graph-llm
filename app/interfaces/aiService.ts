@@ -53,7 +53,7 @@ export class aiService {
             plugins: [
               {
                 id: "web",
-                max_results: 5,
+                engine: "native" 
               }
             ]
           }),
@@ -194,7 +194,7 @@ export class aiService {
           plugins: [
             {
               id: "web",
-              max_results: 5,
+              engine: "native" 
             }
           ]
         }),

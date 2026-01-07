@@ -130,15 +130,17 @@ const markdownComponents = {
 const MarkdownChunk = memo(
   function MarkdownChunk({ content }: { content: string }) {
     // Only enable math rendering if content contains actual LaTeX delimiters
+    // Single $ is disabled for math, only $$ for block math and \(...\) or \[...\] for inline
     const hasMath = /\$\$[\s\S]+?\$\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(content);
+    
+    const remarkPlugins = hasMath
+      ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]]
+      : [remarkGfm];
     
     return (
       <div className="markdown-content">
         <ReactMarkdown
-          remarkPlugins={[
-            remarkGfm,
-            ...(hasMath ? [remarkMath] : [])
-          ]}
+          remarkPlugins={remarkPlugins as any}
           rehypePlugins={hasMath ? [rehypeKatex] : []}
           components={markdownComponents}
         >
@@ -155,10 +157,6 @@ function normalizeMath(raw: string) {
   let normalized = raw
     .replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => `$$${math}$$`)
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
-  
-  // Escape dollar signs that are part of currency (not math delimiters)
-  // Match $ followed by digits (currency amounts like $20, $230, etc.)
-  normalized = normalized.replace(/\$(\d)/g, '\\$$1');
   
   // Check if content contains markdown tables - if so, skip normalization to avoid breaking them
   const hasTable = /\|.*\|.*\n\|[\s:-]+\|/.test(normalized);

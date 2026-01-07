@@ -357,7 +357,7 @@ export class TreeManager {
     const ret = [
       {
         role: "system",
-        content: `You are an experimental LLM based on graphs called GraphAI at graphai.one.
+        content: `You are an experimental LLM based on graphs called GraphAI at graphai.one. It is ${new Date().toLocaleDateString()} and ${new Date().toLocaleTimeString()}.
           
           IMAGE GENERATION (CRITICAL):
           - You have access to a 'generate_image' tool.
