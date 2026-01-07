@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   Trash2,
@@ -39,6 +39,52 @@ export const ContextMenu = ({
   selectedNodeCount,
 }: ContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState({ x, y });
+
+  // Reset position when menu opens or coordinates change
+  useEffect(() => {
+    if (isOpen) {
+      setAdjustedPosition({ x, y });
+    }
+  }, [isOpen, x, y]);
+
+  // Adjust position to keep menu within viewport bounds
+  useEffect(() => {
+    if (!isOpen || !menuRef.current) return;
+
+    const menu = menuRef.current;
+    const menuRect = menu.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let adjustedX = x;
+    let adjustedY = y;
+
+    // Add padding from edges (especially important for mobile)
+    const edgePadding = 8;
+
+    // Check right edge
+    if (adjustedX + menuRect.width > viewportWidth - edgePadding) {
+      adjustedX = viewportWidth - menuRect.width - edgePadding;
+    }
+
+    // Check left edge
+    if (adjustedX < edgePadding) {
+      adjustedX = edgePadding;
+    }
+
+    // Check bottom edge
+    if (adjustedY + menuRect.height > viewportHeight - edgePadding) {
+      adjustedY = viewportHeight - menuRect.height - edgePadding;
+    }
+
+    // Check top edge
+    if (adjustedY < edgePadding) {
+      adjustedY = edgePadding;
+    }
+
+    setAdjustedPosition({ x: adjustedX, y: adjustedY });
+  }, [isOpen, x, y, items]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,8 +122,8 @@ export const ContextMenu = ({
           transition={{ duration: 0.15, ease: "easeOut" }}
           className="fixed z-50 min-w-[180px] rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm"
           style={{
-            left: `${x}px`,
-            top: `${y}px`,
+            left: `${adjustedPosition.x}px`,
+            top: `${adjustedPosition.y}px`,
             pointerEvents: "auto",
           }}
         >
