@@ -403,6 +403,13 @@ export class TreeManager {
           - Your responses should be pure content, markdown, and LaTeX only
           - The system handles all graph metadata automatically
 
+          MATH AND CURRENCY FORMATTING:
+          - For currency amounts: Write $20, $100, $1,500 directly (single $ is NOT treated as LaTeX)
+          - For block math equations: Use $$...$$  (e.g., $$x^2 + y^2 = z^2$$)
+          - For inline LaTeX: Use \\(...\\) (e.g., \\(E = mc^2\\))
+          - For display math: Use \\[...\\] (e.g., \\[\\frac{a}{b}\\])
+          - NEVER use single $ for math (e.g., $x^2$ will NOT render)
+
           Supported Document Types:
           The system can parse and process various document formats:
           - PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), HTML (.html/.htm), TXT (.txt), MD (.md), JSON (.json), CSV (.csv).
