@@ -5,6 +5,7 @@ import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { aiService, StreamResponse } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
+import logger from "../utils/logger";
 
 interface UseAIChatProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -60,11 +61,27 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
             const inputParent = currentNodes[inputParentId];
 
+            logger.info('[CASCADE] Starting AI stream for descendant node', {
+              nodeId: responseNode.id.substring(0, 8),
+              inputParentId: inputParentId.substring(0, 8),
+              model: selectedModel,
+            });
+
             // Stream the AI response
+            let chunkCount = 0;
             const result = await aiService
               .streamChat(
                 TreeManager.buildChatML(currentNodes, inputParent),
                 (response) => {
+                  chunkCount++;
+                  if (chunkCount === 1 || chunkCount % 10 === 0) {
+                    logger.debug('[CASCADE] Streaming chunk', {
+                      nodeId: responseNode.id.substring(0, 8),
+                      chunkNumber: chunkCount,
+                      currentLength: response.length,
+                      preview: response.substring(response.length - 50),
+                    });
+                  }
                   treeManager.patchNode(responseNode.id, {
                     value: response,
                     error: undefined,
@@ -78,6 +95,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                 { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
                 // onImage callback for cascade regeneration
                 (imageUrl, prompt) => {
+                  logger.info('[CASCADE] Image generation triggered', {
+                    nodeId: responseNode.id.substring(0, 8),
+                    prompt,
+                  });
+                  logger.image(imageUrl, `Cascade node ${responseNode.id.substring(0, 8)}`, { prompt });
+                  
                   // Immediately swap to image-response type to show image loading animation
                   treeManager.patchNode(responseNode.id, {
                     type: "image-response",
@@ -95,6 +118,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               .catch((error) => {
                 const errorMessage =
                   error instanceof Error ? error.message : String(error);
+                logger.error('[CASCADE] Stream error', {
+                  nodeId: responseNode.id.substring(0, 8),
+                  error: errorMessage,
+                });
                 treeManager.patchNode(responseNode.id, { error: errorMessage });
                 currentNodes[responseNode.id] = {
                   ...currentNodes[responseNode.id],
@@ -107,8 +134,21 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               return;
             }
 
+            logger.info('[CASCADE] Stream completed', {
+              nodeId: responseNode.id.substring(0, 8),
+              resultType: result.type,
+              totalChunks: chunkCount,
+              contentLength: result.content.length,
+              contentPreview: result.content.substring(0, 100),
+            });
+
             // Handle result type switching (text <-> image) in-place
             if (result.type === "image") {
+              logger.image(result.content, `Final cascade image ${responseNode.id.substring(0, 8)}`, {
+                prompt: result.prompt,
+                nodeId: responseNode.id,
+              });
+              
               // Patch the existing node to change its type to image-response
               treeManager.patchNode(responseNode.id, {
                 type: "image-response",
@@ -205,11 +245,29 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Track if we receive an image response
       let imageResult: { url: string; prompt?: string } | null = null;
 
+      logger.info('[INPUT] Starting AI stream for user input', {
+        query: query.substring(0, 100),
+        callerId: caller.id.substring(0, 8),
+        callerType: caller.type,
+        responseNodeId: responseNodeId.substring(0, 8),
+        isNewNode: !existingResponseNodeId,
+        model: selectedModel,
+      });
+
       // Send the query - use the locally updated nodes object
+      let mainChunkCount = 0;
       const result = await aiService
         .streamChat(
           TreeManager.buildChatML(nodesWithQuery, updatedCaller),
           (response) => {
+            mainChunkCount++;
+            if (mainChunkCount === 1 || mainChunkCount % 10 === 0) {
+              logger.debug('[INPUT] Streaming chunk', {
+                chunkNumber: mainChunkCount,
+                currentLength: response.length,
+                preview: response.substring(response.length - 50),
+              });
+            }
             treeManager.patchNode(responseNodeId, {
               value: response,
               error: undefined,
@@ -223,6 +281,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
+            logger.info('[INPUT] Image generation triggered', {
+              responseNodeId: responseNodeId.substring(0, 8),
+              prompt,
+            });
+            logger.image(imageUrl, `Input response ${responseNodeId.substring(0, 8)}`, { prompt });
+            
             // Immediately swap to image-response type to show image loading animation
             treeManager.patchNode(responseNodeId, {
               type: "image-response",
@@ -242,6 +306,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         .catch((error) => {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
+          logger.error('[INPUT] Stream error', {
+            responseNodeId: responseNodeId.substring(0, 8),
+            error: errorMessage,
+          });
           treeManager.patchNode(responseNodeId, { error: errorMessage });
           nodesWithQuery[responseNodeId] = {
             ...nodesWithQuery[responseNodeId],
@@ -255,8 +323,21 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         return;
       }
 
+      logger.info('[INPUT] Stream completed', {
+        responseNodeId: responseNodeId.substring(0, 8),
+        resultType: result.type,
+        totalChunks: mainChunkCount,
+        contentLength: result.content.length,
+        contentPreview: result.content.substring(0, 100),
+      });
+
       // Handle image response - convert the response node to an image-response node in-place
       if (result.type === "image") {
+        logger.image(result.content, `Final input image ${responseNodeId.substring(0, 8)}`, {
+          prompt: result.prompt,
+          responseNodeId,
+        });
+        
         // Patch the existing node to change its type to image-response
         treeManager.patchNode(responseNodeId, {
           type: "image-response",

@@ -12,6 +12,7 @@ import type {
 } from "../types/graph";
 
 import { aiService, type ChatMessage } from "./aiService";
+import logger from "../utils/logger";
 
 export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -213,6 +214,20 @@ export class TreeManager {
 
     const maxLevel = Math.max(...Object.keys(normalizedTree).map(Number));
     
+    // Log the parsed graph tree structure
+    logger.structure('Parsed Graph Tree', {
+      startNode: { id: startNode.id, type: startNode.type, value: startNode.value.substring(0, 100) },
+      maxLevel,
+      tree: Object.entries(normalizedTree).map(([level, nodes]) => ({
+        level: parseInt(level),
+        nodes: nodes.map(n => ({
+          id: n.id.substring(0, 8),
+          type: n.type,
+          valuePreview: n.value.substring(0, 50),
+        })),
+      })),
+    });
+    
     // Create a mapping from node UUID to sequential node number (to avoid triggering safety filters)
     const nodeIdMap = new Map<string, number>();
     let nodeCounter = 1;
@@ -383,6 +398,21 @@ export class TreeManager {
       }
     }
 
+    // Log images in the conversation
+    messages.forEach((msg, idx) => {
+      if (msg.role !== 'system' && Array.isArray(msg.content)) {
+        msg.content.forEach((part) => {
+          if (part.type === 'image_url' && part.image_url?.url) {
+            logger.image(
+              part.image_url.url,
+              `Message ${idx} (${msg.role})`,
+              { messageIndex: idx, role: msg.role }
+            );
+          }
+        });
+      }
+    });
+
     const ret = [
       {
         role: "system",
@@ -450,6 +480,24 @@ export class TreeManager {
       ...messages.reverse(),
     ] as ChatMessage[];
 
+    // Log the final ChatML messages being sent
+    logger.structure('ChatML Query', {
+      messageCount: ret.length,
+      messages: ret.map((msg, idx) => ({
+        index: idx,
+        role: msg.role,
+        contentType: typeof msg.content === 'string' ? 'string' : 'multipart',
+        contentPreview: typeof msg.content === 'string' 
+          ? msg.content.substring(0, 150)
+          : `${msg.content.length} parts (${msg.content.filter((p: any) => p.type === 'image_url').length} images)`,
+        textLength: typeof msg.content === 'string' 
+          ? msg.content.length 
+          : msg.content.filter((p: any) => p.type === 'text').reduce((sum: number, p: any) => sum + (p.text?.length || 0), 0),
+        imageCount: typeof msg.content === 'string' 
+          ? 0 
+          : msg.content.filter((p: any) => p.type === 'image_url').length,
+      })),
+    });
 
     return ret;
   }

@@ -33,6 +33,7 @@ class Logger {
     if (process.env.NODE_ENV === 'development') {
       return;
     }
+    
     // Send to Loki asynchronously (fire and forget)
     sendToLoki(logEntry).catch(() => {
       // Silently fail - don't break app if Loki is down
@@ -53,6 +54,34 @@ class Logger {
 
   debug(message: unknown, meta?: LogMeta): void {
     this.sendLog('debug', message, meta);
+  }
+
+  // Helper to log images with console.image()
+  image(url: string, label?: string, meta?: LogMeta): void {
+    if (typeof window !== 'undefined' && url) {
+      console.log(`[IMAGE] ${label || 'Image'}:`, meta);
+      // Use console.image if available (some browsers), otherwise log URL
+      if (typeof (console as any).image === 'function') {
+        (console as any).image(url);
+      } else {
+        // Fallback: create a styled console log with the image
+        console.log(
+          '%c ',
+          `font-size: 100px; background: url(${url}) no-repeat center; background-size: contain; padding: 50px 100px;`
+        );
+      }
+    }
+    this.info(`Image: ${label || url.substring(0, 50)}`, { ...meta, imageUrl: url.substring(0, 100) });
+  }
+
+  // Helper to log structured data with better formatting
+  structure(label: string, data: unknown, meta?: LogMeta): void {
+    if (typeof window !== 'undefined') {
+      console.group(`[STRUCTURE] ${label}`);
+      console.log(data);
+      console.groupEnd();
+    }
+    this.debug(`Structure: ${label}`, { ...meta, data });
   }
 }
 

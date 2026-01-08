@@ -35,6 +35,30 @@ export class aiService {
   ): Promise<string> {
     let response: Response;
 
+    const requestBody = {
+      messages: Array.isArray(message)
+        ? message
+        : [{ role: "user", content: message }],
+      ...(options?.model && { model: options.model }),
+      ...(options?.imageModel && { imageModel: options.imageModel }),
+      ...(options?.provider && { provider: options.provider }),
+      ...(options?.webSearchEnabled && { 
+        plugins: [
+          {
+            id: "web",
+            engine: "native" 
+          }
+        ]
+      }),
+    };
+
+    logger.info('[AI SERVICE] Chat request', {
+      url: `${globals.graphLLMBackendUrl}/api/v1/chat`,
+      model: options?.model,
+      messageCount: Array.isArray(message) ? message.length : 1,
+      webSearchEnabled: options?.webSearchEnabled,
+    });
+
     try {
       response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
         method: "POST",
@@ -42,22 +66,7 @@ export class aiService {
           "Content-Type": "application/json",
           "X-Client-Id": getOrCreateClientId(),
         },
-        body: JSON.stringify({
-          messages: Array.isArray(message)
-            ? message
-            : [{ role: "user", content: message }],
-          ...(options?.model && { model: options.model }),
-          ...(options?.imageModel && { imageModel: options.imageModel }),
-          ...(options?.provider && { provider: options.provider }),
-          ...(options?.webSearchEnabled && { 
-            plugins: [
-              {
-                id: "web",
-                engine: "native" 
-              }
-            ]
-          }),
-        }),
+        body: JSON.stringify(requestBody),
       });
     } catch (error) {
       // Differentiate between network errors and other issues
@@ -198,6 +207,13 @@ export class aiService {
             }
           ]
         }),
+      });
+
+      logger.info('[AI SERVICE] Stream attempt', {
+        url: `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
+        model: options?.model,
+        messageCount: Array.isArray(message) ? message.length : 1,
+        webSearchEnabled: options?.webSearchEnabled,
       });
 
       const TIMEOUT_MS = options?.timeoutMs || 120000; // 2 minutes default timeout
@@ -391,10 +407,11 @@ export class aiService {
                   
                   // Handle image response from backend
                   if (parsed.type === "image" && parsed.content) {
-                    logger.info("Received image response", { 
+                    logger.info("[AI SERVICE] Image response received", { 
                       url: parsed.content.substring(0, 100),
                       prompt: parsed.prompt 
                     });
+                    logger.image(parsed.content, 'Stream image response', { prompt: parsed.prompt });
                     imageResponse = { url: parsed.content, prompt: parsed.prompt };
                     if (onImage) {
                       onImage(parsed.content, parsed.prompt);
