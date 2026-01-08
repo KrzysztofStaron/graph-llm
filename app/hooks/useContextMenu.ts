@@ -77,6 +77,20 @@ export function useContextMenu({
     node.type === "image-context" ||
     node.type === "document";
 
+  const getInputParentId = (
+    nodes: Record<string, { type: string } | undefined>,
+    nodeId: string
+  ): string | null => {
+    const node = nodes[nodeId] as
+      | { parentIds?: string[]; type: string }
+      | undefined;
+    const parentIds = node?.parentIds;
+    if (!parentIds || parentIds.length === 0) return null;
+
+    const inputParentId = parentIds.find((pid) => nodes[pid]?.type === "input");
+    return inputParentId ?? null;
+  };
+
   // Delete handlers
   const handleDeleteSingle = (nodeId: string) => {
     const treeManager = graphCanvasRef.current?.treeManager;
@@ -427,6 +441,23 @@ export function useContextMenu({
 
       const selectedArray = Array.from(selectedNodeIds);
 
+      // Allow editing prompts for a single selected image-response by editing its input parent
+      if (selectedArray.length === 1 && onEditInput) {
+        const onlyId = selectedArray[0];
+        const onlyNode = nodes[onlyId];
+        if (onlyNode?.type === "image-response") {
+          const inputParentId = getInputParentId(nodes, onlyId);
+          if (inputParentId) {
+            items.push({
+              label: "Edit",
+              onClick: () => onEditInput(inputParentId),
+            });
+          }
+        } else if (onlyNode?.type === "input") {
+          items.push({ label: "Edit", onClick: () => onEditInput(onlyId) });
+        }
+      }
+
       // Check if at least one selected node is non-input
       const hasNonInputSelected = selectedArray.some((nodeId) => {
         const node = nodes[nodeId];
@@ -576,6 +607,12 @@ export function useContextMenu({
       items.push({ label: "Edit", onClick: () => onEditContext(node.id) });
     } else if (node.type === "input" && onEditInput) {
       items.push({ label: "Edit", onClick: () => onEditInput(node.id) });
+    } else if (node.type === "image-response" && onEditInput) {
+      // Edit the prompt by editing the input-parent node (the source question/prompt)
+      const inputParentId = getInputParentId(nodes, node.id);
+      if (inputParentId) {
+        items.push({ label: "Edit", onClick: () => onEditInput(inputParentId) });
+      }
     }
 
     // Show "Ask Question" for non-input nodes (creates and links)

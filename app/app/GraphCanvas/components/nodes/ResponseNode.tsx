@@ -4,7 +4,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { memo, useMemo } from "react";
+import { Check, Copy, X } from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
@@ -244,12 +245,51 @@ export const ResponseNode = memo(
     const rawContent = node.value;
     const isLoading = rawContent.length === 0 && !node.error;
     const isFailed = !!node.error;
+    const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+      "idle"
+    );
+    const resetTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+      return () => {
+        if (resetTimerRef.current !== null) {
+          window.clearTimeout(resetTimerRef.current);
+        }
+      };
+    }, []);
 
     // Memoize chunk splitting and math normalization
     const chunks = useMemo(() => {
       const normalized = normalizeMath(rawContent);
       return splitIntoChunks(normalized);
     }, [rawContent]);
+
+    const handleCopy = () => {
+      const text = rawContent.trim();
+      if (!text) return;
+
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = null;
+      }
+
+      void navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          setCopyStatus("copied");
+          resetTimerRef.current = window.setTimeout(() => {
+            setCopyStatus("idle");
+            resetTimerRef.current = null;
+          }, 1200);
+        })
+        .catch(() => {
+          setCopyStatus("failed");
+          resetTimerRef.current = window.setTimeout(() => {
+            setCopyStatus("idle");
+            resetTimerRef.current = null;
+          }, 1600);
+        });
+    };
 
     return (
       <div className="max-w-[808px] min-w-[200px] flex items-center group">
@@ -262,6 +302,35 @@ export const ResponseNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
+          {!isLoading && !isFailed && rawContent.trim().length > 0 && (
+            <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={handleCopy}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-medium hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                aria-label="Copy response"
+              >
+                {copyStatus === "copied" ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Copied
+                  </>
+                ) : copyStatus === "failed" ? (
+                  <>
+                    <X className="w-3.5 h-3.5" />
+                    Failed
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed">
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
