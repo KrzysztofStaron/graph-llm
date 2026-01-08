@@ -17,6 +17,7 @@
     "@tsparticles/slim": "^3.9.1",
     "@types/d3": "^7.4.3",
     "d3": "^7.9.0",
+    "firebase": "^12.7.0",
     "framer-motion": "^12.23.26",
     "katex": "^0.16.27",
     "lucide-react": "^0.562.0",
