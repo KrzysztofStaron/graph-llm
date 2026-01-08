@@ -287,69 +287,98 @@ export class TreeManager {
         return true;
       });
 
-      const roleType = levelNodes[0].type;
-
-      // Determine the role based on node type
-      // response and image-response are assistant messages, everything else is user
-      const role: "user" | "assistant" =
-        roleType === "context" ||
-        roleType === "input" ||
-        roleType === "image-context" ||
-        roleType === "document"
-          ? "user"
-          : "assistant";
-
-      // Check if there are any image nodes at this level (context images or response images)
-      const hasImages = levelNodes.some(
+      // Partition nodes by role and type
+      const assistantTextNodes = levelNodes.filter(
+        (node) => node.type === "response" || node.type === "summary"
+      );
+      const userTextNodes = levelNodes.filter(
+        (node) =>
+          node.type === "context" ||
+          node.type === "input" ||
+          node.type === "document"
+      );
+      const imageNodes = levelNodes.filter(
         (node) => node.type === "image-context" || node.type === "image-response"
       );
 
-      if (hasImages) {
-        // Use OpenAI vision format: content as array
-        const contentArray: Array<
-          | { type: "text"; text: string }
-          | { type: "image_url"; image_url: { url: string } }
-        > = [];
+      // Build user message first (text + images)
+      // Images are ALWAYS sent as user messages for vision model compatibility
+      // We push this FIRST so that after messages.reverse(), it appears AFTER the assistant message
+      const hasUserContent = userTextNodes.length > 0 || imageNodes.length > 0;
 
-        // Collect all text nodes (exclude both image-context and image-response)
-        const textNodes = levelNodes.filter(
-          (node) => node.type !== "image-context" && node.type !== "image-response"
-        );
-        if (textNodes.length > 0) {
-          const mergedText = textNodes
+      if (hasUserContent) {
+        if (imageNodes.length > 0) {
+          // Use multipart format when images are present
+          const contentArray: Array<
+            | { type: "text"; text: string }
+            | { type: "image_url"; image_url: { url: string } }
+          > = [];
+
+          // Add text parts (user-side text nodes)
+          if (userTextNodes.length > 0) {
+            const mergedText = userTextNodes
+              .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
+              .join("<separatorOfContextualData />");
+
+            contentArray.push({
+              type: "text",
+              text: mergedText,
+            });
+          }
+
+          // Add captions for generated images using their prompts
+          const generatedImageCaptions = imageNodes
+            .filter((node) => node.type === "image-response")
+            .map((node) => {
+              const fullNode = nodes[node.id] as ImageResponseNode;
+              const nodeNum = nodeIdMap.get(node.id) || 0;
+              const prompt = fullNode.prompt || "generated image";
+              return `[IMG${nodeNum}] Generated image: ${prompt}`;
+            })
+            .filter((caption) => caption.length > 0);
+
+          if (generatedImageCaptions.length > 0) {
+            contentArray.push({
+              type: "text",
+              text: generatedImageCaptions.join("\n"),
+            });
+          }
+
+          // Add all images (both image-context and image-response)
+          imageNodes.forEach((node) => {
+            contentArray.push({
+              type: "image_url",
+              image_url: { url: node.value },
+            });
+          });
+
+          messages.push({
+            role: "user",
+            content: contentArray,
+          });
+        } else {
+          // Text-only user message
+          const mergedText = userTextNodes
             .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
             .join("<separatorOfContextualData />");
 
-          contentArray.push({
-            type: "text",
-            text: mergedText,
+          messages.push({
+            role: "user",
+            content: mergedText,
           });
         }
+      }
 
-        // Add image nodes (both image-context and image-response)
-        const imageNodes = levelNodes.filter(
-          (node) => node.type === "image-context" || node.type === "image-response"
-        );
-        imageNodes.forEach((node) => {
-          contentArray.push({
-            type: "image_url",
-            image_url: { url: node.value },
-          });
-        });
+      // Build assistant message after user message (if any assistant text nodes)
+      // Pushed AFTER user message so that after messages.reverse(), it appears BEFORE
+      if (assistantTextNodes.length > 0) {
+        const mergedText = assistantTextNodes
+          .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
+          .join("<separatorOfContextualData />");
 
         messages.push({
-          role,
-          content: contentArray,
-        });
-      } else {
-        // Standard text-only format
-        const mergedNodes = levelNodes.map((node) =>
-          wrapContextMetadata(nodes[node.id] as GraphNode)
-        );
-
-        messages.push({
-          role,
-          content: mergedNodes.join("<separatorOfContextualData />"),
+          role: "assistant",
+          content: mergedText,
         });
       }
     }
