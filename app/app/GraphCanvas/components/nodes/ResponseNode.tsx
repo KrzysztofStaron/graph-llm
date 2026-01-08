@@ -130,11 +130,11 @@ const markdownComponents = {
 const MarkdownChunk = memo(
   function MarkdownChunk({ content }: { content: string }) {
     // Only enable math rendering if content contains actual LaTeX delimiters
-    // Single $ is disabled for math, only $$ for block math and \(...\) or \[...\] for inline
-    const hasMath = /\$\$[\s\S]+?\$\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(content);
+    // Supports both single $ for inline math and $$ for block math
+    const hasMath = /\$[\s\S]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(content);
     
     const remarkPlugins = hasMath
-      ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]]
+      ? [remarkGfm, [remarkMath, { singleDollarTextMath: true }]]
       : [remarkGfm];
     
     return (
