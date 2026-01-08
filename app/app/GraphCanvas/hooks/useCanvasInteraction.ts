@@ -24,6 +24,7 @@ interface UseCanvasInteractionReturn {
   viewportRef: React.RefObject<HTMLDivElement | null>;
   contentRef: React.RefObject<HTMLDivElement | null>;
   fitView: (duration?: number) => void;
+  panCanvas: (dx: number, dy: number) => void;
   handleDragOver: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
   handleContextMenu: (e: React.MouseEvent) => void;
@@ -115,6 +116,35 @@ export function useCanvasInteraction({
       }
     },
     [nodeArray, localNodeDimensions]
+  );
+
+  // Pan canvas function for keyboard controls (smooth direct DOM update)
+  const panCanvas = useCallback(
+    (dx: number, dy: number) => {
+      if (!contentRef.current) return;
+      
+      // Get current transform from ref
+      const current = transformRef.current;
+      const newX = current.x + dx;
+      const newY = current.y + dy;
+      
+      // Update DOM directly for smooth animation (no React re-render)
+      contentRef.current.style.transform = `translate(${newX}px, ${newY}px) scale(${current.k})`;
+      
+      // Update internal state ref immediately
+      transformRef.current = { x: newX, y: newY, k: current.k };
+      
+      // Debounce React state update to avoid constant re-renders
+      // This keeps React in sync but doesn't cause snapping
+      if (viewportRef.current && zoomBehaviorRef.current) {
+        const selection = d3.select(viewportRef.current);
+        const newTransform = d3.zoomIdentity.translate(newX, newY).scale(current.k);
+        
+        // Update d3's internal state without triggering zoom event (no transition)
+        selection.property("__zoom", newTransform);
+      }
+    },
+    []
   );
 
   // Drag and drop handlers
@@ -315,6 +345,7 @@ export function useCanvasInteraction({
     viewportRef,
     contentRef,
     fitView,
+    panCanvas,
     handleDragOver,
     handleDrop,
     handleContextMenu,

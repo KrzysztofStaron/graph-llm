@@ -118,6 +118,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       viewportRef,
       contentRef,
       fitView,
+      panCanvas,
       handleDragOver,
       handleDrop,
       handleContextMenu,
@@ -310,6 +311,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onFitView: fitView,
       onClearSelection: clearSelection,
       onUndo: undo,
+      onPanCanvas: panCanvas,
     });
 
     // Set up ResizeObserver to track all node dimensions
