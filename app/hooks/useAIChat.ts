@@ -113,6 +113,18 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                     value: "",
                     error: undefined,
                   };
+                },
+                // onReasoning callback for cascade regeneration
+                (reasoning) => {
+                  if (currentNodes[responseNode.id]?.type === 'response') {
+                    treeManager.patchNode(responseNode.id, {
+                      reasoning,
+                    });
+                    currentNodes[responseNode.id] = {
+                      ...currentNodes[responseNode.id],
+                      reasoning,
+                    } as GraphNode;
+                  }
                 }
               )
               .catch((error) => {
@@ -301,6 +313,18 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             };
             
             imageResult = { url: imageUrl, prompt };
+          },
+          // onReasoning callback - called when reasoning tokens are streamed
+          (reasoning) => {
+            if (nodesWithQuery[responseNodeId]?.type === 'response') {
+              treeManager.patchNode(responseNodeId, {
+                reasoning,
+              });
+              nodesWithQuery[responseNodeId] = {
+                ...nodesWithQuery[responseNodeId],
+                reasoning,
+              } as GraphNode;
+            }
           }
         )
         .catch((error) => {

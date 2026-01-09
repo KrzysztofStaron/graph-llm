@@ -53,7 +53,8 @@ export const ImageResponseNode = memo(
   }: ImageResponseNodeProps) {
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
-    const isLoading = !node.value && !node.error;
+    // Show loading when value is empty or undefined
+    const isLoading = (!node.value || node.value === "") && !node.error;
 
     const handleDownload = async () => {
       if (!node.value) return;

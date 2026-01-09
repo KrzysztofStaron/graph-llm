@@ -120,7 +120,8 @@ export class aiService {
       retries?: number;
       webSearchEnabled?: boolean;
     },
-    onImage?: (imageUrl: string, prompt?: string) => void
+    onImage?: (imageUrl: string, prompt?: string) => void,
+    onReasoning?: (reasoning: string) => void
   ): Promise<StreamResponse> {
     const maxRetries = options?.retries ?? 2;
     let lastError: Error | null = null;
@@ -151,7 +152,7 @@ export class aiService {
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
 
-      const result = await this._attemptStreamChat(message, onChunk, options, onImage);
+      const result = await this._attemptStreamChat(message, onChunk, options, onImage, onReasoning);
       if (result.success) {
         return result.data;
       }
@@ -188,7 +189,8 @@ export class aiService {
       timeoutMs?: number;
       webSearchEnabled?: boolean;
     },
-    onImage?: (imageUrl: string, prompt?: string) => void
+    onImage?: (imageUrl: string, prompt?: string) => void,
+    onReasoning?: (reasoning: string) => void
   ): Promise<{ success: true; data: StreamResponse } | { success: false; error: Error }> {
 
     try {
@@ -293,8 +295,11 @@ export class aiService {
 
         let buffer = "";
         let fullResponse = "";
+        let fullReasoning = "";
         let lastUpdateTime = 0;
+        let lastReasoningUpdateTime = 0;
         let pendingUpdate = false;
+        let pendingReasoningUpdate = false;
         let imageResponse: { url: string; prompt?: string } | null = null;
         const THROTTLE_MS = 500;
 
@@ -302,11 +307,22 @@ export class aiService {
           const now = Date.now();
           if (now - lastUpdateTime >= THROTTLE_MS) {
             onChunk(content);
-
             lastUpdateTime = now;
             pendingUpdate = false;
           } else {
             pendingUpdate = true;
+          }
+        };
+
+        const throttledOnReasoning = (reasoning: string) => {
+          if (!onReasoning) return;
+          const now = Date.now();
+          if (now - lastReasoningUpdateTime >= THROTTLE_MS) {
+            onReasoning(reasoning);
+            lastReasoningUpdateTime = now;
+            pendingReasoningUpdate = false;
+          } else {
+            pendingReasoningUpdate = true;
           }
         };
 
@@ -365,6 +381,9 @@ export class aiService {
               if (pendingUpdate) {
                 onChunk(cleanedResponse);
               }
+              if (pendingReasoningUpdate && onReasoning) {
+                onReasoning(fullReasoning);
+              }
               return { success: true, data: { type: "text", content: cleanedResponse } };
             }
 
@@ -394,16 +413,26 @@ export class aiService {
                   if (pendingUpdate) {
                     onChunk(cleanedResponse);
                   }
+                  if (pendingReasoningUpdate && onReasoning) {
+                    onReasoning(fullReasoning);
+                  }
                   return { success: true, data: { type: "text", content: cleanedResponse } };
                 }
 
                 try {
                   const parsed = JSON.parse(data) as { 
                     content?: string; 
+                    reasoning?: string;
                     error?: string;
                     type?: "image";
                     prompt?: string;
                   };
+                  
+                  // Handle reasoning content
+                  if (parsed.reasoning) {
+                    fullReasoning += parsed.reasoning;
+                    throttledOnReasoning(fullReasoning);
+                  }
                   
                   // Handle image response from backend
                   if (parsed.type === "image" && parsed.content) {

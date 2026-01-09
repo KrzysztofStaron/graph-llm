@@ -28,6 +28,8 @@ export interface BaseNode {
 
 export interface ResponseNode extends BaseNode {
   type: "response";
+  // Reasoning content from models like o1
+  reasoning?: string;
 }
 
 export interface ImageResponseNode extends BaseNode {

@@ -243,11 +243,13 @@ function splitIntoChunks(content: string): string[] {
 export const ResponseNode = memo(
   function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {
     const rawContent = node.value;
+    const reasoning = node.reasoning || "";
     const isLoading = rawContent.length === 0 && !node.error;
     const isFailed = !!node.error;
     const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
       "idle"
     );
+    const [reasoningExpanded, setReasoningExpanded] = useState(true);
     const resetTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -332,10 +334,37 @@ export const ResponseNode = memo(
             </div>
           )}
           <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed">
+            {/* Reasoning section */}
+            {reasoning && !isFailed && (
+              <div className="mb-4 pb-4 border-b border-white/10">
+                <button
+                  onClick={() => setReasoningExpanded(!reasoningExpanded)}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 text-sm font-mono text-white/50 hover:text-white/70 transition-colors mb-2"
+                >
+                  <svg
+                    className={`w-3 h-3 transition-transform ${reasoningExpanded ? 'rotate-90' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  Reasoning
+                </button>
+                {reasoningExpanded && (
+                  <div className="text-sm text-white/60 whitespace-pre-wrap font-mono pl-5">
+                    {reasoning}
+                  </div>
+                )}
+              </div>
+            )}
+            
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-                <p className="text-sm font-mono">Loading…</p>
+                <p className="text-sm font-mono">{reasoning ? "Generating response…" : "Reasoning…"}</p>
               </div>
             ) : isFailed ? (
               <div className="flex items-start gap-3 text-red-400">
@@ -385,6 +414,7 @@ export const ResponseNode = memo(
   (prev, next) => {
     return (
       prev.node.value === next.node.value &&
+      prev.node.reasoning === next.node.reasoning &&
       prev.node.error === next.node.error &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
