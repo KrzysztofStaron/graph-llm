@@ -301,7 +301,7 @@ export class aiService {
         let pendingUpdate = false;
         let pendingReasoningUpdate = false;
         let imageResponse: { url: string; prompt?: string } | null = null;
-        const THROTTLE_MS = 500;
+        const THROTTLE_MS = 300;
 
         const throttledOnChunk = (content: string) => {
           const now = Date.now();

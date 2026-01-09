@@ -251,6 +251,7 @@ export const ResponseNode = memo(
     );
     const [reasoningExpanded, setReasoningExpanded] = useState(true);
     const resetTimerRef = useRef<number | null>(null);
+    const hasCollapsedRef = useRef(false);
 
     useEffect(() => {
       return () => {
@@ -259,6 +260,14 @@ export const ResponseNode = memo(
         }
       };
     }, []);
+
+    // Auto-collapse reasoning when content starts streaming
+    useEffect(() => {
+      if (rawContent.length > 0 && reasoning.length > 0 && !hasCollapsedRef.current) {
+        setReasoningExpanded(false);
+        hasCollapsedRef.current = true;
+      }
+    }, [rawContent.length, reasoning.length]);
 
     // Memoize chunk splitting and math normalization
     const chunks = useMemo(() => {
