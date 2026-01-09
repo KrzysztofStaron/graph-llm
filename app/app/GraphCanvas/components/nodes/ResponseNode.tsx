@@ -348,7 +348,7 @@ export const ResponseNode = memo(
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-                <p className="text-sm font-mono">{reasoning ? "Reasoning…" : "Generating response…"}</p>
+                <p className="text-sm font-mono">{reasoning ? "Generating response…" : "Reasoning…"}</p>
 
               </div>
             ) : isFailed ? (
