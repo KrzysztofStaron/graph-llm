@@ -231,6 +231,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           nodeDimensionsRef.current[caller.id] ||
           getDefaultNodeDimensions(caller.type);
 
+        console.log('callerDim', callerDim);
+        console.log('currentCaller', currentCaller);
+
         const targetX = currentCaller.x + callerDim.width / 4;
         const targetY = currentCaller.y + callerDim.height + 30;
 
