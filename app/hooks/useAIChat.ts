@@ -232,7 +232,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           getDefaultNodeDimensions(caller.type);
 
         const targetX = currentCaller.x + callerDim.width / 4;
-        const targetY = currentCaller.y + 90;
+        const targetY = currentCaller.y + callerDim.height + 30;
 
         const newNodeDim = getDefaultNodeDimensions("response");
         const freePos = findFreePosition(
