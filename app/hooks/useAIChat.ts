@@ -40,12 +40,20 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
         // Put all nodes in this level into loading state
         for (const node of levelNodes) {
-          treeManager.patchNode(node.id, { value: "", error: undefined });
-          currentNodes[node.id] = {
+          const patch: { value: string; error: undefined; reasoning?: undefined } = { value: "", error: undefined };
+          if (node.type === "response") {
+            patch.reasoning = undefined;
+          }
+          treeManager.patchNode(node.id, patch);
+          const updatedNode = {
             ...currentNodes[node.id],
             value: "",
             error: undefined,
           };
+          if (node.type === "response") {
+            (updatedNode as any).reasoning = undefined;
+          }
+          currentNodes[node.id] = updatedNode as GraphNode;
         }
 
         // Update all nodes at this level in parallel
@@ -223,7 +231,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       if (existingResponseNodeId) {
         // put existing response node into loading state
         responseNodeId = existingResponseNodeId;
-        treeManager.patchNode(responseNodeId, { value: "", error: undefined });
+        const existingNode = nodesRef.current[responseNodeId];
+        const patch: { value: string; error: undefined; reasoning?: undefined } = { value: "", error: undefined };
+        if (existingNode?.type === "response") {
+          patch.reasoning = undefined;
+        }
+        treeManager.patchNode(responseNodeId, patch);
         responseNode = nodesRef.current[responseNodeId];
       } else {
         // create a new response node with smart placement - close to parent

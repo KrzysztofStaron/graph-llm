@@ -249,9 +249,9 @@ export const ResponseNode = memo(
     const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
       "idle"
     );
-    const [reasoningExpanded, setReasoningExpanded] = useState(true);
+    const [pulseKey, setPulseKey] = useState(0);
     const resetTimerRef = useRef<number | null>(null);
-    const hasCollapsedRef = useRef(false);
+    const prevReasoningLengthRef = useRef(0);
 
     useEffect(() => {
       return () => {
@@ -261,13 +261,15 @@ export const ResponseNode = memo(
       };
     }, []);
 
-    // Auto-collapse reasoning when content starts streaming
+    // Pulse animation on each reasoning chunk update
     useEffect(() => {
-      if (rawContent.length > 0 && reasoning.length > 0 && !hasCollapsedRef.current) {
-        setReasoningExpanded(false);
-        hasCollapsedRef.current = true;
+      if (reasoning.length > prevReasoningLengthRef.current) {
+        setPulseKey((prev) => prev + 1);
+        prevReasoningLengthRef.current = reasoning.length;
+      } else if (reasoning.length === 0) {
+        prevReasoningLengthRef.current = 0;
       }
-    }, [rawContent.length, reasoning.length]);
+    }, [reasoning.length]);
 
     // Memoize chunk splitting and math normalization
     const chunks = useMemo(() => {
@@ -343,37 +345,11 @@ export const ResponseNode = memo(
             </div>
           )}
           <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed">
-            {/* Reasoning section */}
-            {reasoning && !isFailed && (
-              <div className="mb-4 pb-4 border-b border-white/10">
-                <button
-                  onClick={() => setReasoningExpanded(!reasoningExpanded)}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 text-sm font-mono text-white/50 hover:text-white/70 transition-colors mb-2"
-                >
-                  <svg
-                    className={`w-3 h-3 transition-transform ${reasoningExpanded ? 'rotate-90' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  Reasoning
-                </button>
-                {reasoningExpanded && (
-                  <div className="text-sm text-white/60 whitespace-pre-wrap font-mono pl-5">
-                    {reasoning}
-                  </div>
-                )}
-              </div>
-            )}
-            
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-                <p className="text-sm font-mono">{reasoning ? "Generating response…" : "Reasoning…"}</p>
+                <p className="text-sm font-mono">{reasoning ? "Reasoning…" : "Generating response…"}</p>
+
               </div>
             ) : isFailed ? (
               <div className="flex items-start gap-3 text-red-400">
