@@ -47,6 +47,10 @@ export function useFileUpload({
     files: FileList,
     canvasPoint: { x: number; y: number }
   ) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useFileUpload.ts:onDropFilesAsContext',message:'onDropFilesAsContext called',data:{filesCount:files.length,canvasPoint,fileNames:Array.from(files).map(f=>f.name)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H8'})}).catch(()=>{});
+    // #endregion
+    
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
     const treeManager = graphCanvasRef.current?.treeManager;

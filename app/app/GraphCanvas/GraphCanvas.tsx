@@ -367,6 +367,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         <div className="relative w-full h-screen overflow-hidden">
           <motion.div
             ref={viewportRef}
+            data-viewport
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.2 }}

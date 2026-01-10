@@ -2,7 +2,7 @@
 
 /* eslint-disable react-hooks/refs */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, useAnimate } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
@@ -103,31 +103,34 @@ const AppPageContent = () => {
     },
   });
 
-  const handleRestoreNode = (
+  const handleRestoreNode = useCallback((
     node: import("../types/GraphCanvas.types").GraphNode,
-    screenPoint: { x: number; y: number }
+    canvasPoint: { x: number; y: number }
   ) => {
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
     const treeManager = graphCanvasRef.current?.treeManager;
-    const transform = graphCanvasRef.current?.transform;
-    if (!nodesRef || !nodeDimensionsRef || !treeManager || !transform) return;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
-    // Convert screen coordinates to canvas coordinates
-    const canvasX = (screenPoint.x - transform.x) / transform.k;
-    const canvasY = (screenPoint.y - transform.y) / transform.k;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:handleRestoreNode',message:'Restore node called with canvas coords',data:{canvasPoint,nodeType:node.type},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
 
     const workingNodes = { ...nodesRef.current };
     const newNodeDim = getDefaultNodeDimensions(node.type);
     const freePos = findFreePosition(
-      canvasX,
-      canvasY,
+      canvasPoint.x,
+      canvasPoint.y,
       newNodeDim.width,
       newNodeDim.height,
       workingNodes,
       nodeDimensionsRef.current,
       "below"
     );
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:after-findFreePosition',message:'Final position after collision check',data:{requestedX:canvasPoint.x,requestedY:canvasPoint.y,finalX:freePos.x,finalY:freePos.y,nodeType:node.type,nodeDim:newNodeDim},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
 
     const restoredNode = {
       ...node,
@@ -139,23 +142,20 @@ const AppPageContent = () => {
     };
 
     treeManager.addNode(restoredNode);
-  };
+  }, [graphCanvasRef]);
 
-  const handleRestoreFile = async (
+  const handleRestoreFile = useCallback(async (
     file: File,
-    screenPoint: { x: number; y: number }
+    canvasPoint: { x: number; y: number }
   ) => {
-    const transform = graphCanvasRef.current?.transform;
-    if (!transform) return;
-
-    // Convert screen coordinates to canvas coordinates
-    const canvasX = (screenPoint.x - transform.x) / transform.k;
-    const canvasY = (screenPoint.y - transform.y) / transform.k;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:handleRestoreFile',message:'Restore file called with canvas coords',data:{canvasPoint,fileName:file.name},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
 
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
-    await onDropFilesAsContext(dataTransfer.files, { x: canvasX, y: canvasY });
-  };
+    await onDropFilesAsContext(dataTransfer.files, canvasPoint);
+  }, [onDropFilesAsContext]);
 
   const { addNode: addNodeToStorage } = useContextStorage();
 
@@ -179,6 +179,10 @@ const AppPageContent = () => {
     const handleStorageItemDrop = (e: CustomEvent<{ item: StoredItem; canvasPoint: { x: number; y: number } }>) => {
       const { item, canvasPoint } = e.detail;
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:storageItemDrop-event',message:'Storage item drop event received',data:{itemType:item.type,canvasPoint,isFile:item.type==='file'},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H7'})}).catch(()=>{});
+      // #endregion
+
       if (item.type === "file") {
         // Convert stored file back to File object
         const blob = item.mimeType.startsWith("image/")
@@ -193,7 +197,7 @@ const AppPageContent = () => {
 
     window.addEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
     return () => window.removeEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
-  }, []);
+  }, [handleRestoreFile, handleRestoreNode]);
 
   function dataURLtoBlob(dataURL: string): Blob {
     const arr = dataURL.split(",");

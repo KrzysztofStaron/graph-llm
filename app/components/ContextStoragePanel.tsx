@@ -132,10 +132,14 @@ export function ContextStoragePanel({
   const handleItemClick = useCallback(
     (item: StoredItem, e: React.MouseEvent) => {
       // On click, restore to center of viewport (in screen coordinates)
-      // The handlers will convert to canvas coordinates
+      // Get viewport element to calculate center correctly
+      const viewportElement = document.querySelector('[data-viewport]') as HTMLElement | null;
+      if (!viewportElement) return;
+
+      const viewportRect = viewportElement.getBoundingClientRect();
       const viewportCenter = {
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
+        x: viewportRect.left + viewportRect.width / 2,
+        y: viewportRect.top + viewportRect.height / 2,
       };
 
       if (item.type === "file") {
