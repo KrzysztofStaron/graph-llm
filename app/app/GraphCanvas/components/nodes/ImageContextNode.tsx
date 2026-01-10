@@ -30,6 +30,7 @@ export const ImageContextNode = memo(
               <img
                 src={node.value}
                 alt="Context"
+                draggable={false}
                 className="max-w-[464px] h-auto object-contain"
               />
             ) : (

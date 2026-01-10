@@ -128,6 +128,7 @@ export const ImageResponseNode = memo(
                 <img
                   src={node.value}
                   alt={node.prompt || "Generated image"}
+                  draggable={false}
                   className={`w-full h-auto object-contain transition-opacity duration-300 ${
                     isLoaded ? "opacity-100" : "opacity-0"
                   }`}

@@ -157,6 +157,32 @@ export function useCanvasInteraction({
     e.preventDefault();
     e.stopPropagation();
 
+    // Check if the drop is coming from a canvas node (which uses pointer events, not drag-and-drop)
+    // If there are files but no storage data, it might be a node being dragged that contains a file
+    // We should ignore this case as nodes are moved via pointer events
+    const storedItemData = e.dataTransfer.getData("application/json");
+    const hasFiles = e.dataTransfer.files && e.dataTransfer.files.length > 0;
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:drop-check',message:'Drop event initial check',data:{hasStorageData:!!storedItemData,hasFiles,filesLength:e.dataTransfer.files?.length,types:Array.from(e.dataTransfer.types)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H9'})}).catch(()=>{});
+    // #endregion
+    
+    // If there are files but no storage data and no explicit external file drop marker,
+    // this is likely a node drag (which shouldn't trigger drop handler)
+    if (hasFiles && !storedItemData) {
+      // Check if this is an external file drop (from file system) vs internal node drag
+      // External drops will have 'Files' type without any internal markers
+      const isExternalDrop = e.dataTransfer.types.includes('Files') && 
+                             !e.dataTransfer.types.includes('application/x-moz-node');
+      
+      if (!isExternalDrop) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:ignore-node-drag',message:'Ignoring node drag as file drop',data:{types:Array.from(e.dataTransfer.types)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H9'})}).catch(()=>{});
+        // #endregion
+        return; // Ignore node drags
+      }
+    }
+
     // Get viewport position for accurate coordinate conversion
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -184,12 +210,7 @@ export function useCanvasInteraction({
     fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:canvas-coords',message:'Calculated canvas coordinates',data:{canvasX,canvasY},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H3'})}).catch(()=>{});
     // #endregion
 
-    // Check if dropping a stored item from storage panel
-    const storedItemData = e.dataTransfer.getData("application/json");
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:check-storage-data',message:'Checking for storage item data',data:{hasData:!!storedItemData,dataLength:storedItemData?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H6'})}).catch(()=>{});
-    // #endregion
+    // Check if dropping a stored item from storage panel (already retrieved above)
     
     if (storedItemData) {
       try {
