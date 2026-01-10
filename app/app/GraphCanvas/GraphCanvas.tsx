@@ -56,6 +56,7 @@ interface GraphCanvasProps {
     clientY: number,
     nodeId?: string
   ) => void;
+  onNodeDragToStorage?: (nodeId: string, clientX: number, clientY: number) => void;
 }
 
 export const CanvasContext = createContext<{
@@ -73,6 +74,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onDropFilesAsContext,
       onRequestNodeMove,
       onRequestContextMenu,
+      onNodeDragToStorage,
     } = props;
 
     // Nodes state
@@ -148,6 +150,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           treeManager.moveNode(nodeId, dx, dy, setPinned);
         },
         onRequestContextMenu,
+        onNodeDragToStorage,
       });
 
     // Expose values to parent via ref

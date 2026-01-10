@@ -2,12 +2,12 @@
 
 /* eslint-disable react-hooks/refs */
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, useAnimate } from "framer-motion";
-import { useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
+import { ContextStoragePanel } from "../components/ContextStoragePanel";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import { AudioPlayerIndicator } from "../components/ui/AudioPlayerIndicator";
 import { ModelIndicator } from "../components/ui/ModelIndicator";
@@ -20,6 +20,13 @@ import { globals } from "../globals";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import SettingsModal from "./QuickMenu";
 import { HelpCircle, Settings } from "lucide-react";
+import { createNode } from "../interfaces/TreeManager";
+import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import { compressImage } from "../utils/imageCompression";
+import { parseDocumentWithFallback } from "../utils/documentParserClient";
+import { PLAIN_TEXT_EXTENSIONS, DOCUMENT_EXTENSIONS } from "../hooks/useFileUpload";
+import { useContextStorage } from "../hooks/useContextStorage";
+import type { StoredItem } from "../hooks/useContextStorage";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
@@ -86,6 +93,7 @@ const AppPageContent = () => {
 
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [tipsOpen, setTipsOpen] = useState(false);
+  const [storagePanelOpen, setStoragePanelOpen] = useState(false);
 
   useKeyboardShortcuts({
     onQuickMenu: () => {
@@ -94,6 +102,110 @@ const AppPageContent = () => {
       });
     },
   });
+
+  const handleRestoreNode = (
+    node: import("../types/GraphCanvas.types").GraphNode,
+    screenPoint: { x: number; y: number }
+  ) => {
+    const nodesRef = graphCanvasRef.current?.nodesRef;
+    const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+    const treeManager = graphCanvasRef.current?.treeManager;
+    const transform = graphCanvasRef.current?.transform;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager || !transform) return;
+
+    // Convert screen coordinates to canvas coordinates
+    const canvasX = (screenPoint.x - transform.x) / transform.k;
+    const canvasY = (screenPoint.y - transform.y) / transform.k;
+
+    const workingNodes = { ...nodesRef.current };
+    const newNodeDim = getDefaultNodeDimensions(node.type);
+    const freePos = findFreePosition(
+      canvasX,
+      canvasY,
+      newNodeDim.width,
+      newNodeDim.height,
+      workingNodes,
+      nodeDimensionsRef.current,
+      "below"
+    );
+
+    const restoredNode = {
+      ...node,
+      x: freePos.x,
+      y: freePos.y,
+      id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      parentIds: [],
+      childrenIds: [],
+    };
+
+    treeManager.addNode(restoredNode);
+  };
+
+  const handleRestoreFile = async (
+    file: File,
+    screenPoint: { x: number; y: number }
+  ) => {
+    const transform = graphCanvasRef.current?.transform;
+    if (!transform) return;
+
+    // Convert screen coordinates to canvas coordinates
+    const canvasX = (screenPoint.x - transform.x) / transform.k;
+    const canvasY = (screenPoint.y - transform.y) / transform.k;
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    await onDropFilesAsContext(dataTransfer.files, { x: canvasX, y: canvasY });
+  };
+
+  const { addNode: addNodeToStorage } = useContextStorage();
+
+  const handleNodeDroppedToStorage = (nodeId: string) => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    const nodes = graphCanvasRef.current?.nodes;
+    if (!treeManager || !nodes) return;
+
+    const node = nodes[nodeId];
+    if (!node) return;
+
+    // Add node to storage
+    addNodeToStorage(node);
+
+    // Remove node from canvas
+    treeManager.deleteNode(nodeId);
+  };
+
+  // Handle storage item drops on canvas
+  useEffect(() => {
+    const handleStorageItemDrop = (e: CustomEvent<{ item: StoredItem; canvasPoint: { x: number; y: number } }>) => {
+      const { item, canvasPoint } = e.detail;
+
+      if (item.type === "file") {
+        // Convert stored file back to File object
+        const blob = item.mimeType.startsWith("image/")
+          ? dataURLtoBlob(item.data)
+          : new Blob([item.data], { type: item.mimeType });
+        const file = new File([blob], item.name, { type: item.mimeType });
+        handleRestoreFile(file, canvasPoint);
+      } else {
+        handleRestoreNode(item.node, canvasPoint);
+      }
+    };
+
+    window.addEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
+    return () => window.removeEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
+  }, []);
+
+  function dataURLtoBlob(dataURL: string): Blob {
+    const arr = dataURL.split(",");
+    const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  }
 
   return (
     <div className="relative w-full h-screen">
@@ -105,6 +217,7 @@ const AppPageContent = () => {
         onDropFilesAsContext={onDropFilesAsContext}
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
+        onNodeDragToStorage={handleNodeDroppedToStorage}
       />
       {quickMenuOpen && (
         <SettingsModal
@@ -172,6 +285,13 @@ const AppPageContent = () => {
         </div>
       </button>
       <TipsModal isOpen={tipsOpen} onClose={() => setTipsOpen(false)} />
+      <ContextStoragePanel
+        isOpen={storagePanelOpen}
+        onToggle={() => setStoragePanelOpen((prev) => !prev)}
+        onRestoreNode={handleRestoreNode}
+        onRestoreFile={handleRestoreFile}
+        onNodeDropped={handleNodeDroppedToStorage}
+      />
       <input
         ref={fileInputRef}
         type="file"

@@ -157,6 +157,26 @@ export function useCanvasInteraction({
     e.preventDefault();
     e.stopPropagation();
 
+    // Check if dropping a stored item from storage panel
+    const storedItemData = e.dataTransfer.getData("application/json");
+    if (storedItemData) {
+      try {
+        const item = JSON.parse(storedItemData) as import("../../../hooks/useContextStorage").StoredItem;
+        // Convert screen coordinates to canvas coordinates
+        const canvasX = (e.clientX - transform.x) / transform.k;
+        const canvasY = (e.clientY - transform.y) / transform.k;
+        
+        // Dispatch custom event to handle storage item drop
+        const event = new CustomEvent("storageItemDrop", {
+          detail: { item, canvasPoint: { x: canvasX, y: canvasY } },
+        });
+        window.dispatchEvent(event);
+        return;
+      } catch {
+        // Not a stored item, continue with file handling
+      }
+    }
+
     if (!onDropFilesAsContext || !e.dataTransfer.files.length) return;
 
     // Convert screen coordinates to canvas coordinates
