@@ -153,42 +153,6 @@ const MarkdownChunk = memo(
   (prev, next) => prev.content === next.content
 );
 
-// Normalize math delimiters and fix common markdown issues
-function normalizeMath(raw: string) {
-  let normalized = raw
-    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => `$$${math}$$`)
-    .replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => `$${math}$`);
-  
-  // Check if content contains markdown tables - if so, skip normalization to avoid breaking them
-  const hasTable = /\|.*\|.*\n\|[\s:-]+\|/.test(normalized);
-  
-  if (hasTable) {
-    // Only do minimal processing for table content
-    return normalized;
-  }
-  
-  // Fix common markdown formatting issues from AI responses
-  // particularly from web search results that may have malformed emphasis
-  normalized = normalized
-    // Fix orphaned asterisks that are separated by spaces (e.g., "* *text")
-    // This often happens when markdown emphasis is malformed
-    // But NOT in list items or tables
-    .replace(/([^*\n])\*\s+\*([^*])/g, '$1$2')
-    // Fix cases where there's no space between text and emphasis markers
-    .replace(/([a-zA-Z0-9])(\*+)([a-zA-Z])/g, '$1 $2$3')
-    .replace(/([a-zA-Z])(\*+)([a-zA-Z0-9])/g, '$1$2 $3')
-    // Clean up any malformed emphasis markers (odd number of asterisks that would break parsing)
-    .replace(/(\*{3,})/g, (match) => {
-      const len = match.length;
-      // Convert odd sequences of 3+ asterisks to proper pairs
-      return len % 2 === 0 ? match : match.slice(0, len - 1);
-    })
-    // Fix multiple spaces that might have been introduced
-    .replace(/  +/g, ' ');
-  
-  return normalized;
-}
-
 // Split markdown into stable chunks (by double newlines, preserving code blocks and tables)
 function splitIntoChunks(content: string): string[] {
   const chunks: string[] = [];
@@ -271,10 +235,9 @@ export const ResponseNode = memo(
       }
     }, [reasoning.length]);
 
-    // Memoize chunk splitting and math normalization
+    // Memoize chunk splitting
     const chunks = useMemo(() => {
-      const normalized = normalizeMath(rawContent);
-      return splitIntoChunks(normalized);
+      return splitIntoChunks(rawContent);
     }, [rawContent]);
 
     const handleCopy = () => {
