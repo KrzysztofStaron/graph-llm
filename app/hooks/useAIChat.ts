@@ -270,8 +270,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         nodesWithQuery[newNode.id] = newNode;
       }
 
-      // Track if we receive an image response
+      // Track if we receive an image or youtube response
       let imageResult: { url: string; prompt?: string } | null = null;
+      let youtubeResult: { videoId: string; explanation?: string } | null = null;
 
       logger.info('[INPUT] Starting AI stream for user input', {
         query: query.substring(0, 100),
@@ -341,6 +342,15 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
                 reasoning,
               } as GraphNode;
             }
+          },
+          // onYoutube callback - called when YouTube video tool is detected
+          (videoId, explanation) => {
+            logger.info('[INPUT] YouTube video triggered', {
+              videoId,
+              explanation,
+            });
+            
+            youtubeResult = { videoId, explanation };
           }
         )
         .catch((error) => {
@@ -367,9 +377,56 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         responseNodeId: responseNodeId.substring(0, 8),
         resultType: result.type,
         totalChunks: mainChunkCount,
-        contentLength: result.content.length,
-        contentPreview: result.content.substring(0, 100),
+        contentLength: result.type === "youtube" ? result.videoId : result.content.length,
+        contentPreview: result.type === "youtube" ? result.videoId : result.content.substring(0, 100),
       });
+
+      // Handle YouTube response - create a new YouTube node as a child of the input node
+      if (result.type === "youtube") {
+        logger.info('[INPUT] Creating YouTube node', {
+          videoId: result.videoId,
+          explanation: result.explanation,
+        });
+
+        // Delete the response node since we're creating a YouTube node instead
+        treeManager.deleteNode(responseNodeId);
+        delete nodesWithQuery[responseNodeId];
+
+        // Create YouTube node with smart placement
+        const callerDim =
+          nodeDimensionsRef.current[caller.id] ||
+          getDefaultNodeDimensions(caller.type);
+
+        const targetX = currentCaller.x + callerDim.width / 4;
+        const targetY = currentCaller.y + callerDim.height + 30;
+
+        const youtubeNodeDim = getDefaultNodeDimensions("response"); // Use response dimensions as fallback
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          youtubeNodeDim.width,
+          youtubeNodeDim.height,
+          nodesWithQuery,
+          nodeDimensionsRef.current,
+          "below"
+        );
+
+        const youtubeNode = createNode("youtube", freePos.x, freePos.y);
+        treeManager.addNode(youtubeNode);
+        treeManager.patchNode(youtubeNode.id, {
+          value: result.videoId,
+          explanation: result.explanation,
+        });
+        treeManager.linkNodes(caller.id, youtubeNode.id);
+        nodesWithQuery[youtubeNode.id] = {
+          ...youtubeNode,
+          value: result.videoId,
+          explanation: result.explanation,
+        };
+
+        // Don't create follow-up input node for YouTube nodes (as per requirements)
+        return;
+      }
 
       // Handle image response - convert the response node to an image-response node in-place
       if (result.type === "image") {

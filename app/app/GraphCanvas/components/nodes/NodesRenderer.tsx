@@ -10,6 +10,7 @@ import { ContextNode } from "./ContextNode";
 import { ImageContextNode } from "./ImageContextNode";
 import { DocumentNode } from "./DocumentNode";
 import { SummaryNode } from "./SummaryNode";
+import { YouTubeNode } from "./YouTubeNode";
 
 import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 
@@ -99,6 +100,9 @@ const NodesRenderer = ({
               )}
               {node.type === "summary" && (
                 <SummaryNode node={node} isSelected={isSelected} />
+              )}
+              {node.type === "youtube" && (
+                <YouTubeNode node={node} isSelected={isSelected} />
               )}
             </motion.div>
           );

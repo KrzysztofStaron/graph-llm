@@ -5,7 +5,8 @@ export type NodeType =
   | "context"
   | "image-context"
   | "document"
-  | "summary";
+  | "summary"
+  | "youtube";
 
 export interface BaseNode {
   id: string;
@@ -58,6 +59,12 @@ export interface SummaryNode extends BaseNode {
   type: "summary";
 }
 
+export interface YouTubeNode extends BaseNode {
+  type: "youtube";
+  // videoId is stored in the value field
+  explanation?: string;
+}
+
 export type GraphNode =
   | InputNode
   | ResponseNode
@@ -65,7 +72,8 @@ export type GraphNode =
   | ContextNode
   | ImageContextNode
   | DocumentNode
-  | SummaryNode;
+  | SummaryNode
+  | YouTubeNode;
 
 export type GraphNodes = Record<string, GraphNode>;
 

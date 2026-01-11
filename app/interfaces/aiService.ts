@@ -18,7 +18,8 @@ export type ChatMessage = {
 // Response types for streaming
 export type StreamResponse = 
   | { type: "text"; content: string }
-  | { type: "image"; content: string; prompt?: string };
+  | { type: "image"; content: string; prompt?: string }
+  | { type: "youtube"; videoId: string; explanation?: string };
 
 export class aiService {
   static async chat(
@@ -121,7 +122,8 @@ export class aiService {
       webSearchEnabled?: boolean;
     },
     onImage?: (imageUrl: string, prompt?: string) => void,
-    onReasoning?: (reasoning: string) => void
+    onReasoning?: (reasoning: string) => void,
+    onYoutube?: (videoId: string, explanation?: string) => void
   ): Promise<StreamResponse> {
     const maxRetries = options?.retries ?? 2;
     let lastError: Error | null = null;
@@ -152,7 +154,7 @@ export class aiService {
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
 
-      const result = await this._attemptStreamChat(message, onChunk, options, onImage, onReasoning);
+      const result = await this._attemptStreamChat(message, onChunk, options, onImage, onReasoning, onYoutube);
       if (result.success) {
         return result.data;
       }
@@ -190,7 +192,8 @@ export class aiService {
       webSearchEnabled?: boolean;
     },
     onImage?: (imageUrl: string, prompt?: string) => void,
-    onReasoning?: (reasoning: string) => void
+    onReasoning?: (reasoning: string) => void,
+    onYoutube?: (videoId: string, explanation?: string) => void
   ): Promise<{ success: true; data: StreamResponse } | { success: false; error: Error }> {
 
     try {
@@ -301,6 +304,7 @@ export class aiService {
         let pendingUpdate = false;
         let pendingReasoningUpdate = false;
         let imageResponse: { url: string; prompt?: string } | null = null;
+        let youtubeResponse: { videoId: string; explanation?: string } | null = null;
         const THROTTLE_MS = 300;
 
         const throttledOnChunk = (content: string) => {
@@ -349,6 +353,14 @@ export class aiService {
                 return { 
                   success: true, 
                   data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
+                };
+              }
+              
+              // If we got a YouTube response, return it
+              if (youtubeResponse) {
+                return { 
+                  success: true, 
+                  data: { type: "youtube", videoId: youtubeResponse.videoId, explanation: youtubeResponse.explanation } 
                 };
               }
               
@@ -404,6 +416,14 @@ export class aiService {
                     };
                   }
                   
+                  // If we got a YouTube response, return it
+                  if (youtubeResponse) {
+                    return { 
+                      success: true, 
+                      data: { type: "youtube", videoId: youtubeResponse.videoId, explanation: youtubeResponse.explanation } 
+                    };
+                  }
+                  
                   logger.info("Stream completed with [DONE] - raw fullResponse from AI service", { 
                     fullResponse,
                     length: fullResponse.length 
@@ -424,8 +444,10 @@ export class aiService {
                     content?: string; 
                     reasoning?: string;
                     error?: string;
-                    type?: "image";
+                    type?: "image" | "youtube";
                     prompt?: string;
+                    videoId?: string;
+                    explanation?: string;
                   };
                   
                   // Handle reasoning content
@@ -444,6 +466,15 @@ export class aiService {
                     imageResponse = { url: parsed.content, prompt: parsed.prompt };
                     if (onImage) {
                       onImage(parsed.content, parsed.prompt);
+                    }
+                  } else if (parsed.type === "youtube" && parsed.videoId) {
+                    logger.info("[AI SERVICE] YouTube response received", { 
+                      videoId: parsed.videoId,
+                      explanation: parsed.explanation 
+                    });
+                    youtubeResponse = { videoId: parsed.videoId, explanation: parsed.explanation };
+                    if (onYoutube) {
+                      onYoutube(parsed.videoId, parsed.explanation);
                     }
                   } else if (parsed.content) {
                     fullResponse += parsed.content;

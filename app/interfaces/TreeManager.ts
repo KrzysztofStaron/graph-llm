@@ -9,6 +9,7 @@ import type {
   DocumentNode,
   ImageContextNode,
   SummaryNode,
+  YouTubeNode,
 } from "../types/graph";
 
 import { aiService, type ChatMessage } from "./aiService";
@@ -417,6 +418,12 @@ export class TreeManager {
           - DO NOT write any text response when you call the tool.
           - Call 'generate_image' IMMEDIATELY with a descriptive prompt.
           
+          YOUTUBE VIDEO EMBEDDING:
+          - You have access to a 'show_youtube_video' tool.
+          - Use this when a video would significantly enhance your response (tutorials, demonstrations, explanations).
+          - Only call this when a video truly adds value - don't overuse it.
+          - Provide the video ID and a brief explanation of why it's relevant.
+          
           GRAPH STRUCTURE:
           Each piece of information is a node in the graph, and connections between the nodes are the edges. 
           When responding don't include metadata tags, only the content of the nodes. 
@@ -810,6 +817,11 @@ export function createNode(
   x: number,
   y: number
 ): SummaryNode;
+export function createNode(
+  type: "youtube",
+  x: number,
+  y: number
+): YouTubeNode;
 
 export function createNode(type: NodeType, x: number, y: number): GraphNode {
   const id = crypto.randomUUID();
@@ -831,6 +843,15 @@ export function createNode(type: NodeType, x: number, y: number): GraphNode {
       type: "image-response",
       prompt: undefined,
     } as ImageResponseNode;
+  }
+
+  // Add explanation field for youtube nodes
+  if (type === "youtube") {
+    return {
+      ...baseNode,
+      type: "youtube",
+      explanation: undefined,
+    } as YouTubeNode;
   }
 
   return baseNode as GraphNode;

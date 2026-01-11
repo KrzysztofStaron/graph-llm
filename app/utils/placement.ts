@@ -42,6 +42,8 @@ export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
       return { width: 400, height: 80 };
     case "summary":
       return { width: 520, height: 180 };
+    case "youtube":
+      return { width: 640, height: 400 };
   }
 }
 
