@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { Check, Copy, X } from "lucide-react";
+import { Check, Copy, X, Minimize2, Maximize2 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 type ResponseNodeProps = {
@@ -213,6 +213,7 @@ export const ResponseNode = memo(
     const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
       "idle"
     );
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const [pulseKey, setPulseKey] = useState(0);
     const resetTimerRef = useRef<number | null>(null);
     const prevReasoningLengthRef = useRef(0);
@@ -268,46 +269,77 @@ export const ResponseNode = memo(
     };
 
     return (
-      <div className="max-w-[808px] min-w-[200px] flex items-center group">
+      <div
+        className="flex items-center group"
+        style={{
+          maxWidth: isCollapsed ? "300px" : "808px",
+          minWidth: "200px",
+          transition: "max-width 0.3s ease",
+        }}
+      >
         <div
           className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
           style={{
             boxShadow: isSelected
               ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
               : undefined,
-            transition: "box-shadow 0.2s ease",
+            maxHeight: isCollapsed ? "100px" : "none",
+            transition: "box-shadow 0.2s ease, max-height 0.3s ease",
           }}
         >
           {!isLoading && !isFailed && rawContent.trim().length > 0 && (
-            <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                type="button"
-                onClick={handleCopy}
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-medium hover:bg-white/20 transition-colors flex items-center gap-1.5"
-                aria-label="Copy response"
-              >
-                {copyStatus === "copied" ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    Copied
-                  </>
-                ) : copyStatus === "failed" ? (
-                  <>
-                    <X className="w-3.5 h-3.5" />
-                    Failed
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
+            <>
+              <div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => setIsCollapsed(!isCollapsed)}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="p-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 hover:bg-white/20 transition-colors flex items-center justify-center"
+                  aria-label={isCollapsed ? "Expand node" : "Collapse node"}
+                >
+                  {isCollapsed ? (
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+              <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-white/90 text-xs font-medium hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                  aria-label="Copy response"
+                >
+                  {copyStatus === "copied" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied
+                    </>
+                  ) : copyStatus === "failed" ? (
+                    <>
+                      <X className="w-3.5 h-3.5" />
+                      Failed
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
           )}
-          <div className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed">
+          <div
+            className="block resize-none py-5 px-8 w-full rounded-3xl border-none bg-[#0a0a0a] text-white max-w-none break-words leading-relaxed"
+            style={{
+              overflow: isCollapsed ? "hidden" : "visible",
+            }}
+          >
             {isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
