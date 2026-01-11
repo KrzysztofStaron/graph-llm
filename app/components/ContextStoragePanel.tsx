@@ -147,7 +147,8 @@ export function ContextStoragePanel({
         const blob = item.mimeType.startsWith("image/")
           ? dataURLtoBlob(item.data)
           : new Blob([item.data], { type: item.mimeType });
-        const file = new File([blob], item.name, { type: item.mimeType });
+        const FileConstructor = globalThis.File;
+        const file = new FileConstructor([blob], item.name, { type: item.mimeType });
         onRestoreFile(file, viewportCenter);
       } else {
         onRestoreNode(item.node, viewportCenter);
