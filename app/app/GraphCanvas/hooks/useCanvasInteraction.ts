@@ -49,12 +49,25 @@ export function useCanvasInteraction({
     initialTransform || { x: 0, y: 0, k: 1 }
   );
 
+  const transformSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    try {
-      localStorage.setItem("graph-transform", JSON.stringify(transform));
-    } catch (error) {
-      logger.error("Failed to save canvas transform:", { error });
+    if (transformSaveTimeoutRef.current) {
+      clearTimeout(transformSaveTimeoutRef.current);
     }
+    
+    transformSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem("graph-transform", JSON.stringify(transform));
+      } catch (error) {
+        logger.error("Failed to save canvas transform:", { error });
+      }
+    }, 300);
+    
+    return () => {
+      if (transformSaveTimeoutRef.current) {
+        clearTimeout(transformSaveTimeoutRef.current);
+      }
+    };
   }, [transform]);
 
   const viewportRef = useRef<HTMLDivElement>(null);

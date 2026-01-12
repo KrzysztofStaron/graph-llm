@@ -190,41 +190,57 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Update refs when state changes
     useEffect(() => {
       nodesRef.current = nodes;
-      if (Object.keys(nodes).length > 0) {
-        const serialized = JSON.stringify(nodes);
-        const sizeInMB = new Blob([serialized]).size / 1024 / 1024;
-        
-        if (sizeInMB > 4) {
-          logger.warn("Graph nodes data is very large", { 
-            sizeInMB: sizeInMB.toFixed(2),
-            nodeCount: Object.keys(nodes).length 
-          });
-        }
-        
-        const error = (() => {
-          try {
-            localStorage.setItem("graph-nodes", serialized);
-            return null;
-          } catch (e) {
-            if (e instanceof Error && e.name === "QuotaExceededError") {
-              return { type: "quota", message: e.message };
-            }
-            return { type: "unknown", message: e instanceof Error ? e.message : String(e) };
+    }, [nodes]);
+
+    const nodesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+      if (nodesSaveTimeoutRef.current) {
+        clearTimeout(nodesSaveTimeoutRef.current);
+      }
+      
+      nodesSaveTimeoutRef.current = setTimeout(() => {
+        if (Object.keys(nodes).length > 0) {
+          const serialized = JSON.stringify(nodes);
+          const sizeInMB = new Blob([serialized]).size / 1024 / 1024;
+          
+          if (sizeInMB > 4) {
+            logger.warn("Graph nodes data is very large", { 
+              sizeInMB: sizeInMB.toFixed(2),
+              nodeCount: Object.keys(nodes).length 
+            });
           }
-        })();
-        
-        if (error) {
-          logger.error("Failed to save graph nodes to localStorage", {
-            errorType: error.type,
-            sizeInMB: sizeInMB.toFixed(2),
-            nodeCount: Object.keys(nodes).length,
-            message: error.message
-          });
+          
+          const error = (() => {
+            try {
+              localStorage.setItem("graph-nodes", serialized);
+              return null;
+            } catch (e) {
+              if (e instanceof Error && e.name === "QuotaExceededError") {
+                return { type: "quota", message: e.message };
+              }
+              return { type: "unknown", message: e instanceof Error ? e.message : String(e) };
+            }
+          })();
+          
+          if (error) {
+            logger.error("Failed to save graph nodes to localStorage", {
+              errorType: error.type,
+              sizeInMB: sizeInMB.toFixed(2),
+              nodeCount: Object.keys(nodes).length,
+              message: error.message
+            });
+            localStorage.removeItem("graph-nodes");
+          }
+        } else {
           localStorage.removeItem("graph-nodes");
         }
-      } else {
-        localStorage.removeItem("graph-nodes");
-      }
+      }, 500);
+      
+      return () => {
+        if (nodesSaveTimeoutRef.current) {
+          clearTimeout(nodesSaveTimeoutRef.current);
+        }
+      };
     }, [nodes]);
 
     useEffect(() => {

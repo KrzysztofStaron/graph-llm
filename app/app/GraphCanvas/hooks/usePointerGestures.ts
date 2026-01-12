@@ -217,6 +217,22 @@ export function usePointerGestures({
     [clearSelection, clearLongPressTimer]
   );
 
+  const storagePanelRectRef = useRef<DOMRect | null>(null);
+  const storagePanelCheckCounterRef = useRef(0);
+  
+  const updateStoragePanelCache = useCallback(() => {
+    if (onNodeDragToStorage) {
+      const storagePanel = document.querySelector('[data-storage-panel]') as HTMLElement | null;
+      storagePanelRectRef.current = storagePanel?.getBoundingClientRect() || null;
+    }
+  }, [onNodeDragToStorage]);
+
+  useEffect(() => {
+    if (onNodeDragToStorage) {
+      updateStoragePanelCache();
+    }
+  }, [onNodeDragToStorage, updateStoragePanelCache]);
+
   // Global pointer move/up handlers
   useEffect(() => {
     const handlePointerMove = (e: PointerEvent) => {
@@ -251,17 +267,19 @@ export function usePointerGestures({
         if (!longPressFiredRef.current) {
           e.preventDefault();
 
-          // Check if dragging over storage panel
-          const storagePanel = document.querySelector('[data-storage-panel]') as HTMLElement | null;
-          if (storagePanel && onNodeDragToStorage) {
-            const rect = storagePanel.getBoundingClientRect();
-            if (
+          if (onNodeDragToStorage) {
+            storagePanelCheckCounterRef.current++;
+            if (storagePanelCheckCounterRef.current % 10 === 0) {
+              updateStoragePanelCache();
+            }
+            
+            const rect = storagePanelRectRef.current;
+            if (rect && (
               e.clientX >= rect.left &&
               e.clientX <= rect.right &&
               e.clientY >= rect.top &&
               e.clientY <= rect.bottom
-            ) {
-              // Over storage panel - don't move node, just track for potential drop
+            )) {
               return;
             }
           }
@@ -293,23 +311,19 @@ export function usePointerGestures({
 
       const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
 
-      // Check if dropped over storage panel
       if (dragging.hasMoved && onNodeDragToStorage) {
-        const storagePanel = document.querySelector('[data-storage-panel]') as HTMLElement | null;
-        if (storagePanel) {
-          const rect = storagePanel.getBoundingClientRect();
-          if (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
-          ) {
-            // Dropped on storage panel
-            onNodeDragToStorage(dragging.nodeId, e.clientX, e.clientY);
-            draggingRef.current = null;
-            isMultiTouchRef.current = false;
-            return;
-          }
+        updateStoragePanelCache();
+        const rect = storagePanelRectRef.current;
+        if (rect && (
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        )) {
+          onNodeDragToStorage(dragging.nodeId, e.clientX, e.clientY);
+          draggingRef.current = null;
+          isMultiTouchRef.current = false;
+          return;
         }
       }
 
@@ -358,6 +372,7 @@ export function usePointerGestures({
     toggleNodeSelection,
     clearLongPressTimer,
     onNodeDragToStorage,
+    updateStoragePanelCache,
   ]);
 
   // Cleanup on unmount
