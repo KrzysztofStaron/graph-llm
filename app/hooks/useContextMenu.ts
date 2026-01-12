@@ -202,7 +202,9 @@ export function useContextMenu({
         const horizontalOffset =
           clickOffset < 0 ? -80 : clickOffset > 0 ? 80 : 0;
 
-        targetX = clickedNode.x + horizontalOffset;
+        // Center the input node below the parent node, with optional offset
+        const newNodeDim = getDefaultNodeDimensions("input");
+        targetX = nodeCenterX - newNodeDim.width / 2 + horizontalOffset;
         targetY = clickedNode.y + nodeDim.height + 30;
       }
     }

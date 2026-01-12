@@ -512,8 +512,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           nodeDimensionsRef.current[responseNodeId] ||
           getDefaultNodeDimensions(currentResponseNode.type);
 
+        // Calculate the center X of the response node
+        const responseNodeCenterX = currentResponseNode.x + responseNodeDim.width / 2;
+        
         // Place directly below the response node (and any YouTube videos)
-        const targetX = currentResponseNode.x;
+        const newNodeDim = getDefaultNodeDimensions("input");
+        const targetX = responseNodeCenterX - newNodeDim.width / 2;
         let targetY = currentResponseNode.y + responseNodeDim.height + 90;
         
         // If there are YouTube videos, place the input below them (accounting for grid layout)
@@ -526,7 +530,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           targetY += numRows * (youtubeNodeDim.height + verticalGap) + 50;
         }
 
-        const newNodeDim = getDefaultNodeDimensions("input");
         const freePos = findFreePosition(
           targetX,
           targetY,
