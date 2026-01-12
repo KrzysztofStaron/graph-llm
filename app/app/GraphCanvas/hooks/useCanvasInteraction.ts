@@ -170,10 +170,6 @@ export function useCanvasInteraction({
     const storedItemData = e.dataTransfer.getData("application/json");
     const hasFiles = e.dataTransfer.files && e.dataTransfer.files.length > 0;
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:drop-check',message:'Drop event initial check',data:{hasStorageData:!!storedItemData,hasFiles,filesLength:e.dataTransfer.files?.length,types:Array.from(e.dataTransfer.types)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H9'})}).catch(()=>{});
-    // #endregion
-    
     // If there are files but no storage data and no explicit external file drop marker,
     // this is likely a node drag (which shouldn't trigger drop handler)
     if (hasFiles && !storedItemData) {
@@ -183,9 +179,6 @@ export function useCanvasInteraction({
                              !e.dataTransfer.types.includes('application/x-moz-node');
       
       if (!isExternalDrop) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:ignore-node-drag',message:'Ignoring node drag as file drop',data:{types:Array.from(e.dataTransfer.types)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H9'})}).catch(()=>{});
-        // #endregion
         return; // Ignore node drags
       }
     }
@@ -196,36 +189,20 @@ export function useCanvasInteraction({
 
     const viewportRect = viewport.getBoundingClientRect();
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:drop-start',message:'Drop event coordinates',data:{clientX:e.clientX,clientY:e.clientY,viewportRect:{left:viewportRect.left,top:viewportRect.top,width:viewportRect.width,height:viewportRect.height},transform:{x:transform.x,y:transform.y,k:transform.k}},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H1,H2,H4'})}).catch(()=>{});
-    // #endregion
-    
     // Convert screen coordinates relative to viewport
     const viewportX = e.clientX - viewportRect.left;
     const viewportY = e.clientY - viewportRect.top;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:viewport-coords',message:'Viewport-relative coordinates',data:{viewportX,viewportY},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
 
     // Convert viewport coordinates to canvas coordinates
     // Formula: canvas = (viewport - transform.translate) / transform.scale
     const canvasX = (viewportX - transform.x) / transform.k;
     const canvasY = (viewportY - transform.y) / transform.k;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:canvas-coords',message:'Calculated canvas coordinates',data:{canvasX,canvasY},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
-
     // Check if dropping a stored item from storage panel (already retrieved above)
     
     if (storedItemData) {
       try {
         const item = JSON.parse(storedItemData) as import("../../../hooks/useContextStorage").StoredItem;
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:dispatch-event',message:'Dispatching storage item drop event',data:{itemType:item.type,canvasPoint:{x:canvasX,y:canvasY}},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H6'})}).catch(()=>{});
-        // #endregion
         
         // Dispatch custom event to handle storage item drop
         const event = new CustomEvent("storageItemDrop", {
@@ -234,9 +211,6 @@ export function useCanvasInteraction({
         window.dispatchEvent(event);
         return;
       } catch (err) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ed17caec-2749-4a3c-95c9-6731b2da51e1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCanvasInteraction.ts:parse-error',message:'Failed to parse storage item',data:{error:String(err)},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H6'})}).catch(()=>{});
-        // #endregion
         // Not a stored item, continue with file handling
       }
     }
