@@ -65,7 +65,17 @@ export function useCanvasInteraction({
   > | null>(null);
   const [isZoomInitialized, setIsZoomInitialized] = useState(false);
 
-  const nodeArray = Object.values(nodes);
+  // Store nodes and dimensions in refs to avoid recreating fitView on every render
+  const nodesRef = useRef(nodes);
+  const localNodeDimensionsRef = useRef(localNodeDimensions);
+  
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  
+  useEffect(() => {
+    localNodeDimensionsRef.current = localNodeDimensions;
+  }, [localNodeDimensions]);
 
   // Fit view function
   const fitView = useCallback(
@@ -73,9 +83,12 @@ export function useCanvasInteraction({
       if (
         !viewportRef.current ||
         !zoomBehaviorRef.current ||
-        nodeArray.length === 0
+        !isZoomInitialized
       )
         return;
+
+      const nodeArray = Object.values(nodesRef.current);
+      if (nodeArray.length === 0) return;
 
       const { clientWidth, clientHeight } = viewportRef.current;
 
@@ -86,7 +99,7 @@ export function useCanvasInteraction({
 
       nodeArray.forEach((node) => {
         const dim =
-          localNodeDimensions[node.id] || getDefaultNodeDimensions(node.type);
+          localNodeDimensionsRef.current[node.id] || getDefaultNodeDimensions(node.type);
         minX = Math.min(minX, node.x);
         minY = Math.min(minY, node.y);
         maxX = Math.max(maxX, node.x + dim.width);
@@ -124,7 +137,7 @@ export function useCanvasInteraction({
           .call(zoomBehaviorRef.current.transform, newTransform);
       }
     },
-    [nodeArray, localNodeDimensions]
+    [isZoomInitialized]
   );
 
   // Pan canvas function for keyboard controls (smooth direct DOM update)
