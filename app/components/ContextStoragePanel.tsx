@@ -130,7 +130,7 @@ export function ContextStoragePanel({
   };
 
   const handleItemClick = useCallback(
-    (item: StoredItem, e: React.MouseEvent) => {
+    async (item: StoredItem, e: React.MouseEvent) => {
       // On click, restore to center of viewport (in screen coordinates)
       // Get viewport element to calculate center correctly
       const viewportElement = document.querySelector('[data-viewport]') as HTMLElement | null;
@@ -144,9 +144,22 @@ export function ContextStoragePanel({
 
       if (item.type === "file") {
         // Convert stored file back to File object
-        const blob = item.mimeType.startsWith("image/")
-          ? dataURLtoBlob(item.data)
-          : new Blob([item.data], { type: item.mimeType });
+        let blob: Blob;
+        
+        if (item.url) {
+          // Image hosted on backend - fetch it
+          const response = await fetch(item.url);
+          blob = await response.blob();
+        } else if (item.data) {
+          // Text file or legacy base64 image stored locally
+          blob = item.mimeType.startsWith("image/")
+            ? dataURLtoBlob(item.data)
+            : new Blob([item.data], { type: item.mimeType });
+        } else {
+          console.error("Item has neither url nor data", item);
+          return;
+        }
+        
         const FileConstructor = globalThis.File;
         const file = new FileConstructor([blob], item.name, { type: item.mimeType });
         onRestoreFile(file, viewportCenter);
@@ -254,7 +267,11 @@ export function ContextStoragePanel({
                         </p>
                         <p className="text-white/30 text-[10px] mt-0.5">
                           {item.type === "file"
-                            ? formatFileSize(item.data.length)
+                            ? item.url
+                              ? "Cloud hosted"
+                              : item.data
+                                ? formatFileSize(item.data.length)
+                                : "Unknown size"
                             : item.node.type}
                         </p>
                       </div>

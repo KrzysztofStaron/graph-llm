@@ -189,38 +189,32 @@ const AppPageContent = () => {
     treeManager.deleteNode(nodeId);
   };
 
-  // Handle storage item drops on canvas
   useEffect(() => {
-    const handleStorageItemDrop = (e: CustomEvent<{ item: StoredItem; canvasPoint: { x: number; y: number } }>) => {
-      const { item, canvasPoint } = e.detail;
+    const handleStorageItemDrop = (e: Event) => {
+      const customEvent = e as CustomEvent<{ item: StoredItem; canvasPoint: { x: number; y: number } }>;
+      const { item, canvasPoint } = customEvent.detail;
 
       if (item.type === "file") {
-        // Convert stored file back to File object
-        const blob = item.mimeType.startsWith("image/")
-          ? dataURLtoBlob(item.data)
-          : new Blob([item.data], { type: item.mimeType });
-        const file = new File([blob], item.name, { type: item.mimeType });
-        handleRestoreFile(file, canvasPoint);
+        if (item.url) {
+          fetch(item.url)
+            .then(response => response.blob())
+            .then(blob => {
+              const file = new File([blob], item.name, { type: item.mimeType });
+              return handleRestoreFile(file, canvasPoint);
+            });
+        } else if (item.data) {
+          const blob = new Blob([item.data], { type: item.mimeType });
+          const file = new File([blob], item.name, { type: item.mimeType });
+          handleRestoreFile(file, canvasPoint);
+        }
       } else {
         handleRestoreNode(item.node, canvasPoint);
       }
     };
 
-    window.addEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
-    return () => window.removeEventListener("storageItemDrop", handleStorageItemDrop as EventListener);
+    window.addEventListener("storageItemDrop", handleStorageItemDrop);
+    return () => window.removeEventListener("storageItemDrop", handleStorageItemDrop);
   }, [handleRestoreFile, handleRestoreNode]);
-
-  function dataURLtoBlob(dataURL: string): Blob {
-    const arr = dataURL.split(",");
-    const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new Blob([u8arr], { type: mime });
-  }
 
   return (
     <div className="relative w-full h-dvh">

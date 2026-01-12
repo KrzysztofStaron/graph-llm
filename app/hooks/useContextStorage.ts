@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { GraphNode } from "../types/GraphCanvas.types";
 import logger from "../utils/logger";
+import { globals } from "../globals";
 
 export interface StoredFile {
   id: string;
   name: string;
   mimeType: string;
-  data: string; // base64 or text content
+  data?: string; // text content for non-images
+  url?: string; // URL for images hosted on backend
   uploadedAt: number;
 }
 
@@ -89,34 +91,46 @@ export function useContextStorage(): UseContextStorageReturn {
   const addFile = useCallback(async (file: File) => {
     const id = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    let data: string;
+    let storedFile: StoredItem;
+    
     if (file.type.startsWith("image/")) {
-      // Convert image to base64
-      const reader = new FileReader();
-      data = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          if (typeof reader.result === "string") {
-            resolve(reader.result);
-          } else {
-            reject(new Error("Failed to read image"));
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      // Upload image to backend
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/storage/upload`, {
+        method: "POST",
+        body: formData,
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to upload image");
+      }
+      
+      const { url } = await response.json();
+      
+      storedFile = {
+        type: "file",
+        id,
+        name: file.name,
+        mimeType: file.type,
+        url,
+        uploadedAt: Date.now(),
+      };
     } else {
-      // Read as text
-      data = await file.text();
+      // Read text files as before
+      const data = await file.text();
+      
+      storedFile = {
+        type: "file",
+        id,
+        name: file.name,
+        mimeType: file.type,
+        data,
+        uploadedAt: Date.now(),
+      };
     }
-
-    const storedFile: StoredItem = {
-      type: "file",
-      id,
-      name: file.name,
-      mimeType: file.type,
-      data,
-      uploadedAt: Date.now(),
-    };
 
     setStoredItems((prev) => [...prev, storedFile]);
   }, []);
