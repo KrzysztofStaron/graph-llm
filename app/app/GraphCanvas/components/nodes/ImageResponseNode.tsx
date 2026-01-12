@@ -72,7 +72,13 @@ export const ImageResponseNode = memo(
     };
 
     return (
-      <div className="max-w-[606px] min-w-[200px] flex items-center group">
+      <div 
+        className="flex items-center group"
+        style={{
+          maxWidth: "606px",
+          minWidth: "200px",
+        }}
+      >
         <div
           className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
           style={{

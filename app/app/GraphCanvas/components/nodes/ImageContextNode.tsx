@@ -15,9 +15,15 @@ export const ImageContextNode = memo(
     isSelected = false,
   }: ImageContextNodeProps) {
     return (
-      <div className="flex items-center group">
+      <div 
+        className="flex items-center group"
+        style={{
+          maxWidth: "464px",
+          minWidth: "200px",
+        }}
+      >
         <div
-          className="max-w-[464px] inline-flex items-center justify-center overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
+          className="w-full inline-flex items-center justify-center overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
           style={{
             boxShadow: isSelected
               ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
@@ -25,13 +31,13 @@ export const ImageContextNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
-          <div className="flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden">
+          <div className="flex items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden w-full">
             {node.value ? (
               <img
                 src={node.value}
                 alt="Context"
                 draggable={false}
-                className="max-w-[464px] h-auto object-contain"
+                className="w-full h-auto object-contain"
               />
             ) : (
               <div className="text-white/30 p-8">No image</div>
