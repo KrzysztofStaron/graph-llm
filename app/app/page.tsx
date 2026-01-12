@@ -27,7 +27,7 @@ import { useContextStorage } from "../hooks/useContextStorage";
 import type { StoredItem } from "../hooks/useContextStorage";
 import type { GraphNodes } from "../types/GraphCanvas.types";
 
-// Load initial state synchronously to avoid double render
+// Load state immediately on client, use defaults on server
 const loadInitialNodes = (): GraphNodes => {
   if (typeof window === 'undefined') return globals.initialNodes;
   const saved = localStorage.getItem("graph-nodes");
@@ -57,7 +57,7 @@ const loadInitialTransform = (): { x: number; y: number; k: number } | undefined
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
-  // Load initial nodes synchronously using lazy initializer
+  // Load immediately using lazy initializer - will be instant on client
   const [initialNodes] = useState<GraphNodes>(loadInitialNodes);
   const [initialTransform] = useState<{ x: number; y: number; k: number } | undefined>(loadInitialTransform);
 
@@ -241,7 +241,7 @@ const AppPageContent = () => {
   }, [handleRestoreFile, handleRestoreNode]);
 
   return (
-    <div className="relative w-full h-dvh">
+    <div className="relative w-full h-dvh" suppressHydrationWarning>
       <GraphCanvas
         ref={graphCanvasRef}
         initialNodes={initialNodes}
