@@ -5,6 +5,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useContextStorage, type StoredItem } from "../hooks/useContextStorage";
 import { GraphNode } from "../types/GraphCanvas.types";
 import { UPLOAD_CONTEXT_ACCEPT } from "../hooks/useFileUpload";
+import logger from "../utils/logger";
 
 interface ContextStoragePanelProps {
   isOpen: boolean;
@@ -156,7 +157,7 @@ export function ContextStoragePanel({
             ? dataURLtoBlob(item.data)
             : new Blob([item.data], { type: item.mimeType });
         } else {
-          console.error("Item has neither url nor data", item);
+          logger.error("Item has neither url nor data", { itemId: item.id, itemName: item.name });
           return;
         }
         

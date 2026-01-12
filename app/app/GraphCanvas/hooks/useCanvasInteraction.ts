@@ -2,6 +2,7 @@ import { useRef, useReducer, useCallback, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { GraphNodes, NodeDimensions } from "@/app/types/GraphCanvas.types";
 import { getDefaultNodeDimensions } from "@/app/utils/placement";
+import logger from "@/app/utils/logger";
 
 interface UseCanvasInteractionProps {
   nodes: GraphNodes;
@@ -52,7 +53,7 @@ export function useCanvasInteraction({
     try {
       localStorage.setItem("graph-transform", JSON.stringify(transform));
     } catch (error) {
-      console.error("Failed to save canvas transform:", error);
+      logger.error("Failed to save canvas transform:", { error });
     }
   }, [transform]);
 
@@ -348,7 +349,7 @@ export function useCanvasInteraction({
       const hasZoomProperty = selection.property("__zoom");
 
       if (!hasZoomProperty) {
-        console.warn("Canvas zoom behavior lost, reattaching...");
+        logger.warn("Canvas zoom behavior lost, reattaching...");
         // Reattach zoom behavior
         selection.call(zoom);
         // Restore current transform

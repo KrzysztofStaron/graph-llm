@@ -2,8 +2,9 @@ import { useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
-import { compressImage } from "../utils/imageCompression";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
+import { globals } from "../globals";
+import logger from "../utils/logger";
 
 interface UseFileUploadProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -85,12 +86,22 @@ export function useFileUpload({
     // Keep track of nodes as we create them for collision detection
     const workingNodes = { ...nodesRef.current };
 
-    // Create image context nodes
     for (const file of imageFiles) {
-      // Compress image before converting to data URL
-      const dataUrl = await compressImage(file);
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // Stagger positions: prefer stacking vertically below, slight horizontal offset
+      const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/storage/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        logger.error(`Failed to upload ${file.name}`);
+        continue;
+      }
+
+      const { url } = await response.json();
+
       const targetX = canvasPoint.x + nodeIndex * 40;
       const targetY = canvasPoint.y + nodeIndex * 120;
 
@@ -110,7 +121,7 @@ export function useFileUpload({
         freePos.x,
         freePos.y
       );
-      const nodeWithValue = { ...newImageContextNode, value: dataUrl };
+      const nodeWithValue = { ...newImageContextNode, value: url };
       treeManager.addNode(nodeWithValue);
       workingNodes[nodeWithValue.id] = nodeWithValue;
       nodeIndex++;
@@ -138,7 +149,7 @@ export function useFileUpload({
       }
 
       if (parseResult.error) {
-        console.error(`Failed to parse ${file.name}:`, parseResult.error);
+        logger.error(`Failed to parse ${file.name}:`, { error: parseResult.error });
         continue;
       }
 

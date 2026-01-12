@@ -1,5 +1,6 @@
 import { parseDocument, type ParseResult, type ParseError } from "./documentParser";
 import { globals } from "../globals";
+import logger from "./logger";
 
 export interface DocumentParseResult {
   text: string;
@@ -55,7 +56,7 @@ export async function parseDocumentWithFallback(
 
   // Client parsing failed or not supported, try server
   if ("error" in clientResult) {
-    console.warn(
+    logger.warn(
       `Client parsing failed for ${file.name}: ${clientResult.error}. Trying server fallback...`
     );
   }

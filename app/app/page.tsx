@@ -22,7 +22,6 @@ import SettingsModal from "./QuickMenu";
 import { HelpCircle, Settings } from "lucide-react";
 import { createNode } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
-import { compressImage } from "../utils/imageCompression";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import { PLAIN_TEXT_EXTENSIONS, DOCUMENT_EXTENSIONS } from "../hooks/useFileUpload";
 import { useContextStorage } from "../hooks/useContextStorage";

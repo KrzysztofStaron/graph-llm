@@ -1,5 +1,6 @@
 import type { GraphNode, GraphNodes, NodeDimensions } from "../types/";
 import { LAYOUT_CONFIG } from "../globals";
+import logger from "./logger";
 
 export interface Rectangle {
   x: number;
@@ -230,7 +231,7 @@ export function findFreePosition(
 
   // Fallback: if we couldn't find a free spot, return the target position
   // (this shouldn't happen with reasonable maxSearchRings, but better than crashing)
-  console.warn(
+  logger.warn(
     "findFreePosition: Could not find free spot after max search rings, using target position"
   );
   return { x: targetX, y: targetY };

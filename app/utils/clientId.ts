@@ -1,3 +1,5 @@
+import logger from './logger';
+
 const CLIENT_ID_KEY = 'graph-llm-client-id';
 
 export function getOrCreateClientId(): string {
@@ -12,7 +14,7 @@ export function getOrCreateClientId(): string {
     try {
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     } catch (error) {
-      console.error("Failed to save client ID:", error);
+      logger.error("Failed to save client ID:", error);
     }
   }
   

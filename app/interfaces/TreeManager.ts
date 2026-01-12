@@ -149,7 +149,7 @@ export class TreeManager {
     startNode: GraphNode | undefined
   ): ChatMessage[] {
     if (!startNode) {
-      console.warn("buildChatML: startNode is undefined");
+      logger.warn("buildChatML: startNode is undefined");
       return [];
     }
 
@@ -177,7 +177,7 @@ export class TreeManager {
       
       // If this node has appeared 3 times in the current path, terminate this branch
       if (currentPathCount >= 3) {
-        console.warn(`buildChatML: Loop detected for node ${currentNode.id}, terminating path`);
+        logger.warn(`buildChatML: Loop detected for node ${currentNode.id}, terminating path`);
         return;
       }
 
@@ -202,7 +202,7 @@ export class TreeManager {
         if (parentNode) {
           traverse(parentNode, level + 1);
         } else {
-          console.warn(`buildChatML: Parent node ${parentId} not found`);
+          logger.warn(`buildChatML: Parent node ${parentId} not found`);
         }
       });
       

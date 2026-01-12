@@ -44,7 +44,7 @@ export function useContextStorage(): UseContextStorageReturn {
         setStoredItems(parsed);
       }
     } catch (error) {
-      console.error("Failed to load context storage:", error);
+      logger.error("Failed to load context storage:", { error });
     }
   }, []);
 

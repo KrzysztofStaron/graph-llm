@@ -1,6 +1,7 @@
 import { GraphNodes } from "./types/";
+import logger from "./utils/logger";
 
-let local = process.env.NODE_ENV === "development";
+const local = process.env.NODE_ENV === "development";
 
 export class globals {
   static readonly graphLLMBackendUrl = local
@@ -20,7 +21,7 @@ export class globals {
   };
 }
 
-console.log(local ? "local" : "production", globals.graphLLMBackendUrl);
+logger.info(`Environment: ${local ? "local" : "production"}, Backend URL: ${globals.graphLLMBackendUrl}`);
 
 /**
  * Auto-layout tuning constants

@@ -135,7 +135,7 @@ export class aiService {
 
     // If streaming is not supported, fall back to non-streaming endpoint
     if (!supportsStreaming) {
-      console.warn(
+      logger.warn(
         "Streaming not supported in this browser, falling back to non-streaming endpoint"
       );
       const result = await this.chat(message, options);
@@ -277,7 +277,7 @@ export class aiService {
 
       // Additional check: if response.body or getReader is not available, fall back
       if (!response.body || typeof response.body.getReader !== "function") {
-        console.warn(
+        logger.warn(
           "Response body streaming not available, falling back to non-streaming"
         );
         clearTimeout(timeoutId);
