@@ -149,7 +149,6 @@ export const ResponseNode = memo(
       };
     }, []);
 
-    // Pulse animation state update on each reasoning chunk update
     useEffect(() => {
       if (reasoning.length > prevReasoningLengthRef.current) {
         prevReasoningLengthRef.current = reasoning.length;

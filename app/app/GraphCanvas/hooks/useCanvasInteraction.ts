@@ -48,7 +48,6 @@ export function useCanvasInteraction({
     initialTransform || { x: 0, y: 0, k: 1 }
   );
 
-  // Save transform to localStorage
   useEffect(() => {
     localStorage.setItem("graph-transform", JSON.stringify(transform));
   }, [transform]);
@@ -107,8 +106,6 @@ export function useCanvasInteraction({
         (clientHeight - padding * 2) / contentHeight,
         1.5 // Max scale when fitting
       );
-
-      console.log(scale, "padding", padding);
 
       const tx = clientWidth / 2 - (minX + contentWidth / 2) * scale;
       const ty = clientHeight / 2 - (minY + contentHeight / 2) * scale;
@@ -210,7 +207,7 @@ export function useCanvasInteraction({
         });
         window.dispatchEvent(event);
         return;
-      } catch (err) {
+      } catch {
         // Not a stored item, continue with file handling
       }
     }

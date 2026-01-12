@@ -188,7 +188,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Update refs when state changes
     useEffect(() => {
       nodesRef.current = nodes;
-      // Save nodes to localStorage
       if (Object.keys(nodes).length > 0) {
         localStorage.setItem("graph-nodes", JSON.stringify(nodes));
       } else {
@@ -224,26 +223,11 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         
         const nodeDim = getDefaultNodeDimensions("input");
         
-        // Calculate center position in canvas coordinates
-        // We want the node center to be at the viewport center
-        // Node position is top-left, so center = position + width/2, height/2
-        // For the node center to be at viewport center (viewportWidth/2, viewportHeight/2),
-        // we need: node.x + nodeDim.width/2 = viewportWidth/2 (in screen coords)
-        // With transform (tx, ty, k), screen_x = node.x * k + tx
-        // So: (node.x + nodeDim.width/2) * k + tx = viewportWidth/2
-        // If k=1 and we want node center at canvas origin (0,0) to appear at viewport center:
-        // 0 * 1 + tx = viewportWidth/2 => tx = viewportWidth/2
-        // But we want the node positioned so its center is at canvas (0,0)
-        // So: node.x = -nodeDim.width/2, node.y = -nodeDim.height/2
-        // And: tx = viewportWidth/2, ty = viewportHeight/2
-        
         const centerX = -nodeDim.width / 2;
         const centerY = -nodeDim.height / 2;
         
-        // Move the node so its center is at canvas origin
         treeManager.moveNode("input-1", centerX - initialInputNode.x, centerY - initialInputNode.y, true);
         
-        // Set transform to center the viewport (node center at canvas origin will appear at viewport center)
         const tx = viewportWidth / 2;
         const ty = viewportHeight / 2;
         

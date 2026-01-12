@@ -27,13 +27,14 @@ import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import { PLAIN_TEXT_EXTENSIONS, DOCUMENT_EXTENSIONS } from "../hooks/useFileUpload";
 import { useContextStorage } from "../hooks/useContextStorage";
 import type { StoredItem } from "../hooks/useContextStorage";
+import type { GraphNodes } from "../types/GraphCanvas.types";
 
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
   // Load initial nodes from localStorage if available
-  const [initialNodes, setInitialNodes] = useState<any>(null);
-  const [initialTransform, setInitialTransform] = useState<any>(undefined);
+  const [initialNodes, setInitialNodes] = useState<GraphNodes | null>(null);
+  const [initialTransform, setInitialTransform] = useState<{ x: number; y: number; k: number } | undefined>(undefined);
 
   useEffect(() => {
     const saved = localStorage.getItem("graph-nodes");

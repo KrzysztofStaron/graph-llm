@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { GraphNode, GraphNodes, ImageResponseNode } from "../types/";
+import { GraphNode, GraphNodes, ImageResponseNode, ResponseNode } from "../types/";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { aiService, StreamResponse } from "../interfaces/aiService";
@@ -45,15 +45,19 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             patch.reasoning = undefined;
           }
           treeManager.patchNode(node.id, patch);
-          const updatedNode = {
-            ...currentNodes[node.id],
-            value: "",
-            error: undefined,
-          };
-          if (node.type === "response") {
-            (updatedNode as any).reasoning = undefined;
-          }
-          currentNodes[node.id] = updatedNode as GraphNode;
+          const updatedNode = node.type === "response"
+            ? ({
+                ...currentNodes[node.id],
+                value: "",
+                error: undefined,
+                reasoning: undefined,
+              } as ResponseNode)
+            : ({
+                ...currentNodes[node.id],
+                value: "",
+                error: undefined,
+              } as GraphNode);
+          currentNodes[node.id] = updatedNode;
         }
 
         // Update all nodes at this level in parallel
@@ -243,9 +247,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         const callerDim =
           nodeDimensionsRef.current[caller.id] ||
           getDefaultNodeDimensions(caller.type);
-
-        console.log('callerDim', callerDim);
-        console.log('currentCaller', currentCaller);
 
         const targetX = currentCaller.x + callerDim.width / 4;
         const targetY = currentCaller.y + callerDim.height + 30;

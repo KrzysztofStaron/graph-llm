@@ -30,12 +30,7 @@ export const availableImageModels: ModelOption[] = [
     value: "google/gemini-3-pro-image-preview",
   },
 ];
-/*   {
-    label: "Kimi K2",
-    value: "moonshotai/kimi-k2-thinking",
-  },
 
-  */
 interface SettingsState {
   selectedModel: string;
   selectedImageModel: string;
