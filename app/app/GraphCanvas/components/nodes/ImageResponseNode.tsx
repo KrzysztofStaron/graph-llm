@@ -76,11 +76,10 @@ export const ImageResponseNode = memo(
         className="flex items-center group"
         style={{
           maxWidth: "606px",
-          minWidth: "200px",
         }}
       >
         <div
-          className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
+          className="relative items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"
           style={{
             boxShadow: isSelected
               ? "0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3)"
@@ -88,7 +87,7 @@ export const ImageResponseNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
-          <div className="flex flex-col items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden w-full">
+          <div className="flex flex-col items-center justify-center rounded-3xl border-none bg-[#0a0a0a] overflow-hidden">
             {isLoading ? (
               <ImageLoadingIndicator />
             ) : node.error || hasError ? (
@@ -135,9 +134,10 @@ export const ImageResponseNode = memo(
                   src={node.value}
                   alt={node.prompt || "Generated image"}
                   draggable={false}
-                  className={`w-full h-auto object-contain transition-opacity duration-300 ${
+                  className={`max-w-full h-auto object-contain transition-opacity duration-300 ${
                     isLoaded ? "opacity-100" : "opacity-0"
                   }`}
+                  style={{ maxWidth: "606px" }}
                   onLoad={() => setIsLoaded(true)}
                   onError={() => setHasError(true)}
                 />
@@ -178,8 +178,8 @@ export const ImageResponseNode = memo(
             
             {/* Show prompt if available */}
             {node.prompt && isLoaded && !hasError && (
-              <div className="w-full px-4 py-2 border-t border-white/5 bg-white/[0.02]">
-                <p className="text-xs text-white/40 font-mono line-clamp-2">
+              <div className="px-4 py-2 border-t border-white/5 bg-white/[0.02]" style={{ width: "100%" }}>
+                <p className="text-xs text-white/40 font-mono line-clamp-2" style={{ maxWidth: "606px" }}>
                   {node.prompt}
                 </p>
               </div>
