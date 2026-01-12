@@ -13,8 +13,8 @@ const LandingPage = ({ onStart }: LandingPageProps) => {
       <MonoLabel text="WITH AI" />
 
       <div className="mt-10 min-w-lg border-l-2 rounded-bl-full border-white/10 px-24 p-10 pb-[200px] relative overflow-hidden">
-        <h3 className="text-2xl relative z-10 text-balance">Graph UX</h3>
-        <p className="text-secondary mt-2 relative z-10 text-pretty">
+        <h3 className="text-2xl relative z-10">Graph UX</h3>
+        <p className="text-secondary mt-2 relative z-10">
           Free yourself from contrains of linearity, embrace exploration. <br />
           Avalible now on web
         </p>
