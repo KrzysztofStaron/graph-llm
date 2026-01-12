@@ -31,6 +31,7 @@ export type GraphAction =
     }
   | { type: "DELETE_CASCADE"; id: string }
   | { type: "DELETE_NODE_DETACH"; id: string }
+  | { type: "CLEAR_ALL" }
   | { type: "RESTORE_NODES"; nodes: GraphNodes };
 
 export class TreeManager {
@@ -420,9 +421,12 @@ export class TreeManager {
           
           YOUTUBE VIDEO EMBEDDING:
           - You have access to a 'show_youtube_video' tool.
-          - Use this when a video would significantly enhance your response (tutorials, demonstrations, explanations).
-          - Only call this when a video truly adds value - don't overuse it.
-          - Provide the video ID and a brief explanation of why it's relevant.
+          - Use this ALONGSIDE your text response when videos would enhance understanding (tutorials, demonstrations, explanations).
+          - You can call this tool MULTIPLE times to show several relevant videos (typically 2-5 videos).
+          - CRITICAL: Only use REAL, WORKING YouTube video IDs from videos that ACTUALLY EXIST. Do NOT make up or hallucinate video IDs.
+          - If you mention a video in your text response, use that exact video's ID in the tool call.
+          - Include a brief explanation for each video about why it's helpful.
+          - You can OPTIONALLY provide text context, but if you use the YouTube tool, you don't need to write out full descriptions - let the videos speak for themselves.
           
           GRAPH STRUCTURE:
           Each piece of information is a node in the graph, and connections between the nodes are the edges. 
@@ -573,6 +577,10 @@ export class TreeManager {
   deleteNodeDetach(id: string): void {
     this.dispatch({ type: "DELETE_NODE_DETACH", id });
   }
+
+  clearAll(): void {
+    this.dispatch({ type: "CLEAR_ALL" });
+  }
 }
 
 // Deep copy function for GraphNodes
@@ -595,6 +603,9 @@ export function graphReducer(
   switch (action.type) {
     case "RESTORE_NODES": {
       return deepCopyNodes(action.nodes);
+    }
+    case "CLEAR_ALL": {
+      return {};
     }
     case "PATCH_NODE": {
       const node = nodes[action.id];

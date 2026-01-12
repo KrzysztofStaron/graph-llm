@@ -37,36 +37,54 @@ export const YouTubeNode = memo(
             className="block py-5 px-6 w-full rounded-3xl border-none bg-[#0a0a0a] text-white"
           >
             {isFailed ? (
-              <div className="flex items-start gap-3 text-red-400">
-                <div className="size-4 mt-0.5 shrink-0">
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-full h-full"
-                  >
-                    <circle
-                      cx="8"
-                      cy="8"
-                      r="7"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M5 5L11 11M11 5L5 11"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold mb-1">
-                    Failed to embed YouTube video
-                  </p>
-                  <p className="text-sm text-red-300/80 font-mono">
-                    {node.error}
-                  </p>
+              <div className="flex flex-col gap-3 text-yellow-400">
+                <div className="flex items-start gap-3">
+                  <div className="size-4 mt-0.5 shrink-0">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-full h-full"
+                    >
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r="7"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        d="M8 4V8M8 12H8.01"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold mb-1">
+                      Video unavailable
+                    </p>
+                    {node.error ? (
+                      <p className="text-sm text-yellow-300/80 font-mono">
+                        {node.error}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-yellow-300/80">
+                        This video might be private, deleted, or the video ID may be incorrect.
+                      </p>
+                    )}
+                    {videoId && (
+                      <a
+                        href={`https://www.youtube.com/watch?v=${videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-white/50 hover:text-white/80 underline mt-2 inline-block"
+                      >
+                        Try opening on YouTube: {videoId}
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

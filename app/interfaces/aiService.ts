@@ -18,8 +18,7 @@ export type ChatMessage = {
 // Response types for streaming
 export type StreamResponse = 
   | { type: "text"; content: string }
-  | { type: "image"; content: string; prompt?: string }
-  | { type: "youtube"; videoId: string; explanation?: string };
+  | { type: "image"; content: string; prompt?: string };
 
 export class aiService {
   static async chat(
@@ -304,7 +303,6 @@ export class aiService {
         let pendingUpdate = false;
         let pendingReasoningUpdate = false;
         let imageResponse: { url: string; prompt?: string } | null = null;
-        let youtubeResponse: { videoId: string; explanation?: string } | null = null;
         const THROTTLE_MS = 300;
 
         const throttledOnChunk = (content: string) => {
@@ -353,14 +351,6 @@ export class aiService {
                 return { 
                   success: true, 
                   data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
-                };
-              }
-              
-              // If we got a YouTube response, return it
-              if (youtubeResponse) {
-                return { 
-                  success: true, 
-                  data: { type: "youtube", videoId: youtubeResponse.videoId, explanation: youtubeResponse.explanation } 
                 };
               }
               
@@ -416,14 +406,6 @@ export class aiService {
                     };
                   }
                   
-                  // If we got a YouTube response, return it
-                  if (youtubeResponse) {
-                    return { 
-                      success: true, 
-                      data: { type: "youtube", videoId: youtubeResponse.videoId, explanation: youtubeResponse.explanation } 
-                    };
-                  }
-                  
                   logger.info("Stream completed with [DONE] - raw fullResponse from AI service", { 
                     fullResponse,
                     length: fullResponse.length 
@@ -470,11 +452,14 @@ export class aiService {
                   } else if (parsed.type === "youtube" && parsed.videoId) {
                     logger.info("[AI SERVICE] YouTube response received", { 
                       videoId: parsed.videoId,
-                      explanation: parsed.explanation 
+                      explanation: parsed.explanation,
+                      hasCallback: !!onYoutube
                     });
-                    youtubeResponse = { videoId: parsed.videoId, explanation: parsed.explanation };
                     if (onYoutube) {
+                      logger.info("[AI SERVICE] Calling onYoutube callback", { videoId: parsed.videoId });
                       onYoutube(parsed.videoId, parsed.explanation);
+                    } else {
+                      logger.warn("[AI SERVICE] No onYoutube callback provided!");
                     }
                   } else if (parsed.content) {
                     fullResponse += parsed.content;

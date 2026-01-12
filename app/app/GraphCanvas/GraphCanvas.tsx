@@ -44,6 +44,7 @@ export interface GraphCanvasRef {
 
 interface GraphCanvasProps {
   initialNodes: GraphNodes;
+  initialTransform?: { x: number; y: number; k: number };
   onInputSubmit: (query: string, caller: GraphNode) => void;
   setEditingContextNodeId?: (nodeId: string | null) => void;
   onDropFilesAsContext?: (
@@ -69,6 +70,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
   function GraphCanvasInner(props, ref) {
     const {
       initialNodes,
+      initialTransform,
       onInputSubmit,
       setEditingContextNodeId,
       onDropFilesAsContext,
@@ -127,6 +129,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     } = useCanvasInteraction({
       nodes,
       localNodeDimensions,
+      initialTransform,
       onDropFilesAsContext,
       onRequestContextMenu,
       onCanvasClick: clearSelection,
@@ -185,6 +188,12 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Update refs when state changes
     useEffect(() => {
       nodesRef.current = nodes;
+      // Save nodes to localStorage
+      if (Object.keys(nodes).length > 0) {
+        localStorage.setItem("graph-nodes", JSON.stringify(nodes));
+      } else {
+        localStorage.removeItem("graph-nodes");
+      }
     }, [nodes]);
 
     useEffect(() => {

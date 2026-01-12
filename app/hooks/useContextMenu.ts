@@ -343,6 +343,13 @@ export function useContextMenu({
     }
   };
 
+  const handleClearAll = () => {
+    const treeManager = graphCanvasRef.current?.treeManager;
+    if (treeManager) {
+      treeManager.clearAll();
+    }
+  };
+
   const handleSummarize = async (selectedNodeIds: Set<string>) => {
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
@@ -593,6 +600,7 @@ export function useContextMenu({
         { label: "New Question", onClick: handleNewQuestionOnCanvas },
         { label: "New Context", onClick: handleAddContext },
         { label: "Upload Context", onClick: handleUploadContext },
+        { label: "Clear All", onClick: handleClearAll },
       ];
     }
 

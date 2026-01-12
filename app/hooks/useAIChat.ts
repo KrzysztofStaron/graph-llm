@@ -270,9 +270,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         nodesWithQuery[newNode.id] = newNode;
       }
 
-      // Track if we receive an image or youtube response
+      // Track if we receive an image response, and collect youtube videos
       let imageResult: { url: string; prompt?: string } | null = null;
-      let youtubeResult: { videoId: string; explanation?: string } | null = null;
+      const youtubeVideos: Array<{ videoId: string; explanation?: string }> = [];
 
       logger.info('[INPUT] Starting AI stream for user input', {
         query: query.substring(0, 100),
@@ -345,12 +345,20 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           },
           // onYoutube callback - called when YouTube video tool is detected
           (videoId, explanation) => {
-            logger.info('[INPUT] YouTube video triggered', {
+            logger.info('[INPUT] YouTube video callback triggered', {
               videoId,
               explanation,
+              currentCount: youtubeVideos.length,
+              newCount: youtubeVideos.length + 1,
             });
             
-            youtubeResult = { videoId, explanation };
+            // Collect all YouTube videos - can be multiple
+            youtubeVideos.push({ videoId, explanation });
+            
+            logger.info('[INPUT] YouTube video added to array', {
+              totalVideos: youtubeVideos.length,
+              allVideoIds: youtubeVideos.map(v => v.videoId),
+            });
           }
         )
         .catch((error) => {
@@ -377,56 +385,17 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         responseNodeId: responseNodeId.substring(0, 8),
         resultType: result.type,
         totalChunks: mainChunkCount,
-        contentLength: result.type === "youtube" ? result.videoId : result.content.length,
-        contentPreview: result.type === "youtube" ? result.videoId : result.content.substring(0, 100),
+        contentLength: result.content?.length || 0,
+        contentPreview: result.content?.substring(0, 100) || '',
+        youtubeVideosCount: youtubeVideos.length,
+        youtubeVideoIds: youtubeVideos.map(v => v.videoId),
       });
 
-      // Handle YouTube response - create a new YouTube node as a child of the input node
-      if (result.type === "youtube") {
-        logger.info('[INPUT] Creating YouTube node', {
-          videoId: result.videoId,
-          explanation: result.explanation,
-        });
-
-        // Delete the response node since we're creating a YouTube node instead
-        treeManager.deleteNode(responseNodeId);
-        delete nodesWithQuery[responseNodeId];
-
-        // Create YouTube node with smart placement
-        const callerDim =
-          nodeDimensionsRef.current[caller.id] ||
-          getDefaultNodeDimensions(caller.type);
-
-        const targetX = currentCaller.x + callerDim.width / 4;
-        const targetY = currentCaller.y + callerDim.height + 30;
-
-        const youtubeNodeDim = getDefaultNodeDimensions("response"); // Use response dimensions as fallback
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          youtubeNodeDim.width,
-          youtubeNodeDim.height,
-          nodesWithQuery,
-          nodeDimensionsRef.current,
-          "below"
-        );
-
-        const youtubeNode = createNode("youtube", freePos.x, freePos.y);
-        treeManager.addNode(youtubeNode);
-        treeManager.patchNode(youtubeNode.id, {
-          value: result.videoId,
-          explanation: result.explanation,
-        });
-        treeManager.linkNodes(caller.id, youtubeNode.id);
-        nodesWithQuery[youtubeNode.id] = {
-          ...youtubeNode,
-          value: result.videoId,
-          explanation: result.explanation,
-        };
-
-        // Don't create follow-up input node for YouTube nodes (as per requirements)
-        return;
-      }
+      logger.info('[INPUT] About to process YouTube videos', {
+        hasVideos: youtubeVideos.length > 0,
+        videoCount: youtubeVideos.length,
+        videos: youtubeVideos,
+      });
 
       // Handle image response - convert the response node to an image-response node in-place
       if (result.type === "image") {
@@ -450,14 +419,84 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         responseNode = nodesWithQuery[responseNodeId];
       } else {
         // For text responses, ensure type is "response"
+        // If we only got YouTube videos and no meaningful text, show a default message
+        const cleanedContent = result.content.replace(/\[YOUTUBE:[^\]]+\]/g, '').trim();
+        const finalValue = cleanedContent.length > 0 
+          ? result.content 
+          : (youtubeVideos.length > 0 ? `Here ${youtubeVideos.length === 1 ? 'is' : 'are'} ${youtubeVideos.length} video${youtubeVideos.length === 1 ? '' : 's'} that should help:` : result.content);
+        
         treeManager.patchNode(responseNodeId, {
           type: "response",
+          value: finalValue,
         });
         nodesWithQuery[responseNodeId] = {
           ...nodesWithQuery[responseNodeId],
           type: "response",
+          value: finalValue,
         };
         responseNode = nodesWithQuery[responseNodeId];
+      }
+
+      // Create YouTube nodes if any were collected during streaming
+      if (youtubeVideos.length > 0) {
+        logger.info('[INPUT] Creating YouTube nodes', {
+          count: youtubeVideos.length,
+          videos: youtubeVideos.map(v => v.videoId),
+        });
+
+        // Get the response node dimensions for placement calculation
+        const responseNodeDim =
+          nodeDimensionsRef.current[responseNodeId] ||
+          getDefaultNodeDimensions(responseNode.type);
+
+        // Create YouTube nodes in a grid layout (max 2 per row)
+        const youtubeNodeDim = getDefaultNodeDimensions("youtube");
+        const horizontalGap = 30;
+        const verticalGap = 30;
+        const videosPerRow = 2;
+        
+        // Calculate starting position - center the grid below the response
+        const numRows = Math.ceil(youtubeVideos.length / videosPerRow);
+        const firstRowCount = Math.min(youtubeVideos.length, videosPerRow);
+        const firstRowWidth = firstRowCount * youtubeNodeDim.width + (firstRowCount - 1) * horizontalGap;
+        const startX = responseNode.x + (responseNodeDim.width / 2) - (firstRowWidth / 2);
+        const startY = responseNode.y + responseNodeDim.height + 40;
+
+        youtubeVideos.forEach((video, index) => {
+          const row = Math.floor(index / videosPerRow);
+          const col = index % videosPerRow;
+          
+          // Calculate videos in current row for centering
+          const videosInRow = Math.min(videosPerRow, youtubeVideos.length - row * videosPerRow);
+          const rowWidth = videosInRow * youtubeNodeDim.width + (videosInRow - 1) * horizontalGap;
+          const rowStartX = responseNode.x + (responseNodeDim.width / 2) - (rowWidth / 2);
+          
+          const targetX = rowStartX + col * (youtubeNodeDim.width + horizontalGap);
+          const targetY = startY + row * (youtubeNodeDim.height + verticalGap);
+
+          const freePos = findFreePosition(
+            targetX,
+            targetY,
+            youtubeNodeDim.width,
+            youtubeNodeDim.height,
+            nodesWithQuery,
+            nodeDimensionsRef.current,
+            "below"
+          );
+
+          const youtubeNode = createNode("youtube", freePos.x, freePos.y);
+          treeManager.addNode(youtubeNode);
+          treeManager.patchNode(youtubeNode.id, {
+            value: video.videoId,
+            explanation: video.explanation,
+          });
+          treeManager.linkNodes(responseNodeId, youtubeNode.id);
+          nodesWithQuery[youtubeNode.id] = {
+            ...youtubeNode,
+            value: video.videoId,
+            explanation: video.explanation,
+          };
+        });
       }
 
       // If response has no Input Node, create a new one
@@ -472,9 +511,19 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           nodeDimensionsRef.current[responseNodeId] ||
           getDefaultNodeDimensions(currentResponseNode.type);
 
-        // Place directly below the response node
+        // Place directly below the response node (and any YouTube videos)
         const targetX = currentResponseNode.x;
-        const targetY = currentResponseNode.y + responseNodeDim.height + 90;
+        let targetY = currentResponseNode.y + responseNodeDim.height + 90;
+        
+        // If there are YouTube videos, place the input below them (accounting for grid layout)
+        if (youtubeVideos.length > 0) {
+          const youtubeNodeDim = getDefaultNodeDimensions("youtube");
+          const videosPerRow = 2;
+          const numRows = Math.ceil(youtubeVideos.length / videosPerRow);
+          const verticalGap = 30;
+          // Add space for all rows of videos
+          targetY += numRows * (youtubeNodeDim.height + verticalGap) + 50;
+        }
 
         const newNodeDim = getDefaultNodeDimensions("input");
         const freePos = findFreePosition(

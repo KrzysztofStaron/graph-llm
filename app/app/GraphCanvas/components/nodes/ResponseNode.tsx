@@ -6,6 +6,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { Check, Copy, X, Minimize2, Maximize2 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import type { PluggableList } from "unified";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
@@ -127,83 +128,6 @@ const markdownComponents = {
   ),
 };
 
-// Memoized chunk renderer - only re-renders when its specific content changes
-const MarkdownChunk = memo(
-  function MarkdownChunk({ content }: { content: string }) {
-    // Only enable math rendering if content contains actual LaTeX delimiters
-    // Supports both single $ for inline math and $$ for block math
-    const hasMath = /\$[\s\S]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(content);
-    
-    const remarkPlugins = hasMath
-      ? [remarkGfm, [remarkMath, { singleDollarTextMath: true }]]
-      : [remarkGfm];
-    
-    return (
-      <div className="markdown-content">
-        <ReactMarkdown
-          remarkPlugins={remarkPlugins as any}
-          rehypePlugins={hasMath ? [rehypeKatex] : []}
-          components={markdownComponents}
-        >
-          {content}
-        </ReactMarkdown>
-      </div>
-    );
-  },
-  (prev, next) => prev.content === next.content
-);
-
-// Split markdown into stable chunks (by double newlines, preserving code blocks and tables)
-function splitIntoChunks(content: string): string[] {
-  const chunks: string[] = [];
-  let currentChunk = "";
-  let inCodeBlock = false;
-  let inTable = false;
-
-  const lines = content.split("\n");
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Track code block state
-    if (line.startsWith("```")) {
-      inCodeBlock = !inCodeBlock;
-    }
-
-    // Track table state - tables have pipes in them
-    const isTableLine = line.includes("|") && !inCodeBlock;
-    const isTableDelimiter = /^\|[\s:-]+\|/.test(line.trim());
-    
-    if (isTableLine || isTableDelimiter) {
-      inTable = true;
-    } else if (inTable && line.trim() === "") {
-      // Empty line after table content - table might be ending
-      // Check if next line is also a table line
-      const nextLine = lines[i + 1];
-      if (nextLine && !nextLine.includes("|")) {
-        inTable = false;
-      }
-    } else if (inTable && !isTableLine) {
-      inTable = false;
-    }
-
-    currentChunk += (currentChunk ? "\n" : "") + line;
-
-    // Split on empty lines, but not inside code blocks or tables
-    if (!inCodeBlock && !inTable && line === "" && currentChunk.trim()) {
-      chunks.push(currentChunk);
-      currentChunk = "";
-    }
-  }
-
-  // Add remaining content
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-}
-
 export const ResponseNode = memo(
   function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {
     const rawContent = node.value;
@@ -214,7 +138,6 @@ export const ResponseNode = memo(
       "idle"
     );
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const [pulseKey, setPulseKey] = useState(0);
     const resetTimerRef = useRef<number | null>(null);
     const prevReasoningLengthRef = useRef(0);
 
@@ -226,20 +149,14 @@ export const ResponseNode = memo(
       };
     }, []);
 
-    // Pulse animation on each reasoning chunk update
+    // Pulse animation state update on each reasoning chunk update
     useEffect(() => {
       if (reasoning.length > prevReasoningLengthRef.current) {
-        setPulseKey((prev) => prev + 1);
         prevReasoningLengthRef.current = reasoning.length;
       } else if (reasoning.length === 0) {
         prevReasoningLengthRef.current = 0;
       }
     }, [reasoning.length]);
-
-    // Memoize chunk splitting
-    const chunks = useMemo(() => {
-      return splitIntoChunks(rawContent);
-    }, [rawContent]);
 
     const handleCopy = () => {
       const text = rawContent.trim();
@@ -267,6 +184,17 @@ export const ResponseNode = memo(
           }, 1600);
         });
     };
+
+    // Memoize math detection and plugins
+    const { remarkPlugins, rehypePlugins } = useMemo(() => {
+      const hasMath = /\$[\s\S]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(rawContent);
+      return {
+        remarkPlugins: (hasMath
+          ? [remarkGfm, [remarkMath, { singleDollarTextMath: true }]]
+          : [remarkGfm]) as PluggableList,
+        rehypePlugins: (hasMath ? [rehypeKatex] : []) as PluggableList,
+      };
+    }, [rawContent]);
 
     return (
       <div
@@ -380,10 +308,14 @@ export const ResponseNode = memo(
                 </div>
               </div>
             ) : (
-              <div className="space-y-0">
-                {chunks.map((chunk, index) => (
-                  <MarkdownChunk key={index} content={chunk} />
-                ))}
+              <div className="markdown-content">
+                <ReactMarkdown
+                  remarkPlugins={remarkPlugins}
+                  rehypePlugins={rehypePlugins}
+                  components={markdownComponents}
+                >
+                  {rawContent}
+                </ReactMarkdown>
               </div>
             )}
           </div>

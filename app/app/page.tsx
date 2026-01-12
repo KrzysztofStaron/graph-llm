@@ -31,6 +31,32 @@ import type { StoredItem } from "../hooks/useContextStorage";
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
+  // Load initial nodes from localStorage if available
+  const [initialNodes, setInitialNodes] = useState<any>(null);
+  const [initialTransform, setInitialTransform] = useState<any>(undefined);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("graph-nodes");
+    if (saved) {
+      try {
+        setInitialNodes(JSON.parse(saved));
+      } catch (e) {
+        setInitialNodes(globals.initialNodes);
+      }
+    } else {
+      setInitialNodes(globals.initialNodes);
+    }
+
+    const savedTransform = localStorage.getItem("graph-transform");
+    if (savedTransform) {
+      try {
+        setInitialTransform(JSON.parse(savedTransform));
+      } catch (e) {
+        setInitialTransform(undefined);
+      }
+    }
+  }, []);
+
   // Context node editing state
   const [editingContextNodeId, setEditingContextNodeId] = useState<
     string | null
@@ -213,16 +239,19 @@ const AppPageContent = () => {
 
   return (
     <div className="relative w-full h-screen">
-      <GraphCanvas
-        ref={graphCanvasRef}
-        initialNodes={globals.initialNodes}
-        onInputSubmit={onInputSubmit}
-        setEditingContextNodeId={setEditingContextNodeId}
-        onDropFilesAsContext={onDropFilesAsContext}
-        onRequestNodeMove={handleRequestNodeMove}
-        onRequestContextMenu={handleRequestContextMenu}
-        onNodeDragToStorage={handleNodeDroppedToStorage}
-      />
+      {initialNodes && (
+        <GraphCanvas
+          ref={graphCanvasRef}
+          initialNodes={initialNodes}
+          initialTransform={initialTransform}
+          onInputSubmit={onInputSubmit}
+          setEditingContextNodeId={setEditingContextNodeId}
+          onDropFilesAsContext={onDropFilesAsContext}
+          onRequestNodeMove={handleRequestNodeMove}
+          onRequestContextMenu={handleRequestContextMenu}
+          onNodeDragToStorage={handleNodeDroppedToStorage}
+        />
+      )}
       {quickMenuOpen && (
         <SettingsModal
           isOpen={quickMenuOpen}

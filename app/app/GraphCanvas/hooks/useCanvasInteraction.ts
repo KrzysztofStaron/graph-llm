@@ -6,6 +6,7 @@ import { getDefaultNodeDimensions } from "@/app/utils/placement";
 interface UseCanvasInteractionProps {
   nodes: GraphNodes;
   localNodeDimensions: NodeDimensions;
+  initialTransform?: { x: number; y: number; k: number };
   onDropFilesAsContext?: (
     files: FileList,
     canvasPoint: { x: number; y: number }
@@ -33,6 +34,7 @@ interface UseCanvasInteractionReturn {
 export function useCanvasInteraction({
   nodes,
   localNodeDimensions,
+  initialTransform,
   onDropFilesAsContext,
   onRequestContextMenu,
   onCanvasClick,
@@ -43,8 +45,13 @@ export function useCanvasInteraction({
       prev: { x: number; y: number; k: number },
       next: { x: number; y: number; k: number }
     ) => next,
-    { x: 0, y: 0, k: 1 }
+    initialTransform || { x: 0, y: 0, k: 1 }
   );
+
+  // Save transform to localStorage
+  useEffect(() => {
+    localStorage.setItem("graph-transform", JSON.stringify(transform));
+  }, [transform]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
