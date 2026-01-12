@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/refs */
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { motion, useAnimate } from "framer-motion";
+import { motion, useAnimate, useReducedMotion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
@@ -223,7 +223,7 @@ const AppPageContent = () => {
   }
 
   return (
-    <div className="relative w-full h-screen">
+    <div className="relative w-full h-dvh">
       {initialNodes && (
         <GraphCanvas
           ref={graphCanvasRef}
@@ -335,6 +335,7 @@ const AppPageContent = () => {
 
 export default function AppRoute() {
   const [scope, animate] = useAnimate();
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     const init = async () => {
@@ -347,10 +348,10 @@ export default function AppRoute() {
   return (
     <motion.div
       ref={scope}
-      className="relative min-h-screen"
+      className="relative min-h-dvh"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.1 }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.1 }}
     >
       <div className="app-page-container absolute inset-0 z-20 pointer-events-none">
         <AppPageContent />

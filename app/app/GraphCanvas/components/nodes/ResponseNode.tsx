@@ -20,37 +20,37 @@ const arraysEqual = (a: string[], b: string[]) => {
 // Shared markdown components to avoid recreating on every render
 const markdownComponents = {
   h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className="text-3xl font-semibold tracking-tight mb-3 mt-2">
+    <h1 className="text-3xl font-semibold tracking-tight mb-3 mt-2 text-balance">
       {children}
     </h1>
   ),
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="text-2xl font-semibold tracking-tight mb-3 mt-4">
+    <h2 className="text-2xl font-semibold tracking-tight mb-3 mt-4 text-balance">
       {children}
     </h2>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="text-xl font-semibold tracking-tight mb-2 mt-4">
+    <h3 className="text-xl font-semibold tracking-tight mb-2 mt-4 text-balance">
       {children}
     </h3>
   ),
   h4: ({ children }: { children?: React.ReactNode }) => (
-    <h4 className="text-lg font-semibold tracking-tight mb-2 mt-3">
+    <h4 className="text-lg font-semibold tracking-tight mb-2 mt-3 text-balance">
       {children}
     </h4>
   ),
   h5: ({ children }: { children?: React.ReactNode }) => (
-    <h5 className="text-base font-semibold tracking-tight mb-2 mt-3">
+    <h5 className="text-base font-semibold tracking-tight mb-2 mt-3 text-balance">
       {children}
     </h5>
   ),
   h6: ({ children }: { children?: React.ReactNode }) => (
-    <h6 className="text-base font-semibold tracking-tight mb-2 mt-3 opacity-90">
+    <h6 className="text-base font-semibold tracking-tight mb-2 mt-3 opacity-90 text-balance">
       {children}
     </h6>
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>
+    <p className="mb-2 last:mb-0 whitespace-pre-wrap text-pretty">{children}</p>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>

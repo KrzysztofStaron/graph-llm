@@ -1,6 +1,6 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X, Keyboard, MousePointer2, Hand, Upload, Smartphone } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 
 interface TipsModalProps {
@@ -10,6 +10,9 @@ interface TipsModalProps {
 
 const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
   const [isMobile, setIsMobile] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     // Detect mobile by pointer capability (coarse pointer = touch)
@@ -35,6 +38,26 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
       hoverQuery.removeEventListener?.("change", handleChange);
     };
   }, []);
+  // Focus management for modal
+  useEffect(() => {
+    if (isOpen) {
+      previouslyFocusedElementRef.current = document.activeElement as HTMLElement;
+      // Focus modal when it opens
+      setTimeout(() => {
+        const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }, 0);
+    } else {
+      // Restore focus when modal closes
+      if (previouslyFocusedElementRef.current) {
+        previouslyFocusedElementRef.current.focus();
+      }
+    }
+  }, [isOpen]);
+
+  // Focus trap and keyboard handling
   useEffect(() => {
     if (!isOpen) return;
 
@@ -42,6 +65,22 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+      } else if (e.key === "Tab") {
+        const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusableElements || focusableElements.length === 0) return;
+        
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
       }
     };
 
@@ -58,16 +97,17 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px] pointer-events-auto"
             onClick={onClose}
             aria-hidden="true"
           />
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            ref={modalRef}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-[700px] max-h-[85vh] overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
             role="dialog"
@@ -78,7 +118,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0a0a0a]">
               <h2
                 id="tips-modal-title"
-                className="text-white font-medium text-lg tracking-tight flex items-center gap-2"
+                className="text-white font-medium text-lg tracking-tight flex items-center gap-2 text-balance"
               >
                 {isMobile ? (
                   <Smartphone className="size-5" />
@@ -89,7 +129,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors focus:outline-none"
                 aria-label="Close tips"
               >
                 <X className="size-5" />
@@ -102,7 +142,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                 /* Mobile Touch Gestures */
                 <>
                   <section>
-                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3 text-balance">
                       Touch Gestures
                     </h3>
                     <div className="space-y-3">
@@ -113,7 +153,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Drag
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Drag nodes with one finger
                         </p>
                       </div>
@@ -125,7 +165,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Long press
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Long press (~450ms) on a node or empty canvas to open context menu
                         </p>
                       </div>
@@ -137,7 +177,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Tap
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Tap a node to select it; tap empty canvas to clear selection
                         </p>
                       </div>
@@ -149,7 +189,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Two-finger tap
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Two-finger tap on a node to toggle multi-select
                         </p>
                       </div>
@@ -160,7 +200,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                 /* Desktop Keyboard & Mouse */
                 <>
                   <section>
-                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3 text-balance">
                       Keyboard Shortcuts
                     </h3>
                     <div className="space-y-2">
@@ -168,7 +208,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                         <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
                           ⌘/Ctrl+K
                         </kbd>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Open model selection menu
                         </p>
                       </div>
@@ -176,7 +216,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                         <kbd className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/90 font-mono text-xs min-w-[80px] text-center">
                           F
                         </kbd>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Auto-center and fit the entire tree to viewport
                         </p>
                       </div>
@@ -184,7 +224,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                   </section>
 
                   <section>
-                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                    <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3 text-balance">
                       Mouse Actions
                     </h3>
                     <div className="space-y-3">
@@ -196,7 +236,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                           </span>
                         </div>
                         <div className="flex-1">
-                          <p className="text-white/70 text-sm leading-relaxed mb-2">
+                          <p className="text-white/70 text-sm leading-relaxed mb-2 text-pretty">
                             Open context menu with actions
                           </p>
                         </div>
@@ -209,7 +249,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Shift+click
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Multi-select nodes (hold Shift and click multiple nodes)
                         </p>
                       </div>
@@ -221,7 +261,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
                             Drag & drop
                           </span>
                         </div>
-                        <p className="text-white/70 text-sm leading-relaxed">
+                        <p className="text-white/70 text-sm leading-relaxed text-pretty">
                           Drag and drop files onto the canvas to upload them as context
                         </p>
                       </div>
@@ -232,13 +272,13 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
 
               {/* Workflows Section */}
               <section>
-                <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3">
+                <h3 className="text-white/80 font-mono text-sm uppercase tracking-wider mb-3 text-balance">
                   Common Workflows
                 </h3>
                 <div className="space-y-4">
                   {/* Multi-context workflow */}
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                    <h4 className="text-white/90 font-mono text-sm mb-2">
+                    <h4 className="text-white/90 font-mono text-sm mb-2 text-balance">
                       Create node from multiple sources
                     </h4>
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
@@ -275,7 +315,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
 
                   {/* Branch workflow */}
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                    <h4 className="text-white/90 font-mono text-sm mb-2">
+                    <h4 className="text-white/90 font-mono text-sm mb-2 text-balance">
                       Branch out from a node
                     </h4>
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">
@@ -307,7 +347,7 @@ const TipsModal = ({ isOpen, onClose }: TipsModalProps) => {
 
                   {/* Starting from scratch workflow */}
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                    <h4 className="text-white/90 font-mono text-sm mb-2">
+                    <h4 className="text-white/90 font-mono text-sm mb-2 text-balance">
                       Starting from scratch
                     </h4>
                     <ol className="space-y-1 mb-3 text-white/70 text-sm list-decimal list-inside">

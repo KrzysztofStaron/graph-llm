@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
@@ -40,6 +40,8 @@ export const ContextMenu = ({
 }: ContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState({ x, y });
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const shouldReduceMotion = useReducedMotion();
 
   // Reset position when menu opens or coordinates change
   useEffect(() => {
@@ -86,6 +88,18 @@ export const ContextMenu = ({
     setAdjustedPosition({ x: adjustedX, y: adjustedY });
   }, [isOpen, x, y, items]);
 
+  // Reset focus when menu opens
+  useEffect(() => {
+    if (isOpen) {
+      setFocusedIndex(0);
+      // Focus first button when menu opens
+      setTimeout(() => {
+        const firstButton = menuRef.current?.querySelector('button');
+        firstButton?.focus();
+      }, 0);
+    }
+  }, [isOpen, items]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -95,32 +109,47 @@ export const ContextMenu = ({
       }
     };
 
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         onClose();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev + 1) % items.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedIndex((prev) => (prev - 1 + items.length) % items.length);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        setFocusedIndex(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        setFocusedIndex(items.length - 1);
       }
     };
 
     // Use capture phase to catch clicks/taps before they bubble
     document.addEventListener("pointerdown", handleClickOutside, true);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.removeEventListener("pointerdown", handleClickOutside, true);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, items.length]);
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           ref={menuRef}
-          initial={{ opacity: 0, scale: 0.95, y: -10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -10 }}
+          initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
+          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
           className="fixed z-50 min-w-[180px] rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm"
+          role="menu"
+          aria-label={`Context menu${selectedNodeCount > 0 ? ` for ${selectedNodeCount} selected ${selectedNodeCount === 1 ? 'node' : 'nodes'}` : ''}`}
           style={{
             left: `${adjustedPosition.x}px`,
             top: `${adjustedPosition.y}px`,
@@ -160,20 +189,29 @@ export const ContextMenu = ({
                 ? item.label.replace(" [ with children ]", "")
                 : item.label;
 
+              const isFocused = focusedIndex === index;
+              
               return (
                 <button
                   key={index}
+                  role="menuitem"
+                  tabIndex={isFocused ? 0 : -1}
+                  ref={(el) => {
+                    if (isFocused) {
+                      el?.focus();
+                    }
+                  }}
                   onClick={() => {
                     item.onClick();
                     onClose();
                   }}
-                  className={`w-full px-4 py-2 text-left text-sm font-mono text-white bg-transparent group   ${
+                  className={`w-full px-4 py-2 text-left text-sm font-mono text-white bg-transparent group focus:outline-none ${
                     item.label.includes("[ with children ]")
                       ? "hover:bg-red-400"
                       : item.label.includes("Delete")
                       ? "hover:bg-red-400"
                       : "hover:bg-white"
-                  } hover:text-black transition-all duration-200 flex items-center gap-2`}
+                  } hover:text-black transition-all duration-200 flex items-center gap-2 ${isFocused ? 'bg-white/10' : ''}`}
                 >
                   <Icon
                     className={`size-4 opacity-60 group-hover:translate-x-2 transition-all duration-200`}

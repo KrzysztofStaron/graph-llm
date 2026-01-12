@@ -7,13 +7,13 @@ import { getAnalytics } from "firebase/analytics";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyDfLgOkwapwCt7UOe5Wec1bcrbyXhATz1g",
-  authDomain: "graphai-4782a.firebaseapp.com",
-  projectId: "graphai-4782a",
-  storageBucket: "graphai-4782a.firebasestorage.app",
-  messagingSenderId: "794001563132",
-  appId: "1:794001563132:web:1b3c3e2e2ce220f666a679",
-  measurementId: "G-KXJ2ZC5ZJJ"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDfLgOkwapwCt7UOe5Wec1bcrbyXhATz1g",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "graphai-4782a.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "graphai-4782a",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "graphai-4782a.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "794001563132",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:794001563132:web:1b3c3e2e2ce220f666a679",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-KXJ2ZC5ZJJ"
 };
 
 // Initialize Firebase

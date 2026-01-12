@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, Check, Globe } from "lucide-react";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
@@ -23,6 +23,7 @@ const SettingsModal = ({
   const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
   const webSearchEnabled = useAppSelector((state) => state.settings.webSearchEnabled);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const shouldReduceMotion = useReducedMotion();
 
   const allModels = [...availableModels, ...availableImageModels];
   
@@ -124,20 +125,24 @@ const SettingsModal = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px] pointer-events-auto"
             onClick={onClose}
+            aria-hidden="true"
           />
           {/* Menu */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-[500px] max-w-[calc(100vw-32px)] h-min rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-modal-title"
           >
             <div className="py-1 w-full">
-              <div className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
+              <div id="settings-modal-title" className="px-4 py-2 text-xs font-mono text-white/40 uppercase tracking-wider">
                 Settings
               </div>
               
@@ -155,9 +160,14 @@ const SettingsModal = ({
                     key={model.value}
                     ref={(el) => {
                       buttonRefs.current[index] = el;
+                      if (isFocused) {
+                        el?.focus();
+                      }
                     }}
                     onClick={() => handleModelSelect(model.value, false)}
-                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 ${
+                    aria-pressed={isSelected}
+                    tabIndex={isFocused ? 0 : -1}
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 focus:outline-none ${
                       isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
                       isSelected && !isFocused
@@ -205,9 +215,14 @@ const SettingsModal = ({
                     key={model.value}
                     ref={(el) => {
                       buttonRefs.current[actualIndex] = el;
+                      if (isFocused) {
+                        el?.focus();
+                      }
                     }}
                     onClick={() => handleModelSelect(model.value, true)}
-                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 ${
+                    aria-pressed={isSelected}
+                    tabIndex={isFocused ? 0 : -1}
+                    className={`w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 focus:outline-none ${
                       isFocused ? "bg-white/90 text-black" : "bg-transparent"
                     } ${
                       isSelected && !isFocused
@@ -246,7 +261,8 @@ const SettingsModal = ({
               </div>
               <button
                 onClick={() => dispatch(setWebSearchEnabled(!webSearchEnabled))}
-                className="w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0"
+                aria-pressed={webSearchEnabled}
+                className="w-full px-4 py-2 text-left text-sm font-mono group hover:bg-white hover:text-black transition-[background-color,transform] duration-200 flex items-center gap-2 min-w-0 focus:outline-none"
               >
                 <Globe
                   className={`size-4 transition-all duration-200 ${
