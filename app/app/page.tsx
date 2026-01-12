@@ -194,7 +194,28 @@ const AppPageContent = () => {
       const { item, canvasPoint } = customEvent.detail;
 
       if (item.type === "file") {
-        if (item.url) {
+        if (item.url && item.mimeType.startsWith("image/")) {
+          const nodesRef = graphCanvasRef.current?.nodesRef;
+          const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
+          const treeManager = graphCanvasRef.current?.treeManager;
+          if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
+
+          const workingNodes = { ...nodesRef.current };
+          const newNodeDim = getDefaultNodeDimensions("image-context");
+          const freePos = findFreePosition(
+            canvasPoint.x,
+            canvasPoint.y,
+            newNodeDim.width,
+            newNodeDim.height,
+            workingNodes,
+            nodeDimensionsRef.current,
+            "below"
+          );
+
+          const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
+          const nodeWithValue = { ...newImageContextNode, value: item.url };
+          treeManager.addNode(nodeWithValue);
+        } else if (item.url) {
           fetch(item.url)
             .then(response => response.blob())
             .then(blob => {

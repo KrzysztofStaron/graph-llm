@@ -87,21 +87,6 @@ export function useFileUpload({
     const workingNodes = { ...nodesRef.current };
 
     for (const file of imageFiles) {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/storage/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        logger.error(`Failed to upload ${file.name}`);
-        continue;
-      }
-
-      const { url } = await response.json();
-
       const targetX = canvasPoint.x + nodeIndex * 40;
       const targetY = canvasPoint.y + nodeIndex * 120;
 
@@ -116,15 +101,60 @@ export function useFileUpload({
         "below"
       );
 
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
+      });
+
       const newImageContextNode = createNode(
         "image-context",
         freePos.x,
         freePos.y
       );
-      const nodeWithValue = { ...newImageContextNode, value: url };
+      const nodeWithValue = { ...newImageContextNode, value: dataUrl };
       treeManager.addNode(nodeWithValue);
       workingNodes[nodeWithValue.id] = nodeWithValue;
       nodeIndex++;
+
+      const nodeId = nodeWithValue.id;
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
+      
+      fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+      })
+        .then(response => {
+          if (!response.ok) {
+            return response.text().then(responseText => {
+              logger.error(`Failed to upload ${file.name}`, {
+                status: response.status,
+                statusText: response.statusText,
+                backendUrl: uploadUrl,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                responseBody: responseText
+              });
+              return null;
+            });
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data?.url) {
+            treeManager.patchNode(nodeId, { value: data.url });
+          }
+        })
+        .catch(error => {
+          logger.error(`Network error uploading ${file.name}`, {
+            errorMessage: error?.message || String(error),
+            errorName: error?.name,
+            backendUrl: uploadUrl
+          });
+        });
     }
 
     // Create document nodes (includes plain text files now)

@@ -132,8 +132,6 @@ export function ContextStoragePanel({
 
   const handleItemClick = useCallback(
     async (item: StoredItem, e: React.MouseEvent) => {
-      // On click, restore to center of viewport (in screen coordinates)
-      // Get viewport element to calculate center correctly
       const viewportElement = document.querySelector('[data-viewport]') as HTMLElement | null;
       if (!viewportElement) return;
 
@@ -144,15 +142,21 @@ export function ContextStoragePanel({
       };
 
       if (item.type === "file") {
-        // Convert stored file back to File object
+        if (item.url && item.mimeType.startsWith("image/")) {
+          window.dispatchEvent(
+            new CustomEvent("storageItemDrop", {
+              detail: { item, canvasPoint: viewportCenter },
+            })
+          );
+          return;
+        }
+
         let blob: Blob;
         
         if (item.url) {
-          // Image hosted on backend - fetch it
           const response = await fetch(item.url);
           blob = await response.blob();
         } else if (item.data) {
-          // Text file or legacy base64 image stored locally
           blob = item.mimeType.startsWith("image/")
             ? dataURLtoBlob(item.data)
             : new Blob([item.data], { type: item.mimeType });

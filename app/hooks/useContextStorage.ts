@@ -91,38 +91,71 @@ export function useContextStorage(): UseContextStorageReturn {
   const addFile = useCallback(async (file: File) => {
     const id = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    let storedFile: StoredItem;
-    
     if (file.type.startsWith("image/")) {
-      // Upload image to backend
-      const formData = new FormData();
-      formData.append("file", file);
-      
-      const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/storage/upload`, {
-        method: "POST",
-        body: formData,
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to upload image");
-      }
-      
-      const { url } = await response.json();
-      
-      storedFile = {
+
+      const storedFile: StoredItem = {
         type: "file",
         id,
         name: file.name,
         mimeType: file.type,
-        url,
+        data: dataUrl,
         uploadedAt: Date.now(),
       };
+
+      setStoredItems((prev) => [...prev, storedFile]);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
+      
+      fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+      })
+        .then(response => {
+          if (!response.ok) {
+            return response.text().then(responseText => {
+              logger.error(`Failed to upload ${file.name}`, {
+                status: response.status,
+                statusText: response.statusText,
+                backendUrl: uploadUrl,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                responseBody: responseText
+              });
+              return null;
+            });
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data?.url) {
+            setStoredItems((prev) =>
+              prev.map((item) =>
+                item.id === id
+                  ? { ...item, url: data.url, data: undefined }
+                  : item
+              )
+            );
+          }
+        })
+        .catch(error => {
+          logger.error(`Network error uploading ${file.name}`, {
+            errorMessage: error?.message || String(error),
+            errorName: error?.name,
+            backendUrl: uploadUrl
+          });
+        });
     } else {
-      // Read text files as before
       const data = await file.text();
       
-      storedFile = {
+      const storedFile: StoredItem = {
         type: "file",
         id,
         name: file.name,
@@ -130,9 +163,9 @@ export function useContextStorage(): UseContextStorageReturn {
         data,
         uploadedAt: Date.now(),
       };
-    }
 
-    setStoredItems((prev) => [...prev, storedFile]);
+      setStoredItems((prev) => [...prev, storedFile]);
+    }
   }, []);
 
   const addNode = useCallback((node: GraphNode) => {
