@@ -3,7 +3,6 @@
 /* eslint-disable react-hooks/refs */
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { motion, useAnimate, useReducedMotion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import { GraphCanvas } from "./GraphCanvas/GraphCanvas";
 import { ContextSidebar } from "./ContextSidebar";
@@ -28,34 +27,39 @@ import { useContextStorage } from "../hooks/useContextStorage";
 import type { StoredItem } from "../hooks/useContextStorage";
 import type { GraphNodes } from "../types/GraphCanvas.types";
 
+// Load initial state synchronously to avoid double render
+const loadInitialNodes = (): GraphNodes => {
+  if (typeof window === 'undefined') return globals.initialNodes;
+  const saved = localStorage.getItem("graph-nodes");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      return globals.initialNodes;
+    }
+  }
+  return globals.initialNodes;
+};
+
+const loadInitialTransform = (): { x: number; y: number; k: number } | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  const savedTransform = localStorage.getItem("graph-transform");
+  if (savedTransform) {
+    try {
+      return JSON.parse(savedTransform);
+    } catch (e) {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
-  // Load initial nodes from localStorage if available
-  const [initialNodes, setInitialNodes] = useState<GraphNodes | null>(null);
-  const [initialTransform, setInitialTransform] = useState<{ x: number; y: number; k: number } | undefined>(undefined);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("graph-nodes");
-    if (saved) {
-      try {
-        setInitialNodes(JSON.parse(saved));
-      } catch (e) {
-        setInitialNodes(globals.initialNodes);
-      }
-    } else {
-      setInitialNodes(globals.initialNodes);
-    }
-
-    const savedTransform = localStorage.getItem("graph-transform");
-    if (savedTransform) {
-      try {
-        setInitialTransform(JSON.parse(savedTransform));
-      } catch (e) {
-        setInitialTransform(undefined);
-      }
-    }
-  }, []);
+  // Load initial nodes synchronously using lazy initializer
+  const [initialNodes] = useState<GraphNodes>(loadInitialNodes);
+  const [initialTransform] = useState<{ x: number; y: number; k: number } | undefined>(loadInitialTransform);
 
   // Context node editing state
   const [editingContextNodeId, setEditingContextNodeId] = useState<
@@ -238,19 +242,17 @@ const AppPageContent = () => {
 
   return (
     <div className="relative w-full h-dvh">
-      {initialNodes && (
-        <GraphCanvas
-          ref={graphCanvasRef}
-          initialNodes={initialNodes}
-          initialTransform={initialTransform}
-          onInputSubmit={onInputSubmit}
-          setEditingContextNodeId={setEditingContextNodeId}
-          onDropFilesAsContext={onDropFilesAsContext}
-          onRequestNodeMove={handleRequestNodeMove}
-          onRequestContextMenu={handleRequestContextMenu}
-          onNodeDragToStorage={handleNodeDroppedToStorage}
-        />
-      )}
+      <GraphCanvas
+        ref={graphCanvasRef}
+        initialNodes={initialNodes}
+        initialTransform={initialTransform}
+        onInputSubmit={onInputSubmit}
+        setEditingContextNodeId={setEditingContextNodeId}
+        onDropFilesAsContext={onDropFilesAsContext}
+        onRequestNodeMove={handleRequestNodeMove}
+        onRequestContextMenu={handleRequestContextMenu}
+        onNodeDragToStorage={handleNodeDroppedToStorage}
+      />
       {quickMenuOpen && (
         <SettingsModal
           isOpen={quickMenuOpen}
@@ -348,28 +350,11 @@ const AppPageContent = () => {
 };
 
 export default function AppRoute() {
-  const [scope, animate] = useAnimate();
-  const shouldReduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    const init = async () => {
-      await animate(".dot-grid-background", { opacity: 1 }, { duration: 0 });
-      await animate(".app-page-container", { opacity: 1 }, { duration: 0 });
-    };
-    init();
-  }, [animate]);
-
   return (
-    <motion.div
-      ref={scope}
-      className="relative min-h-dvh"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: shouldReduceMotion ? 0 : 0.1 }}
-    >
-      <div className="app-page-container absolute inset-0 z-20 pointer-events-none">
+    <div className="relative min-h-dvh">
+      <div className="absolute inset-0 z-20 pointer-events-none">
         <AppPageContent />
       </div>
-    </motion.div>
+    </div>
   );
 }
