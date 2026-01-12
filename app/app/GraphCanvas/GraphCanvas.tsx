@@ -438,6 +438,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
             <div
               ref={contentRef}
               className="relative origin-top-left"
+              suppressHydrationWarning
               style={{
                 transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
               }}

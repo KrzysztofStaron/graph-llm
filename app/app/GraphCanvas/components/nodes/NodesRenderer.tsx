@@ -43,29 +43,32 @@ const NodesRenderer = ({
                 node.type === "response" ? "w-max" : ""
               }`}
               data-node-id={node.id}
+              suppressHydrationWarning
               style={{
                 left: node.x,
                 top: node.y,
                 transformOrigin: "center center",
               }}
-              initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0, opacity: 0 }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0.3, opacity: 0 }}
               animate={shouldReduceMotion ? {
                 opacity: 1,
               } : {
                 scale: 1,
                 opacity: 1,
                 transition: {
-                  duration: 0.2,
-                  ease: "easeOut",
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 25,
+                  mass: 0.8,
                 },
               }}
               exit={shouldReduceMotion ? {
                 opacity: 0,
               } : {
-                scale: 0,
+                scale: 0.8,
                 opacity: 0,
                 transition: {
-                  duration: 0.2,
+                  duration: 0.15,
                   ease: "easeIn",
                 },
               }}
