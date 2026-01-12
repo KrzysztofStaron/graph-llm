@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { GraphNode } from "../types/GraphCanvas.types";
+import logger from "../utils/logger";
 
 export interface StoredFile {
   id: string;
@@ -47,10 +48,41 @@ export function useContextStorage(): UseContextStorageReturn {
 
   // Save to localStorage whenever storedItems changes
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(storedItems));
-    } catch (error) {
-      console.error("Failed to save context storage:", error);
+    const serialized = JSON.stringify(storedItems);
+    const sizeInMB = new Blob([serialized]).size / 1024 / 1024;
+    
+    if (sizeInMB > 4) {
+      logger.warn("Context storage data is very large", {
+        sizeInMB: sizeInMB.toFixed(2),
+        itemCount: storedItems.length,
+      });
+    }
+    
+    const error = (() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, serialized);
+        return null;
+      } catch (e) {
+        if (e instanceof Error && e.name === "QuotaExceededError") {
+          return { type: "quota", message: e.message };
+        }
+        return { type: "unknown", message: e instanceof Error ? e.message : String(e) };
+      }
+    })();
+    
+    if (error) {
+      logger.error("Failed to save context storage to localStorage", {
+        errorType: error.type,
+        sizeInMB: sizeInMB.toFixed(2),
+        itemCount: storedItems.length,
+        message: error.message,
+      });
+      
+      if (error.type === "quota") {
+        logger.error("localStorage quota exceeded. Consider removing some stored files or nodes.", {
+          itemCount: storedItems.length,
+        });
+      }
     }
   }, [storedItems]);
 

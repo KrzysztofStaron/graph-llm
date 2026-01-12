@@ -49,7 +49,11 @@ export function useCanvasInteraction({
   );
 
   useEffect(() => {
-    localStorage.setItem("graph-transform", JSON.stringify(transform));
+    try {
+      localStorage.setItem("graph-transform", JSON.stringify(transform));
+    } catch (error) {
+      console.error("Failed to save canvas transform:", error);
+    }
   }, [transform]);
 
   const viewportRef = useRef<HTMLDivElement>(null);

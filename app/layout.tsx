@@ -6,6 +6,7 @@ import "./globals.css";
 import { ReduxProvider } from "./store/ReduxProvider";
 import { GlobalErrorHandler } from "./components/GlobalErrorHandler";
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${universalSans.variable} antialiased`}
       >
         <Analytics />
+        <SpeedInsights />
         <GlobalErrorHandler>
           <ReduxProvider>{children}</ReduxProvider>
         </GlobalErrorHandler>

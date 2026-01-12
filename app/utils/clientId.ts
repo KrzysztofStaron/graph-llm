@@ -9,7 +9,11 @@ export function getOrCreateClientId(): string {
   
   if (!clientId) {
     clientId = crypto.randomUUID();
-    localStorage.setItem(CLIENT_ID_KEY, clientId);
+    try {
+      localStorage.setItem(CLIENT_ID_KEY, clientId);
+    } catch (error) {
+      console.error("Failed to save client ID:", error);
+    }
   }
   
   return clientId;
