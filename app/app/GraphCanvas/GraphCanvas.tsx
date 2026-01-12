@@ -248,15 +248,18 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       const viewport = viewportRef.current;
       if (!viewport) return;
 
+      // Wait for the actual dimensions to be measured
+      const measuredDim = localNodeDimensions["input-1"];
+      if (!measuredDim) return; // Wait until dimensions are measured
+
       // Wait for viewport to be ready
       const centerNode = () => {
         const viewportWidth = viewport.clientWidth || window.innerWidth;
         const viewportHeight = viewport.clientHeight || window.innerHeight;
         
-        const nodeDim = getDefaultNodeDimensions("input");
-        
-        const centerX = -nodeDim.width / 2;
-        const centerY = -nodeDim.height / 2;
+        // Use the actual measured dimensions for perfect centering
+        const centerX = -measuredDim.width / 2;
+        const centerY = -measuredDim.height / 2;
         
         treeManager.moveNode("input-1", centerX - initialInputNode.x, centerY - initialInputNode.y, true);
         
@@ -272,7 +275,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       requestAnimationFrame(() => {
         requestAnimationFrame(centerNode);
       });
-    }, [nodes, treeManager, setTransform]);
+    }, [nodes, localNodeDimensions, treeManager, setTransform]);
 
     const updateNodeDimension = useCallback(
       (nodeId: string, width: number, height: number) => {
