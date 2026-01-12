@@ -138,13 +138,18 @@ export const ResponseNode = memo(
       "idle"
     );
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [hasTimedOut, setHasTimedOut] = useState(false);
     const resetTimerRef = useRef<number | null>(null);
+    const timeoutRef = useRef<number | null>(null);
     const prevReasoningLengthRef = useRef(0);
 
     useEffect(() => {
       return () => {
         if (resetTimerRef.current !== null) {
           window.clearTimeout(resetTimerRef.current);
+        }
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
         }
       };
     }, []);
@@ -156,6 +161,22 @@ export const ResponseNode = memo(
         prevReasoningLengthRef.current = 0;
       }
     }, [reasoning.length]);
+
+    useEffect(() => {
+      if (isLoading) {
+        setHasTimedOut(false);
+        timeoutRef.current = window.setTimeout(() => {
+          setHasTimedOut(true);
+          timeoutRef.current = null;
+        }, 5 * 60 * 1000);
+      } else {
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        setHasTimedOut(false);
+      }
+    }, [isLoading]);
 
     const handleCopy = () => {
       const text = rawContent.trim();
@@ -214,7 +235,7 @@ export const ResponseNode = memo(
             transition: "box-shadow 0.2s ease, max-height 0.3s ease",
           }}
         >
-          {!isLoading && !isFailed && rawContent.trim().length > 0 && (
+          {!isLoading && !isFailed && !hasTimedOut && rawContent.trim().length > 0 && (
             <>
               <div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
@@ -267,7 +288,40 @@ export const ResponseNode = memo(
               overflow: isCollapsed ? "hidden" : "visible",
             }}
           >
-            {isLoading ? (
+            {hasTimedOut ? (
+              <div className="flex items-start gap-3 text-red-400">
+                <div className="size-4 mt-0.5 shrink-0">
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-full h-full"
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M5 5L11 11M11 5L5 11"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold mb-1">
+                    Response generation timed out
+                  </p>
+                  <p className="text-sm text-red-300/80 font-mono">
+                    The response took longer than 5 minutes to generate
+                  </p>
+                </div>
+              </div>
+            ) : isLoading ? (
               <div className="flex items-center gap-3 text-white/70">
                 <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
                 <p className="text-sm font-mono">{reasoning ? "Generating response…" : "Reasoning…"}</p>
