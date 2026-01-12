@@ -14,7 +14,7 @@ export function getOrCreateClientId(): string {
     try {
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     } catch (error) {
-      logger.error("Failed to save client ID:", error);
+      logger.error("Failed to save client ID:", { error });
     }
   }
   

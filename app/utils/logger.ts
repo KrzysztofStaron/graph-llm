@@ -34,10 +34,13 @@ class Logger {
       return;
     }
     
-    // Send to Loki asynchronously (fire and forget)
-    sendToLoki(logEntry).catch(() => {
-      // Silently fail - don't break app if Loki is down
-    });
+    // Only send to Loki on client side (not during SSR)
+    if (typeof window !== 'undefined') {
+      // Send to Loki asynchronously (fire and forget)
+      sendToLoki(logEntry).catch(() => {
+        // Silently fail - don't break app if Loki is down
+      });
+    }
   }
 
   info(message: unknown, meta?: LogMeta): void {

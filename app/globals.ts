@@ -21,7 +21,10 @@ export class globals {
   };
 }
 
-logger.info(`Environment: ${local ? "local" : "production"}, Backend URL: ${globals.graphLLMBackendUrl}`);
+// Only log on client side to avoid calling Server Functions during SSR
+if (typeof window !== 'undefined') {
+  logger.info(`Environment: ${local ? "local" : "production"}, Backend URL: ${globals.graphLLMBackendUrl}`);
+}
 
 /**
  * Auto-layout tuning constants
