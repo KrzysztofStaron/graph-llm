@@ -21,6 +21,7 @@ interface UseFileUploadReturn {
 }
 
 export const PLAIN_TEXT_EXTENSIONS = [".txt", ".md", ".json", ".csv"];
+
 export const DOCUMENT_EXTENSIONS = [
   ".pdf",
   ".docx",
@@ -105,6 +106,8 @@ export function useFileUpload({
         "below"
       );
 
+      // Image specyfic logic
+
       // Start FileReader and fetch in parallel
       const dataUrlPromise = new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -116,7 +119,7 @@ export function useFileUpload({
 
       // Wait for FileReader to complete, then create node immediately
       const dataUrl = await dataUrlPromise;
-      
+
       const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
 
       const nodeWithValue = { ...newImageContextNode, value: dataUrl };
@@ -126,16 +129,31 @@ export function useFileUpload({
 
       // Update with URL when upload completes (fetch continues in parallel)
       const uploadData = await uploadPromise;
+      
       if (uploadData?.url) {
         treeManager.patchNode(nodeWithValue.id, { value: uploadData.url });
       }
     });
     
-    await Promise.all(imagePromises);
+    // Process document files in parallel
+    const documentPromises = documentFiles.map(async (file, docIndex) => {
+      const nodeIndex = imageFiles.length + docIndex;
+      const targetX = canvasPoint.x + nodeIndex * 40;
+      const targetY = canvasPoint.y + nodeIndex * 120;
 
-    // Create document nodes (includes plain text files now) - process in parallel
-    await Promise.all(
-      documentFiles.map(async (file, docIndex) => {
+      const newNodeDim = getDefaultNodeDimensions("document");
+      const freePos = findFreePosition(
+        targetX,
+        targetY,
+        newNodeDim.width,
+        newNodeDim.height,
+        workingNodes,
+        nodeDimensionsRef.current,
+        "below"
+      );
+
+      // Document specyfic logic
+
       // For plain text files (.txt, .md, .json, .csv), parse directly
       // For other document types, use the parser with fallback
       let parseResult;
@@ -157,25 +175,8 @@ export function useFileUpload({
 
       if (parseResult.error) {
         logger.error(`Failed to parse ${file.name}:`, { error: parseResult.error });
-          return;
+        return;
       }
-
-      // Stagger positions: prefer stacking vertically below, slight horizontal offset
-        // Start document nodes after image nodes
-        const nodeIndex = imageFiles.length + docIndex;
-      const targetX = canvasPoint.x + nodeIndex * 40;
-      const targetY = canvasPoint.y + nodeIndex * 120;
-
-      const newNodeDim = getDefaultNodeDimensions("document");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        workingNodes,
-        nodeDimensionsRef.current,
-        "below"
-      );
 
       const newDocumentNode = createNode("document", freePos.x, freePos.y);
       const nodeWithValue = {
@@ -184,8 +185,9 @@ export function useFileUpload({
       };
       treeManager.addNode(nodeWithValue);
       workingNodes[nodeWithValue.id] = nodeWithValue;
-      })
-    );
+    });
+
+    await Promise.all([...imagePromises, ...documentPromises]);
   };
 
   const handleUploadContext = (canvasPoint: { x: number; y: number }) => {

@@ -181,6 +181,8 @@ export const ContextMenu = ({
                 item.label === "Remove edge"
               ) {
                 Icon = Unlink2;
+              } else if (item.label === "Clear All") {
+                Icon = Eraser;
               }
 
               // Parse label to extract "[ with children ]" part
