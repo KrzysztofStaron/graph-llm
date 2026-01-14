@@ -145,5 +145,5 @@ export function useKeyboardShortcuts({
         animationFrameRef.current = null;
       }
     };
-  }, []); // Empty! useLatest handles callback updates
+  }, []);
 }
