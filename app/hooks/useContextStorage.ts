@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { GraphNode } from "../types/GraphCanvas.types";
+import { storageService } from "../interfaces/storageService";
 import logger from "../utils/logger";
-import { globals } from "../globals";
 
 export interface StoredFile {
   id: string;
@@ -99,39 +99,7 @@ export function useContextStorage(): UseContextStorageReturn {
         reader.readAsDataURL(file);
       });
 
-      const formData = new FormData();
-      formData.append("file", file);
-      const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
-      
-      const uploadPromise = fetch(uploadUrl, {
-        method: "POST",
-        body: formData,
-      })
-        .then(response => {
-          if (!response.ok) {
-            return response.text().then(responseText => {
-              logger.error(`Failed to upload ${file.name}`, {
-                status: response.status,
-                statusText: response.statusText,
-                backendUrl: uploadUrl,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                responseBody: responseText
-              });
-              return null;
-            });
-          }
-          return response.json();
-        })
-        .catch(error => {
-          logger.error(`Network error uploading ${file.name}`, {
-            errorMessage: error?.message || String(error),
-            errorName: error?.name,
-            backendUrl: uploadUrl
-          });
-          return null;
-        });
+      const uploadPromise = storageService.uploadFile(file);
 
       // Wait for FileReader to complete, then add to storage immediately
       const dataUrl = await dataUrlPromise;

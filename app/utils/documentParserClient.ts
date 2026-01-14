@@ -1,4 +1,5 @@
 import { parseDocument, type ParseResult, type ParseError } from "./documentParser";
+import { createFileFormData } from "./formData";
 import { globals } from "../globals";
 import logger from "./logger";
 
@@ -15,8 +16,7 @@ const SERVER_PARSE_ENDPOINT = `${globals.graphLLMBackendUrl}/api/v1/document/par
 async function parseDocumentOnServer(
   file: File
 ): Promise<DocumentParseResult> {
-  const formData = new FormData();
-  formData.append("file", file);
+  const formData = createFileFormData(file);
 
   const response = await fetch(SERVER_PARSE_ENDPOINT, {
     method: "POST",
