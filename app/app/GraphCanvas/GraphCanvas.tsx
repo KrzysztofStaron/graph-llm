@@ -193,12 +193,37 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     }, [nodes]);
 
     const nodesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastChangeTimeRef = useRef<number>(0);
+    const rapidChangeCountRef = useRef<number>(0);
+    
     useEffect(() => {
       if (nodesSaveTimeoutRef.current) {
         clearTimeout(nodesSaveTimeoutRef.current);
       }
       
+      const now = Date.now();
+      const timeSinceLastChange = now - lastChangeTimeRef.current;
+      
+      const hasPendingImageUploads = Object.values(nodes).some(
+        (node) =>
+          (node.type === "image-context" || node.type === "image-response") &&
+          typeof node.value === "string" &&
+          node.value.startsWith("data:")
+      );
+      
+      if (timeSinceLastChange < 1000) {
+        rapidChangeCountRef.current += 1;
+      } else {
+        rapidChangeCountRef.current = 0;
+      }
+      
+      lastChangeTimeRef.current = now;
+      
+      const timeout = rapidChangeCountRef.current > 2 || hasPendingImageUploads ? 2000 : 500;
+      
       nodesSaveTimeoutRef.current = setTimeout(() => {
+        rapidChangeCountRef.current = 0;
+        
         if (Object.keys(nodes).length > 0) {
           const serialized = JSON.stringify(nodes);
           const sizeInMB = new Blob([serialized]).size / 1024 / 1024;
@@ -234,7 +259,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         } else {
           localStorage.removeItem("graph-nodes");
         }
-      }, 500);
+      }, timeout);
       
       return () => {
         if (nodesSaveTimeoutRef.current) {

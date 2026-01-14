@@ -21,7 +21,6 @@ export function useKeyboardShortcuts({
   const animationFrameRef = useRef<number | null>(null);
   const pressedKeysRef = useRef<Set<string>>(new Set());
 
-  // Use useLatest for all callbacks - prevents effect re-runs while keeping callbacks fresh
   const onPanCanvasRef = useLatest(onPanCanvas);
   const onFitViewRef = useLatest(onFitView);
   const onClearSelectionRef = useLatest(onClearSelection);
@@ -40,10 +39,11 @@ export function useKeyboardShortcuts({
       let dx = 0;
       let dy = 0;
       
-      if (pressedKeysRef.current.has("ArrowLeft")) dx += panSpeed; // Left arrow moves left (flipped)
-      if (pressedKeysRef.current.has("ArrowRight")) dx -= panSpeed; // Right arrow moves right (flipped)
-      if (pressedKeysRef.current.has("ArrowUp")) dy += panSpeed; // Up arrow moves up (flipped)
-      if (pressedKeysRef.current.has("ArrowDown")) dy -= panSpeed; // Down arrow moves down (flipped)
+      // canvas controll using arrow keys
+      if (pressedKeysRef.current.has("ArrowLeft")) dx += panSpeed;
+      if (pressedKeysRef.current.has("ArrowRight")) dx -= panSpeed; 
+      if (pressedKeysRef.current.has("ArrowUp")) dy += panSpeed;
+      if (pressedKeysRef.current.has("ArrowDown")) dy -= panSpeed;
 
       // Always continue animation loop if there are any pressed keys
       if (pressedKeysRef.current.size > 0) {

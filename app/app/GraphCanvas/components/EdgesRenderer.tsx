@@ -2,7 +2,7 @@ import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 import { NodeDimensions, Vector2 } from "@/app/types/graph";
 import { getNodeCenter } from "@/app/utils/getNodeCenter";
 import { AnimatePresence, motion } from "framer-motion";
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 
 const EdgesRenderer = ({
   localNodeDimensions,
@@ -12,6 +12,11 @@ const EdgesRenderer = ({
   appearingNodes: Record<string, Vector2>;
 }) => {
   const { nodes } = useContext(CanvasContext);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const nodeArray = Object.values(nodes);
 
@@ -30,8 +35,9 @@ const EdgesRenderer = ({
         height: 1,
       }}
     >
-      <AnimatePresence>
-        {edges.map((edge) => {
+      {isMounted && (
+        <AnimatePresence>
+          {edges.map((edge) => {
           const fromNode = nodes[edge.from];
           const toNode = nodes[edge.to];
           if (!fromNode || !toNode) return null;
@@ -56,7 +62,8 @@ const EdgesRenderer = ({
             />
           );
         })}
-      </AnimatePresence>
+        </AnimatePresence>
+      )}
     </svg>
   );
 };
