@@ -1,5 +1,6 @@
 import { sendToLoki } from '../api/sendToLoki';
 import { getOrCreateClientId } from './clientId';
+import { getOrCreateTraceId } from './traceId';
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
@@ -9,10 +10,12 @@ interface LogMeta {
 
 class Logger {
   private sendLog(level: LogLevel, message: unknown, meta?: LogMeta): void {
+    const traceId = getOrCreateTraceId();
     const logEntry = {
       message,
       level,
       timestamp: new Date().toISOString(),
+      traceId,
       meta: {
         ...meta,
         clientId: getOrCreateClientId(),

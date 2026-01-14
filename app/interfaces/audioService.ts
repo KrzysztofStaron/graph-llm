@@ -1,5 +1,6 @@
 import { globals } from "../globals";
 import logger from "../utils/logger";
+import { getRequestHeaders } from "../utils/requestHeaders";
 
 export interface WordTimestamp {
   word: string;
@@ -31,9 +32,9 @@ export class audioService {
       `${globals.graphLLMBackendUrl}/api/v1/text-to-speech`,
       {
         method: "POST",
-        headers: {
+        headers: getRequestHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({ text, includeTimestamps }),
       }
     );

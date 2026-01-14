@@ -11,6 +11,7 @@ interface LogEntry {
   message: unknown;
   level: string;
   timestamp?: string;
+  traceId?: string;
   [key: string]: unknown;
 }
 
@@ -21,13 +22,19 @@ export async function sendToLoki(info: LogEntry): Promise<void> {
   const timestampNs = `${Date.parse(timestamp)}000000`;
   const message = JSON.stringify(info);
 
+  const streamLabels: Record<string, string> = {
+    app: 'graph-llm-frontend',
+    env: process.env.NODE_ENV || 'development',
+    service: 'graph-llm-frontend',
+  };
+
+  if (info.traceId) {
+    streamLabels.traceId = info.traceId;
+  }
+
   const streams = [
     {
-      stream: {
-        app: 'graph-llm-frontend',
-        env: process.env.NODE_ENV || 'development',
-        service: 'graph-llm-frontend',
-      },
+      stream: streamLabels,
       values: [[timestampNs, message]],
     },
   ];

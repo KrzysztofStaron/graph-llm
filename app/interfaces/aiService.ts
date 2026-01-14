@@ -1,6 +1,7 @@
 import { globals } from "../globals";
 import { getOrCreateClientId } from "../utils/clientId";
 import logger from "../utils/logger";
+import { getRequestHeaders } from "../utils/requestHeaders";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -62,10 +63,9 @@ export class aiService {
     try {
       response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
         method: "POST",
-        headers: {
+        headers: getRequestHeaders({
           "Content-Type": "application/json",
-          "X-Client-Id": getOrCreateClientId(),
-        },
+        }),
         body: JSON.stringify(requestBody),
       });
     } catch (error) {
@@ -231,10 +231,9 @@ export class aiService {
           `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
           {
             method: "POST",
-            headers: {
+            headers: getRequestHeaders({
               "Content-Type": "application/json",
-              "X-Client-Id": getOrCreateClientId(),
-            },
+            }),
             body: payload,
             signal: timeoutController.signal,
           }
@@ -580,10 +579,9 @@ export class aiService {
   static async fastChat(messages: ChatMessage[]) {
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
       method: "POST",
-      headers: {
+      headers: getRequestHeaders({
         "Content-Type": "application/json",
-        "X-Client-Id": getOrCreateClientId(),
-      },
+      }),
       body: JSON.stringify({
         messages,
         model: "openai/gpt-oss-120b",

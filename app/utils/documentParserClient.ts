@@ -2,6 +2,7 @@ import { parseDocument, type ParseResult, type ParseError } from "./documentPars
 import { createFileFormData } from "./formData";
 import { globals } from "../globals";
 import logger from "./logger";
+import { getRequestHeaders } from "./requestHeaders";
 
 export interface DocumentParseResult {
   text: string;
@@ -20,6 +21,7 @@ async function parseDocumentOnServer(
 
   const response = await fetch(SERVER_PARSE_ENDPOINT, {
     method: "POST",
+    headers: getRequestHeaders(),
     body: formData,
   });
 

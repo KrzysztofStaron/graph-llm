@@ -40,6 +40,24 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
   const onInputSubmit = useCallback(
     async (query: string, caller: GraphNode) => {
+      const logData: {
+        query?: string;
+        callerId?: string;
+        callerType?: string;
+        responseNodeId?: string;
+        isNewNode?: boolean;
+        model?: string;
+        totalChunks?: number;
+        resultType?: string;
+        contentLength?: number;
+        contentPreview?: string;
+        youtubeVideosCount?: number;
+        youtubeVideoIds?: string[];
+        imageGenerated?: boolean;
+        imagePrompt?: string;
+        error?: string;
+      } = {};
+
       const nodesRef = graphCanvasRef.current?.nodesRef;
       const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
       const treeManager = graphCanvasRef.current?.treeManager;
@@ -111,14 +129,12 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       let imageResult: { url: string; prompt?: string } | null = null;
       const youtubeVideos: Array<{ videoId: string; explanation?: string }> = [];
 
-      logger.info('[INPUT] Starting AI stream for user input', {
-        query: query.substring(0, 100),
-        callerId: caller.id.substring(0, 8),
-        callerType: caller.type,
-        responseNodeId: responseNodeId.substring(0, 8),
-        isNewNode: !existingResponseNodeId,
-        model: selectedModel,
-      });
+      logData.query = query.substring(0, 100);
+      logData.callerId = caller.id.substring(0, 8);
+      logData.callerType = caller.type;
+      logData.responseNodeId = responseNodeId.substring(0, 8);
+      logData.isNewNode = !existingResponseNodeId;
+      logData.model = selectedModel;
 
       // Send the query - use the locally updated nodes object
       let mainChunkCount = 0;
@@ -127,13 +143,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           TreeManager.buildChatML(nodesWithQuery, updatedCaller),
           (response) => {
             mainChunkCount++;
-            if (mainChunkCount === 1 || mainChunkCount % 10 === 0) {
-              logger.debug('[INPUT] Streaming chunk', {
-                chunkNumber: mainChunkCount,
-                currentLength: response.length,
-                preview: response.substring(response.length - 50),
-              });
-            }
             treeManager.patchNode(responseNodeId, {
               value: response,
               error: undefined,
@@ -147,10 +156,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
-            logger.info('[INPUT] Image generation triggered', {
-              responseNodeId: responseNodeId.substring(0, 8),
-              prompt,
-            });
+            logData.imageGenerated = true;
+            logData.imagePrompt = prompt;
             logger.image(imageUrl, `Input response ${responseNodeId.substring(0, 8)}`, { prompt });
             
             // Immediately swap to image-response type to show image loading animation
@@ -182,29 +189,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           },
           // onYoutube callback - called when YouTube video tool is detected
           (videoId, explanation) => {
-            logger.info('[INPUT] YouTube video callback triggered', {
-              videoId,
-              explanation,
-              currentCount: youtubeVideos.length,
-              newCount: youtubeVideos.length + 1,
-            });
-            
             // Collect all YouTube videos - can be multiple
             youtubeVideos.push({ videoId, explanation });
-            
-            logger.info('[INPUT] YouTube video added to array', {
-              totalVideos: youtubeVideos.length,
-              allVideoIds: youtubeVideos.map(v => v.videoId),
-            });
           }
         )
         .catch((error) => {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
-          logger.error('[INPUT] Stream error', {
-            responseNodeId: responseNodeId.substring(0, 8),
-            error: errorMessage,
-          });
+          logData.error = errorMessage;
           treeManager.patchNode(responseNodeId, { error: errorMessage });
           nodesWithQuery[responseNodeId] = {
             ...nodesWithQuery[responseNodeId],
@@ -215,24 +207,16 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If the request failed, don't create follow-up nodes or cascade updates
       if (result === null) {
+        logger.error('[INPUT] Stream failed', logData);
         return;
       }
 
-      logger.info('[INPUT] Stream completed', {
-        responseNodeId: responseNodeId.substring(0, 8),
-        resultType: result.type,
-        totalChunks: mainChunkCount,
-        contentLength: result.content?.length || 0,
-        contentPreview: result.content?.substring(0, 100) || '',
-        youtubeVideosCount: youtubeVideos.length,
-        youtubeVideoIds: youtubeVideos.map(v => v.videoId),
-      });
-
-      logger.info('[INPUT] About to process YouTube videos', {
-        hasVideos: youtubeVideos.length > 0,
-        videoCount: youtubeVideos.length,
-        videos: youtubeVideos,
-      });
+      logData.totalChunks = mainChunkCount;
+      logData.resultType = result.type;
+      logData.contentLength = result.content?.length || 0;
+      logData.contentPreview = result.content?.substring(0, 100) || '';
+      logData.youtubeVideosCount = youtubeVideos.length;
+      logData.youtubeVideoIds = youtubeVideos.map(v => v.videoId);
 
       // Handle image response - convert the response node to an image-response node in-place
       if (result.type === "image") {
@@ -276,11 +260,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // Create YouTube nodes if any were collected during streaming
       if (youtubeVideos.length > 0) {
-        logger.info('[INPUT] Creating YouTube nodes', {
-          count: youtubeVideos.length,
-          videos: youtubeVideos.map(v => v.videoId),
-        });
-
         // Get the response node dimensions for placement calculation
         const responseNodeDim =
           nodeDimensionsRef.current[responseNodeId] ||
@@ -385,6 +364,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // Cascading updates: find all descendant response nodes and update them level by level
       await handleCascadeUpdate(responseNodeId, nodesWithQuery);
+
+      logger.info('[INPUT] Stream completed', logData);
     },
     [graphCanvasRef, handleCascadeUpdate, selectedModel, selectedImageModel, webSearchEnabled]
   );

@@ -1,6 +1,7 @@
 import { globals } from "../globals";
 import { createFileFormData } from "../utils/formData";
 import logger from "../utils/logger";
+import { getRequestHeaders } from "../utils/requestHeaders";
 
 export interface UploadFileResult {
   url: string;
@@ -19,6 +20,7 @@ export class storageService {
     try {
       const response = await fetch(uploadUrl, {
         method: "POST",
+        headers: getRequestHeaders(),
         body: formData,
       });
 
