@@ -82,7 +82,7 @@ const NodesRenderer = ({
                 }
               }}
             >
-              {node.type === "input" && (
+              {node.type === "input" ? (
                 <InputFieldNode
                   node={node}
                   isSelected={isSelected}
@@ -90,28 +90,21 @@ const NodesRenderer = ({
                   onInputSubmit={(query) => onInputSubmit(query, node)}
                   onDelete={() => onDeleteNode(node.id)}
                 />
-              )}
-              {node.type === "response" && (
+              ) : node.type === "response" ? (
                 <ResponseNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "image-response" && (
+              ) : node.type === "image-response" ? (
                 <ImageResponseNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "context" && (
+              ) : node.type === "context" ? (
                 <ContextNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "image-context" && (
+              ) : node.type === "image-context" ? (
                 <ImageContextNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "document" && (
+              ) : node.type === "document" ? (
                 <DocumentNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "summary" && (
+              ) : node.type === "summary" ? (
                 <SummaryNode node={node} isSelected={isSelected} />
-              )}
-              {node.type === "youtube" && (
+              ) : node.type === "youtube" ? (
                 <YouTubeNode node={node} isSelected={isSelected} />
-              )}
+              ) : null}
             </motion.div>
           );
         })}

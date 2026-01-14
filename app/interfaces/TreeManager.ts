@@ -226,7 +226,7 @@ export class TreeManager {
       maxLevel,
       explanation: 'Traversing backwards from current node through parent nodes',
       levels: Object.entries(normalizedTree)
-        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .toSorted(([a], [b]) => parseInt(a) - parseInt(b))
         .map(([level, nodes]) => ({
           level: parseInt(level),
           count: nodes.length,

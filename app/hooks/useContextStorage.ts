@@ -92,28 +92,18 @@ export function useContextStorage(): UseContextStorageReturn {
     const id = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     if (file.type.startsWith("image/")) {
-      const dataUrl = await new Promise<string>((resolve) => {
+      // Start FileReader and fetch in parallel to eliminate waterfall
+      const dataUrlPromise = new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
         reader.readAsDataURL(file);
       });
 
-      const storedFile: StoredItem = {
-        type: "file",
-        id,
-        name: file.name,
-        mimeType: file.type,
-        data: dataUrl,
-        uploadedAt: Date.now(),
-      };
-
-      setStoredItems((prev) => [...prev, storedFile]);
-
       const formData = new FormData();
       formData.append("file", file);
       const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
       
-      fetch(uploadUrl, {
+      const uploadPromise = fetch(uploadUrl, {
         method: "POST",
         body: formData,
       })
@@ -134,24 +124,39 @@ export function useContextStorage(): UseContextStorageReturn {
           }
           return response.json();
         })
-        .then(data => {
-          if (data?.url) {
-            setStoredItems((prev) =>
-              prev.map((item) =>
-                item.id === id
-                  ? { ...item, url: data.url, data: undefined }
-                  : item
-              )
-            );
-          }
-        })
         .catch(error => {
           logger.error(`Network error uploading ${file.name}`, {
             errorMessage: error?.message || String(error),
             errorName: error?.name,
             backendUrl: uploadUrl
           });
+          return null;
         });
+
+      // Wait for FileReader to complete, then add to storage immediately
+      const dataUrl = await dataUrlPromise;
+      const storedFile: StoredItem = {
+        type: "file",
+        id,
+        name: file.name,
+        mimeType: file.type,
+        data: dataUrl,
+        uploadedAt: Date.now(),
+      };
+
+      setStoredItems((prev) => [...prev, storedFile]);
+
+      // Update with URL when upload completes (fetch continues in parallel)
+      const uploadData = await uploadPromise;
+      if (uploadData?.url) {
+        setStoredItems((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? { ...item, url: uploadData.url, data: undefined }
+              : item
+          )
+        );
+      }
     } else {
       const data = await file.text();
       

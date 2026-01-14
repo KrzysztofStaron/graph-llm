@@ -58,7 +58,7 @@ const sortNodesByTreeDepth = (
   nodeIds: string[],
   nodes: GraphNodes
 ): string[] => {
-  return [...nodeIds].sort((a, b) => {
+  return nodeIds.toSorted((a, b) => {
     const depthA = calculateNodeDepth(a, nodes);
     const depthB = calculateNodeDepth(b, nodes);
     return depthA - depthB;

@@ -81,132 +81,140 @@ export function useFileUpload({
 
     if (imageFiles.length === 0 && documentFiles.length === 0) return;
 
-    let nodeIndex = 0;
-
     // Keep track of nodes as we create them for collision detection
     const workingNodes = { ...nodesRef.current };
 
-    for (const file of imageFiles) {
-      const targetX = canvasPoint.x + nodeIndex * 40;
-      const targetY = canvasPoint.y + nodeIndex * 120;
+    // Process image files in parallel
+    await Promise.all(
+      imageFiles.map(async (file, imageIndex) => {
+        const nodeIndex = imageIndex;
+        const targetX = canvasPoint.x + nodeIndex * 40;
+        const targetY = canvasPoint.y + nodeIndex * 120;
 
-      const newNodeDim = getDefaultNodeDimensions("image-context");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        workingNodes,
-        nodeDimensionsRef.current,
-        "below"
-      );
+        const newNodeDim = getDefaultNodeDimensions("image-context");
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          newNodeDim.width,
+          newNodeDim.height,
+          workingNodes,
+          nodeDimensionsRef.current,
+          "below"
+        );
 
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-
-      const newImageContextNode = createNode(
-        "image-context",
-        freePos.x,
-        freePos.y
-      );
-      const nodeWithValue = { ...newImageContextNode, value: dataUrl };
-      treeManager.addNode(nodeWithValue);
-      workingNodes[nodeWithValue.id] = nodeWithValue;
-      nodeIndex++;
-
-      const nodeId = nodeWithValue.id;
-      const formData = new FormData();
-      formData.append("file", file);
-      const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
-      
-      fetch(uploadUrl, {
-        method: "POST",
-        body: formData,
-      })
-        .then(response => {
-          if (!response.ok) {
-            return response.text().then(responseText => {
-              logger.error(`Failed to upload ${file.name}`, {
-                status: response.status,
-                statusText: response.statusText,
-                backendUrl: uploadUrl,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                responseBody: responseText
-              });
-              return null;
-            });
-          }
-          return response.json();
-        })
-        .then(data => {
-          if (data?.url) {
-            treeManager.patchNode(nodeId, { value: data.url });
-          }
-        })
-        .catch(error => {
-          logger.error(`Network error uploading ${file.name}`, {
-            errorMessage: error?.message || String(error),
-            errorName: error?.name,
-            backendUrl: uploadUrl
-          });
+        // Start FileReader and fetch in parallel to eliminate waterfall
+        const dataUrlPromise = new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
         });
-    }
 
-    // Create document nodes (includes plain text files now)
-    for (const file of documentFiles) {
-      // For plain text files (.txt, .md, .json, .csv), parse directly
-      // For other document types, use the parser with fallback
-      let parseResult;
-      const isPlainText = PLAIN_TEXT_EXTENSIONS.some((ext) =>
-        file.name.toLowerCase().endsWith(ext)
-      );
+        const formData = new FormData();
+        formData.append("file", file);
+        const uploadUrl = `${globals.graphLLMBackendUrl}/api/v1/storage/upload`;
+        
+        const uploadPromise = fetch(uploadUrl, {
+          method: "POST",
+          body: formData,
+        })
+          .then(response => {
+            if (!response.ok) {
+              return response.text().then(responseText => {
+                logger.error(`Failed to upload ${file.name}`, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  backendUrl: uploadUrl,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                  responseBody: responseText
+                });
+                return null;
+              });
+            }
+            return response.json();
+          })
+          .catch(error => {
+            logger.error(`Network error uploading ${file.name}`, {
+              errorMessage: error?.message || String(error),
+              errorName: error?.name,
+              backendUrl: uploadUrl
+            });
+            return null;
+          });
 
-      if (isPlainText) {
-        // Parse plain text files directly and format with filename
-        const text = await file.text();
-        parseResult = {
-          text: `FILENAME:${file.name}\n\n${text}`,
-          filename: file.name,
+        // Wait for FileReader to complete, then create node immediately
+        const dataUrl = await dataUrlPromise;
+        const newImageContextNode = createNode(
+          "image-context",
+          freePos.x,
+          freePos.y
+        );
+        const nodeWithValue = { ...newImageContextNode, value: dataUrl };
+        treeManager.addNode(nodeWithValue);
+        workingNodes[nodeWithValue.id] = nodeWithValue;
+
+        // Update with URL when upload completes (fetch continues in parallel)
+        const uploadData = await uploadPromise;
+        if (uploadData?.url) {
+          treeManager.patchNode(nodeWithValue.id, { value: uploadData.url });
+        }
+      })
+    );
+
+    // Create document nodes (includes plain text files now) - process in parallel
+    await Promise.all(
+      documentFiles.map(async (file, docIndex) => {
+        // For plain text files (.txt, .md, .json, .csv), parse directly
+        // For other document types, use the parser with fallback
+        let parseResult;
+        const isPlainText = PLAIN_TEXT_EXTENSIONS.some((ext) =>
+          file.name.toLowerCase().endsWith(ext)
+        );
+
+        if (isPlainText) {
+          // Parse plain text files directly and format with filename
+          const text = await file.text();
+          parseResult = {
+            text: `FILENAME:${file.name}\n\n${text}`,
+            filename: file.name,
+          };
+        } else {
+          // Use parser with fallback for other document types
+          parseResult = await parseDocumentWithFallback(file);
+        }
+
+        if (parseResult.error) {
+          logger.error(`Failed to parse ${file.name}:`, { error: parseResult.error });
+          return;
+        }
+
+        // Stagger positions: prefer stacking vertically below, slight horizontal offset
+        // Start document nodes after image nodes
+        const nodeIndex = imageFiles.length + docIndex;
+        const targetX = canvasPoint.x + nodeIndex * 40;
+        const targetY = canvasPoint.y + nodeIndex * 120;
+
+        const newNodeDim = getDefaultNodeDimensions("document");
+        const freePos = findFreePosition(
+          targetX,
+          targetY,
+          newNodeDim.width,
+          newNodeDim.height,
+          workingNodes,
+          nodeDimensionsRef.current,
+          "below"
+        );
+
+        const newDocumentNode = createNode("document", freePos.x, freePos.y);
+        const nodeWithValue = {
+          ...newDocumentNode,
+          value: parseResult.text,
         };
-      } else {
-        // Use parser with fallback for other document types
-        parseResult = await parseDocumentWithFallback(file);
-      }
-
-      if (parseResult.error) {
-        logger.error(`Failed to parse ${file.name}:`, { error: parseResult.error });
-        continue;
-      }
-
-      // Stagger positions: prefer stacking vertically below, slight horizontal offset
-      const targetX = canvasPoint.x + nodeIndex * 40;
-      const targetY = canvasPoint.y + nodeIndex * 120;
-
-      const newNodeDim = getDefaultNodeDimensions("document");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        workingNodes,
-        nodeDimensionsRef.current,
-        "below"
-      );
-
-      const newDocumentNode = createNode("document", freePos.x, freePos.y);
-      const nodeWithValue = {
-        ...newDocumentNode,
-        value: parseResult.text,
-      };
-      treeManager.addNode(nodeWithValue);
-      workingNodes[nodeWithValue.id] = nodeWithValue;
-      nodeIndex++;
-    }
+        treeManager.addNode(nodeWithValue);
+        workingNodes[nodeWithValue.id] = nodeWithValue;
+      })
+    );
   };
 
   const handleUploadContext = (canvasPoint: { x: number; y: number }) => {

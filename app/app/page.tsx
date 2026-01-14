@@ -253,13 +253,13 @@ const AppPageContent = () => {
         onRequestContextMenu={handleRequestContextMenu}
         onNodeDragToStorage={handleNodeDroppedToStorage}
       />
-      {quickMenuOpen && (
+      {quickMenuOpen ? (
         <SettingsModal
           isOpen={quickMenuOpen}
           onClose={() => setQuickMenuOpen(false)}
         />
-      )}
-      {editingContextNodeId && (
+      ) : null}
+      {editingContextNodeId ? (
         <ContextSidebar
           value={
             graphCanvasRef.current?.nodes[editingContextNodeId]?.value || ""
@@ -276,8 +276,8 @@ const AppPageContent = () => {
             setEditingContextNodeId(null);
           }}
         />
-      )}
-      {contextMenu && (
+      ) : null}
+      {contextMenu ? (
         <ContextMenu
           isOpen={contextMenu.isOpen}
           x={contextMenu.x}
@@ -286,11 +286,11 @@ const AppPageContent = () => {
           onClose={closeContextMenu}
           selectedNodeCount={graphCanvasRef.current?.selectedNodeIds.size ?? 0}
         />
-      )}
+      ) : null}
       <AnimatePresence>
-        {(isPlayingAudio || isLoadingAudio) && (
+        {(isPlayingAudio || isLoadingAudio) ? (
           <AudioPlayerIndicator onStop={stopAudio} isLoading={isLoadingAudio} />
-        )}
+        ) : null}
       </AnimatePresence>
       <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 pointer-events-auto">
         <ModelIndicator onClick={() => setQuickMenuOpen(prev => !prev)} />

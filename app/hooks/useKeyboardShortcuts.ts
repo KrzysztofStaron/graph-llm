@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useLatest } from "./useLatest";
 
 interface UseKeyboardShortcutsProps {
   onFitView?: () => void;
@@ -19,13 +20,15 @@ export function useKeyboardShortcuts({
   const initialPanSpeed = 5; // Same speed for consistent feel
   const animationFrameRef = useRef<number | null>(null);
   const pressedKeysRef = useRef<Set<string>>(new Set());
-  const onPanCanvasRef = useRef(onPanCanvas);
 
-  // Keep ref updated with latest callback
-  useEffect(() => {
-    onPanCanvasRef.current = onPanCanvas;
-  }, [onPanCanvas]);
+  // Use useLatest for all callbacks - prevents effect re-runs while keeping callbacks fresh
+  const onPanCanvasRef = useLatest(onPanCanvas);
+  const onFitViewRef = useLatest(onFitView);
+  const onClearSelectionRef = useLatest(onClearSelection);
+  const onUndoRef = useLatest(onUndo);
+  const onQuickMenuRef = useLatest(onQuickMenu);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const animate = () => {
       const panCanvas = onPanCanvasRef.current;
@@ -101,21 +104,21 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === "f") {
-        onFitView?.();
+        onFitViewRef.current?.();
       }
       if (e.key === "Escape") {
-        onClearSelection?.();
+        onClearSelectionRef.current?.();
       }
       // Handle Ctrl+Z (or Cmd+Z on Mac) for undo
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
-        onUndo?.();
+        onUndoRef.current?.();
       }
 
       // ctrl + k for quick menu
       if (e.key == "k" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        onQuickMenu?.();
+        onQuickMenuRef.current?.();
       }
     };
 
@@ -142,5 +145,5 @@ export function useKeyboardShortcuts({
         animationFrameRef.current = null;
       }
     };
-  }, [onFitView, onClearSelection, onUndo, onQuickMenu, onPanCanvas]);
+  }, []); // Empty! useLatest handles callback updates
 }
