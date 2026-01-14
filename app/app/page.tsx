@@ -27,8 +27,9 @@ import { useContextStorage } from "../hooks/useContextStorage";
 import type { StoredItem } from "../hooks/useContextStorage";
 import type { GraphNodes } from "../types/GraphCanvas.types";
 
-// Load state immediately on client, use defaults on server
-const loadInitialNodes = (): GraphNodes => {
+// Always start with default nodes for hydration consistency
+// Load from localStorage after hydration in useEffect
+const loadNodesFromStorage = (): GraphNodes => {
   if (typeof window === 'undefined') return globals.initialNodes;
   const saved = localStorage.getItem("graph-nodes");
   if (saved) {
@@ -46,7 +47,7 @@ const loadInitialNodes = (): GraphNodes => {
   return globals.initialNodes;
 };
 
-const loadInitialTransform = (): { x: number; y: number; k: number } | undefined => {
+const loadTransformFromStorage = (): { x: number; y: number; k: number } | undefined => {
   if (typeof window === 'undefined') return undefined;
   const savedTransform = localStorage.getItem("graph-transform");
   if (savedTransform) {
@@ -62,9 +63,55 @@ const loadInitialTransform = (): { x: number; y: number; k: number } | undefined
 const AppPageContent = () => {
   const graphCanvasRef = useRef<React.ElementRef<typeof GraphCanvas>>(null);
 
-  // Load immediately using lazy initializer - will be instant on client
-  const [initialNodes] = useState<GraphNodes>(loadInitialNodes);
-  const [initialTransform] = useState<{ x: number; y: number; k: number } | undefined>(loadInitialTransform);
+  // Always start with default nodes for consistent hydration
+  const [initialNodes] = useState<GraphNodes>(globals.initialNodes);
+  const [initialTransform] = useState<{ x: number; y: number; k: number } | undefined>(undefined);
+  
+  // Load from localStorage after hydration and restore nodes if different
+  useEffect(() => {
+    // Wait for GraphCanvas to be ready
+    const checkAndRestore = () => {
+      const treeManager = graphCanvasRef.current?.treeManager;
+      const setTransform = graphCanvasRef.current?.setTransform;
+      
+      if (!treeManager) {
+        // Retry on next frame if not ready yet
+        requestAnimationFrame(checkAndRestore);
+        return;
+      }
+      
+      const loadedNodes = loadNodesFromStorage();
+      const loadedTransform = loadTransformFromStorage();
+      const currentNodes = graphCanvasRef.current?.nodes || {};
+      const currentNodesKeys = Object.keys(currentNodes);
+      const loadedNodesKeys = Object.keys(loadedNodes);
+      
+      // If localStorage has nodes and they're different from current, restore them
+      if (loadedNodesKeys.length > 0) {
+        const currentNodesStr = JSON.stringify(currentNodes);
+        const loadedNodesStr = JSON.stringify(loadedNodes);
+        
+        if (currentNodesStr !== loadedNodesStr) {
+          // Clear all current nodes and restore loaded ones
+          currentNodesKeys.forEach(nodeId => {
+            treeManager.deleteNode(nodeId);
+          });
+          // Add all loaded nodes
+          Object.values(loadedNodes).forEach(node => {
+            treeManager.addNode(node);
+          });
+        }
+      }
+      // If localStorage is empty, we already have globals.initialNodes, so no action needed
+      
+      // Restore transform if available
+      if (loadedTransform && setTransform) {
+        setTransform(loadedTransform);
+      }
+    };
+    
+    checkAndRestore();
+  }, []); // Only run once after mount
 
   // Context node editing state
   const [editingContextNodeId, setEditingContextNodeId] = useState<
