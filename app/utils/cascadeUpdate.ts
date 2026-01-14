@@ -70,11 +70,22 @@ export async function cascadeUpdateDescendants({
 
         const inputParent = currentNodes[inputParentId];
 
-        logger.info('[CASCADE] Starting AI stream for descendant node', {
+        const logData: {
+          nodeId?: string;
+          inputParentId?: string;
+          model?: string;
+          resultType?: string;
+          totalChunks?: number;
+          contentLength?: number;
+          contentPreview?: string;
+          imageGenerated?: boolean;
+          imagePrompt?: string;
+          error?: string;
+        } = {
           nodeId: responseNode.id.substring(0, 8),
           inputParentId: inputParentId.substring(0, 8),
           model: selectedModel,
-        });
+        };
 
         // Stream the AI response
         let chunkCount = 0;
@@ -83,14 +94,6 @@ export async function cascadeUpdateDescendants({
             TreeManager.buildChatML(currentNodes, inputParent),
             (response) => {
               chunkCount++;
-              if (chunkCount === 1 || chunkCount % 10 === 0) {
-                logger.debug('[CASCADE] Streaming chunk', {
-                  nodeId: responseNode.id.substring(0, 8),
-                  chunkNumber: chunkCount,
-                  currentLength: response.length,
-                  preview: response.substring(response.length - 50),
-                });
-              }
               treeManager.patchNode(responseNode.id, {
                 value: response,
                 error: undefined,
@@ -104,10 +107,8 @@ export async function cascadeUpdateDescendants({
             { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
             // onImage callback for cascade regeneration
             (imageUrl, prompt) => {
-              logger.info('[CASCADE] Image generation triggered', {
-                nodeId: responseNode.id.substring(0, 8),
-                prompt,
-              });
+              logData.imageGenerated = true;
+              logData.imagePrompt = prompt;
               logger.image(imageUrl, `Cascade node ${responseNode.id.substring(0, 8)}`, { prompt });
               
               // Immediately swap to image-response type to show image loading animation
@@ -139,10 +140,7 @@ export async function cascadeUpdateDescendants({
           .catch((error) => {
             const errorMessage =
               error instanceof Error ? error.message : String(error);
-            logger.error('[CASCADE] Stream error', {
-              nodeId: responseNode.id.substring(0, 8),
-              error: errorMessage,
-            });
+            logData.error = errorMessage;
             treeManager.patchNode(responseNode.id, { error: errorMessage });
             currentNodes[responseNode.id] = {
               ...currentNodes[responseNode.id],
@@ -152,16 +150,15 @@ export async function cascadeUpdateDescendants({
           });
 
         if (result === null) {
+          logger.error('[CASCADE] Stream failed', logData);
           return;
         }
 
-        logger.info('[CASCADE] Stream completed', {
-          nodeId: responseNode.id.substring(0, 8),
-          resultType: result.type,
-          totalChunks: chunkCount,
-          contentLength: result.content.length,
-          contentPreview: result.content.substring(0, 100),
-        });
+        logData.resultType = result.type;
+        logData.totalChunks = chunkCount;
+        logData.contentLength = result.content.length;
+        logData.contentPreview = result.content.substring(0, 100);
+        logger.info('[CASCADE] Stream completed', logData);
 
         // Handle result type switching (text <-> image) in-place
         if (result.type === "image") {

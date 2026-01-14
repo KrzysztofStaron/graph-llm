@@ -34,6 +34,23 @@ export class aiService {
       webSearchEnabled?: boolean;
     }
   ): Promise<string> {
+    const logData: {
+      url?: string;
+      model?: string;
+      messageCount?: number;
+      webSearchEnabled?: boolean;
+      status?: number;
+      statusText?: string;
+      errorText?: string;
+      rawTextLength?: number;
+      error?: string;
+    } = {
+      url: `${globals.graphLLMBackendUrl}/api/v1/chat`,
+      model: options?.model,
+      messageCount: Array.isArray(message) ? message.length : 1,
+      webSearchEnabled: options?.webSearchEnabled,
+    };
+
     let response: Response;
 
     const requestBody = {
@@ -53,13 +70,6 @@ export class aiService {
       }),
     };
 
-    logger.info('[AI SERVICE] Chat request', {
-      url: `${globals.graphLLMBackendUrl}/api/v1/chat`,
-      model: options?.model,
-      messageCount: Array.isArray(message) ? message.length : 1,
-      webSearchEnabled: options?.webSearchEnabled,
-    });
-
     try {
       response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
         method: "POST",
@@ -75,11 +85,13 @@ export class aiService {
         const networkError = new Error(
           `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
         );
-        logger.error("Network error in chat", { error, originalError: error });
+        logData.error = networkError.message;
+        logger.error("Network error in chat", logData);
         throw networkError;
       }
 
-      logger.error("Error in chat", { error });
+      logData.error = error instanceof Error ? error.message : String(error);
+      logger.error("Error in chat", logData);
       // Re-throw other errors as-is
       throw error;
     }
@@ -89,20 +101,17 @@ export class aiService {
       const error = new Error(
         `Server error (${response.status}): ${errorText || response.statusText}`
       );
-      logger.error("Backend error in chat", { 
-        status: response.status, 
-        statusText: response.statusText, 
-        errorText,
-        error 
-      });
+      logData.status = response.status;
+      logData.statusText = response.statusText;
+      logData.errorText = errorText;
+      logData.error = error.message;
+      logger.error("Backend error in chat", logData);
       throw error;
     }
 
     const rawText = await response.text();
-    logger.info("Raw response from AI service (non-streaming)", { 
-      rawText,
-      length: rawText.length 
-    });
+    logData.rawTextLength = rawText.length;
+    logger.info("Raw response from AI service (non-streaming)", logData);
     return this.cleanResponse(rawText);
   }
 
@@ -127,16 +136,28 @@ export class aiService {
     const maxRetries = options?.retries ?? 2;
     let lastError: Error | null = null;
 
+    const logData: {
+      supportsStreaming?: boolean;
+      attempt?: number;
+      maxRetries?: number;
+      backoffMs?: number;
+      lastError?: string;
+      attempts?: number;
+      error?: string;
+    } = {
+      supportsStreaming: typeof ReadableStream !== "undefined" &&
+        typeof TextDecoder !== "undefined" &&
+        typeof Response !== "undefined",
+    };
+
     // Feature detection: check if streaming is supported
-    const supportsStreaming =
-      typeof ReadableStream !== "undefined" &&
-      typeof TextDecoder !== "undefined" &&
-      typeof Response !== "undefined";
+    const supportsStreaming = logData.supportsStreaming;
 
     // If streaming is not supported, fall back to non-streaming endpoint
     if (!supportsStreaming) {
       logger.warn(
-        "Streaming not supported in this browser, falling back to non-streaming endpoint"
+        "Streaming not supported in this browser, falling back to non-streaming endpoint",
+        logData
       );
       const result = await this.chat(message, options);
       onChunk(result);
@@ -147,9 +168,10 @@ export class aiService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        logger.info(`Retrying streamChat (attempt ${attempt + 1}/${maxRetries + 1}) after ${backoffMs}ms`, {
-          lastError: lastError?.message,
-        });
+        logData.attempt = attempt + 1;
+        logData.maxRetries = maxRetries + 1;
+        logData.backoffMs = backoffMs;
+        logData.lastError = lastError?.message;
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
 
@@ -162,14 +184,15 @@ export class aiService {
       
       // Only retry on "Stream ended without any content" errors
       if (!result.error.message.includes("Stream ended without any content")) {
+        logData.error = lastError.message;
+        logger.error("StreamChat failed", logData);
         throw result.error;
       }
       
       if (attempt === maxRetries) {
-        logger.error("All retry attempts exhausted for streamChat", {
-          attempts: maxRetries + 1,
-          lastError: lastError.message,
-        });
+        logData.attempts = maxRetries + 1;
+        logData.lastError = lastError.message;
+        logger.error("All retry attempts exhausted for streamChat", logData);
         throw lastError;
       }
     }
@@ -194,6 +217,38 @@ export class aiService {
     onReasoning?: (reasoning: string) => void,
     onYoutube?: (videoId: string, explanation?: string) => void
   ): Promise<{ success: true; data: StreamResponse } | { success: false; error: Error }> {
+    const logData: {
+      url?: string;
+      model?: string;
+      messageCount?: number;
+      webSearchEnabled?: boolean;
+      timeoutMs?: number;
+      status?: number;
+      statusText?: string;
+      errorText?: string;
+      error?: string;
+      fallbackToNonStreaming?: boolean;
+      rawResultLength?: number;
+      inactivityTimeoutMs?: number;
+      fullResponseLength?: number;
+      messagePreview?: unknown;
+      buffer?: string;
+      imageReceived?: boolean;
+      imageUrl?: string;
+      imagePrompt?: string;
+      youtubeReceived?: boolean;
+      youtubeVideoId?: string;
+      youtubeExplanation?: string;
+      hasYoutubeCallback?: boolean;
+      parsedError?: string;
+      parseError?: string;
+      data?: string;
+    } = {
+      url: `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
+      model: options?.model,
+      messageCount: Array.isArray(message) ? message.length : 1,
+      webSearchEnabled: options?.webSearchEnabled,
+    };
 
     try {
       const payload = JSON.stringify({
@@ -213,14 +268,8 @@ export class aiService {
         }),
       });
 
-      logger.info('[AI SERVICE] Stream attempt', {
-        url: `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
-        model: options?.model,
-        messageCount: Array.isArray(message) ? message.length : 1,
-        webSearchEnabled: options?.webSearchEnabled,
-      });
-
       const TIMEOUT_MS = options?.timeoutMs || 120000; // 2 minutes default timeout
+      logData.timeoutMs = TIMEOUT_MS;
       const timeoutController = new AbortController();
       const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_MS);
 
@@ -243,7 +292,8 @@ export class aiService {
         // Handle specific error types
         if (fetchError instanceof Error && fetchError.name === "AbortError") {
           const timeoutError = new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
-          logger.error("Request timeout in streamChat", { error: fetchError, timeoutMs: TIMEOUT_MS });
+          logData.error = timeoutError.message;
+          logger.error("Request timeout in streamChat", logData);
           return { success: false, error: timeoutError };
         }
         if (fetchError instanceof TypeError) {
@@ -251,11 +301,13 @@ export class aiService {
           const networkError = new Error(
             `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
           );
-          logger.error("Network error in streamChat", { error: fetchError, originalError: fetchError });
+          logData.error = networkError.message;
+          logger.error("Network error in streamChat", logData);
           return { success: false, error: networkError };
         }
         // Re-throw other errors as-is
-        logger.error("Fetch error in streamChat", { error: fetchError });
+        logData.error = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        logger.error("Fetch error in streamChat", logData);
         return { success: false, error: fetchError instanceof Error ? fetchError : new Error(String(fetchError)) };
       }
 
@@ -265,26 +317,21 @@ export class aiService {
         const error = new Error(
           `Server error (${response.status}): ${errorText || response.statusText}`
         );
-        logger.error("Backend error in streamChat", { 
-          status: response.status, 
-          statusText: response.statusText, 
-          errorText,
-          error 
-        });
+        logData.status = response.status;
+        logData.statusText = response.statusText;
+        logData.errorText = errorText;
+        logData.error = error.message;
+        logger.error("Backend error in streamChat", logData);
         return { success: false, error };
       }
 
       // Additional check: if response.body or getReader is not available, fall back
       if (!response.body || typeof response.body.getReader !== "function") {
-        logger.warn(
-          "Response body streaming not available, falling back to non-streaming"
-        );
+        logData.fallbackToNonStreaming = true;
         clearTimeout(timeoutId);
         const rawResult = await response.text();
-        logger.info("Raw response from AI service (fallback non-streaming)", { 
-          rawResult,
-          length: rawResult.length 
-        });
+        logData.rawResultLength = rawResult.length;
+        logger.info("Raw response from AI service (fallback non-streaming)", logData);
         const cleanedResult = this.cleanResponse(rawResult);
         onChunk(cleanedResult);
         return { success: true, data: { type: "text", content: cleanedResult } };
@@ -330,15 +377,14 @@ export class aiService {
         try {
           let lastChunkTime = Date.now();
           const INACTIVITY_TIMEOUT_MS = 60000; // 60 seconds of no data (increased for image generation)
+          logData.inactivityTimeoutMs = INACTIVITY_TIMEOUT_MS;
 
           while (true) {
             // Check for inactivity timeout
             if (Date.now() - lastChunkTime > INACTIVITY_TIMEOUT_MS) {
               const timeoutError = new Error("Stream timeout: No data received for 60 seconds");
-              logger.error("Stream inactivity timeout", { 
-                error: timeoutError, 
-                inactivityTimeoutMs: INACTIVITY_TIMEOUT_MS 
-              });
+              logData.error = timeoutError.message;
+              logger.error("Stream inactivity timeout", logData);
               return { success: false, error: timeoutError };
             }
 
@@ -347,34 +393,34 @@ export class aiService {
             if (done) {
               // If we got an image response, return it
               if (imageResponse) {
+                logData.imageReceived = true;
+                logData.imageUrl = imageResponse.url.substring(0, 100);
+                logData.imagePrompt = imageResponse.prompt;
+                logger.info("Stream completed with image", logData);
                 return { 
                   success: true, 
                   data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
                 };
               }
               
-              logger.info("Stream ended - raw fullResponse from AI service", { 
-                fullResponse,
-                length: fullResponse.length 
-              });
+              logData.fullResponseLength = fullResponse.length;
               
               // Stream ended without [DONE] signal - clean and return
               if (fullResponse.length === 0) {
                 const streamError = new Error(
                   "Stream ended without any content. This may happen if the LLM provider rejected the request or returned an empty response. Retrying..."
                 );
-                logger.error("Stream ended without content (empty fullResponse)", { 
-                  error: streamError,
-                  messagePreview: Array.isArray(message) 
-                    ? message.map(m => ({
-                        role: m.role,
-                        contentPreview: typeof m.content === 'string' 
-                          ? m.content.substring(0, 300) 
-                          : '[multipart]'
-                      }))
-                    : typeof message === 'string' ? message.substring(0, 300) : '[unknown]',
-                  buffer: buffer.substring(0, 500),
-                });
+                logData.error = streamError.message;
+                logData.messagePreview = Array.isArray(message) 
+                  ? message.map(m => ({
+                      role: m.role,
+                      contentPreview: typeof m.content === 'string' 
+                        ? m.content.substring(0, 300) 
+                        : '[multipart]'
+                    }))
+                  : typeof message === 'string' ? message.substring(0, 300) : '[unknown]';
+                logData.buffer = buffer.substring(0, 500);
+                logger.error("Stream ended without content (empty fullResponse)", logData);
                 return { success: false, error: streamError };
               }
               
@@ -385,6 +431,7 @@ export class aiService {
               if (pendingReasoningUpdate && onReasoning) {
                 onReasoning(fullReasoning);
               }
+              logger.info("Stream ended - raw fullResponse from AI service", logData);
               return { success: true, data: { type: "text", content: cleanedResponse } };
             }
 
@@ -399,17 +446,17 @@ export class aiService {
                 if (data === "[DONE]") {
                   // If we got an image response, return it
                   if (imageResponse) {
+                    logData.imageReceived = true;
+                    logData.imageUrl = imageResponse.url.substring(0, 100);
+                    logData.imagePrompt = imageResponse.prompt;
+                    logger.info("Stream completed with [DONE] - image response", logData);
                     return { 
                       success: true, 
                       data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
                     };
                   }
                   
-                  logger.info("Stream completed with [DONE] - raw fullResponse from AI service", { 
-                    fullResponse,
-                    length: fullResponse.length 
-                  });
-                  
+                  logData.fullResponseLength = fullResponse.length;
                   const cleanedResponse = this.cleanResponse(fullResponse);
                   if (pendingUpdate) {
                     onChunk(cleanedResponse);
@@ -417,6 +464,7 @@ export class aiService {
                   if (pendingReasoningUpdate && onReasoning) {
                     onReasoning(fullReasoning);
                   }
+                  logger.info("Stream completed with [DONE] - raw fullResponse from AI service", logData);
                   return { success: true, data: { type: "text", content: cleanedResponse } };
                 }
 
@@ -439,26 +487,21 @@ export class aiService {
                   
                   // Handle image response from backend
                   if (parsed.type === "image" && parsed.content) {
-                    logger.info("[AI SERVICE] Image response received", { 
-                      url: parsed.content.substring(0, 100),
-                      prompt: parsed.prompt 
-                    });
+                    logData.imageReceived = true;
+                    logData.imageUrl = parsed.content.substring(0, 100);
+                    logData.imagePrompt = parsed.prompt;
                     logger.image(parsed.content, 'Stream image response', { prompt: parsed.prompt });
                     imageResponse = { url: parsed.content, prompt: parsed.prompt };
                     if (onImage) {
                       onImage(parsed.content, parsed.prompt);
                     }
                   } else if (parsed.type === "youtube" && parsed.videoId) {
-                    logger.info("[AI SERVICE] YouTube response received", { 
-                      videoId: parsed.videoId,
-                      explanation: parsed.explanation,
-                      hasCallback: !!onYoutube
-                    });
+                    logData.youtubeReceived = true;
+                    logData.youtubeVideoId = parsed.videoId;
+                    logData.youtubeExplanation = parsed.explanation;
+                    logData.hasYoutubeCallback = !!onYoutube;
                     if (onYoutube) {
-                      logger.info("[AI SERVICE] Calling onYoutube callback", { videoId: parsed.videoId });
                       onYoutube(parsed.videoId, parsed.explanation);
-                    } else {
-                      logger.warn("[AI SERVICE] No onYoutube callback provided!");
                     }
                   } else if (parsed.content) {
                     fullResponse += parsed.content;
@@ -467,12 +510,15 @@ export class aiService {
                   
                   if (parsed.error) {
                     const streamError = new Error(parsed.error);
-                    logger.error("Stream error from backend", { error: streamError, parsedError: parsed.error });
+                    logData.error = streamError.message;
+                    logData.parsedError = parsed.error;
+                    logger.error("Stream error from backend", logData);
                     return { success: false, error: streamError };
                   }
                 } catch (parseError) {
                   // Skip invalid JSON but log it for debugging
-                  logger.warn("Failed to parse SSE data", { data, error: parseError });
+                  logData.parseError = parseError instanceof Error ? parseError.message : String(parseError);
+                  logData.data = data.substring(0, 200);
                 }
               }
             }
@@ -484,6 +530,8 @@ export class aiService {
         clearTimeout(timeoutId);
       }
     } catch (error) {
+      logData.error = error instanceof Error ? error.message : String(error);
+      logger.error("StreamChat attempt failed", logData);
       return { 
         success: false, 
         error: error instanceof Error ? error : new Error(String(error)) 
@@ -496,8 +544,21 @@ export class aiService {
       return response;
     }
     
+    const logData: {
+      bracketWrapCleaned?: boolean;
+      bracketPartialCleaned?: boolean;
+      xmlWrapCleaned?: boolean;
+      xmlPartialCleaned?: boolean;
+      separatorCleaned?: boolean;
+      originalLength?: number;
+      cleanedLength?: number;
+      original?: string;
+      error?: string;
+    } = {};
+    
     let cleaned = response.trim();
     const originalLength = cleaned.length;
+    logData.originalLength = originalLength;
     
     // Pattern 1: Remove bracket-style metadata tags with replying-to attribute (new format)
     // Handles: [Q1 replying-to="A2"]content[/Q1], [A1]content[/A1], etc.
@@ -505,10 +566,7 @@ export class aiService {
     if (bracketWrapMatch) {
       const extracted = bracketWrapMatch[2].trim();
       if (extracted.length > 0) {
-        logger.warn("Model leaked bracket metadata tags (full wrap) - cleaning response", {
-          original: cleaned.substring(0, 200),
-          cleaned: extracted.substring(0, 200)
-        });
+        logData.bracketWrapCleaned = true;
         cleaned = extracted;
       }
     }
@@ -520,10 +578,7 @@ export class aiService {
       .replace(/\[\/(Q|A|DOC|CTX|[A-Z]+)\d+\]/gi, ''); // Remove closing tags
     
     if (beforeBracketClean !== cleaned) {
-      logger.warn("Model leaked partial bracket metadata tags - cleaning response", {
-        original: beforeBracketClean.substring(0, 200),
-        cleaned: cleaned.substring(0, 200)
-      });
+      logData.bracketPartialCleaned = true;
     }
     
     // Pattern 3: Remove old-style XML node tags (backward compatibility)
@@ -532,10 +587,7 @@ export class aiService {
     if (fullWrapMatch) {
       const extracted = fullWrapMatch[1].trim();
       if (extracted.length > 0) {
-        logger.warn("Model leaked old-style node tags (full wrap) - cleaning response", {
-          original: cleaned.substring(0, 200),
-          cleaned: extracted.substring(0, 200)
-        });
+        logData.xmlWrapCleaned = true;
         cleaned = extracted;
       }
     }
@@ -547,10 +599,7 @@ export class aiService {
       .replace(/<\/node>/gi, ''); // Remove all closing tags
     
     if (beforeXmlClean !== cleaned) {
-      logger.warn("Model leaked partial old-style node tags - cleaning response", {
-        original: beforeXmlClean.substring(0, 200),
-        cleaned: cleaned.substring(0, 200)
-      });
+      logData.xmlPartialCleaned = true;
     }
     
     // Pattern 5: Remove separator tags
@@ -558,25 +607,37 @@ export class aiService {
     cleaned = cleaned.replace(/<separatorOfContextualData\s*\/>/gi, '');
     
     if (beforeSeparatorClean !== cleaned) {
-      logger.warn("Model leaked separator tags - cleaning response");
+      logData.separatorCleaned = true;
     }
     
     // Final trim
     cleaned = cleaned.trim();
+    logData.cleanedLength = cleaned.length;
     
     // Safety check: If cleaning removed everything, return original (better than losing content)
     if (cleaned.length === 0 && originalLength > 0) {
-      logger.error("Cleaning resulted in empty response - returning original to prevent data loss", {
-        original: response.substring(0, 200),
-        originalLength: originalLength
-      });
+      logData.error = "Cleaning resulted in empty response";
+      logData.original = response.substring(0, 200);
+      logger.error("Cleaning resulted in empty response - returning original to prevent data loss", logData);
       return response.trim();
+    }
+    
+    if (logData.bracketWrapCleaned || logData.bracketPartialCleaned || logData.xmlWrapCleaned || logData.xmlPartialCleaned || logData.separatorCleaned) {
+      logger.warn("Model leaked metadata tags - cleaning response", logData);
     }
     
     return cleaned;
   }
 
   static async fastChat(messages: ChatMessage[]) {
+    const logData: {
+      status?: number;
+      statusText?: string;
+      errorText?: string;
+      error?: string;
+      rawTextLength?: number;
+    } = {};
+
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
       method: "POST",
       headers: getRequestHeaders({
@@ -595,15 +656,17 @@ export class aiService {
       const error = new Error(
         `Server error (${response.status}): ${errorText || response.statusText}`
       );
-      logger.error("Backend error in fastChat", { error });
+      logData.status = response.status;
+      logData.statusText = response.statusText;
+      logData.errorText = errorText;
+      logData.error = error.message;
+      logger.error("Backend error in fastChat", logData);
       throw error;
     }
     
     const rawText = await response.text();
-    logger.info("Raw response from AI service (fastChat)", { 
-      rawText,
-      length: rawText.length 
-    });
+    logData.rawTextLength = rawText.length;
+    logger.info("Raw response from AI service (fastChat)", logData);
     return this.cleanResponse(rawText);
   }
 }
