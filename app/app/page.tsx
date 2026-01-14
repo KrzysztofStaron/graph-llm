@@ -33,7 +33,12 @@ const loadInitialNodes = (): GraphNodes => {
   const saved = localStorage.getItem("graph-nodes");
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // If saved state is empty, return default input node
+      if (Object.keys(parsed).length === 0) {
+        return globals.initialNodes;
+      }
+      return parsed;
     } catch (e) {
       return globals.initialNodes;
     }
