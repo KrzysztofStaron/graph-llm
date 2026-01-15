@@ -56,6 +56,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         imageGenerated?: boolean;
         imagePrompt?: string;
         error?: string;
+        errorName?: string;
+        errorStack?: string;
       } = {};
 
       const nodesRef = graphCanvasRef.current?.nodesRef;
@@ -196,7 +198,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         .catch((error) => {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
+          const errorName = error instanceof Error ? error.name : 'Unknown';
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          
           logData.error = errorMessage;
+          logData.errorName = errorName;
+          logData.errorStack = errorStack;
+          
           treeManager.patchNode(responseNodeId, { error: errorMessage });
           nodesWithQuery[responseNodeId] = {
             ...nodesWithQuery[responseNodeId],

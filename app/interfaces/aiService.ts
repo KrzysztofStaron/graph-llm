@@ -227,6 +227,13 @@ export class aiService {
       statusText?: string;
       errorText?: string;
       error?: string;
+      errorName?: string;
+      errorStack?: string;
+      extractedStatus?: number;
+      payloadSize?: number;
+      payloadSizeKB?: number;
+      payloadSizeMB?: string;
+      readError?: string;
       fallbackToNonStreaming?: boolean;
       rawResultLength?: number;
       inactivityTimeoutMs?: number;
@@ -289,6 +296,31 @@ export class aiService {
         );
       } catch (fetchError) {
         clearTimeout(timeoutId);
+        
+        // Extract all available error information
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        const errorName = fetchError instanceof Error ? fetchError.name : 'Unknown';
+        const errorStack = fetchError instanceof Error ? fetchError.stack : undefined;
+        
+        // Try to extract status code from error message (browser sometimes includes it in CORS errors)
+        const statusMatch = errorMessage.match(/status code:?\s*(\d+)/i) || 
+                           errorMessage.match(/Status code:?\s*(\d+)/i) ||
+                           errorMessage.match(/\((\d+)\)/);
+        const extractedStatus = statusMatch ? parseInt(statusMatch[1], 10) : undefined;
+        
+        // Calculate payload size for debugging
+        const payloadSize = payload.length;
+        const payloadSizeKB = Math.round(payloadSize / 1024);
+        const payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
+        
+        logData.error = errorMessage;
+        logData.errorName = errorName;
+        logData.errorStack = errorStack;
+        logData.extractedStatus = extractedStatus;
+        logData.payloadSize = payloadSize;
+        logData.payloadSizeKB = payloadSizeKB;
+        logData.payloadSizeMB = payloadSizeMB;
+        
         // Handle specific error types
         if (fetchError instanceof Error && fetchError.name === "AbortError") {
           const timeoutError = new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
@@ -296,31 +328,74 @@ export class aiService {
           logger.error("Request timeout in streamChat", logData);
           return { success: false, error: timeoutError };
         }
+        
         if (fetchError instanceof TypeError) {
-          // TypeError typically indicates network failure, CORS, or DNS issues
-          const networkError = new Error(
-            `Network error: Cannot reach ${globals.graphLLMBackendUrl}. Check your connection or server status.`
-          );
+          // Check if it's a CORS error with status code
+          const isCorsError = errorMessage.toLowerCase().includes('cors') || 
+                             errorMessage.toLowerCase().includes('access-control');
+          
+          let errorMsg: string;
+          if (extractedStatus) {
+            if (extractedStatus === 413) {
+              errorMsg = `Payload too large (${extractedStatus}): Request size is ${payloadSizeMB}MB, which exceeds server limits. Payload: ${payloadSizeKB}KB`;
+            } else {
+              errorMsg = `CORS/Network error (${extractedStatus}): ${errorMessage}. Payload size: ${payloadSizeKB}KB`;
+            }
+          } else if (isCorsError) {
+            errorMsg = `CORS error: ${errorMessage}. Payload size: ${payloadSizeKB}KB. This may indicate the request was blocked due to size limits or CORS policy.`;
+          } else {
+            errorMsg = `Network error: ${errorMessage}. Cannot reach ${globals.graphLLMBackendUrl}. Payload size: ${payloadSizeKB}KB`;
+          }
+          
+          const networkError = new Error(errorMsg);
           logData.error = networkError.message;
           logger.error("Network error in streamChat", logData);
           return { success: false, error: networkError };
         }
-        // Re-throw other errors as-is
-        logData.error = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        
+        // Handle other errors with full details
+        const fullError = new Error(
+          `Fetch error (${errorName}): ${errorMessage}${extractedStatus ? ` [Status: ${extractedStatus}]` : ''}. Payload size: ${payloadSizeKB}KB`
+        );
+        logData.error = fullError.message;
         logger.error("Fetch error in streamChat", logData);
-        return { success: false, error: fetchError instanceof Error ? fetchError : new Error(String(fetchError)) };
+        return { success: false, error: fullError };
       }
 
       if (!response.ok) {
         clearTimeout(timeoutId);
-        const errorText = await response.text().catch(() => "Unknown error");
-        const error = new Error(
-          `Server error (${response.status}): ${errorText || response.statusText}`
-        );
+        
+        // Calculate payload size for debugging
+        const payloadSize = payload.length;
+        const payloadSizeKB = Math.round(payloadSize / 1024);
+        const payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
+        
+        // Try to read error response body
+        let errorText = "Unknown error";
+        try {
+          errorText = await response.text();
+        } catch (readError) {
+          // If we can't read the body (e.g., CORS), try to get status text
+          errorText = response.statusText || "Could not read error response";
+          logData.readError = readError instanceof Error ? readError.message : String(readError);
+        }
+        
+        // Build descriptive error message
+        let errorMessage: string;
+        if (response.status === 413) {
+          errorMessage = `Payload too large (413): Request size is ${payloadSizeMB}MB (${payloadSizeKB}KB), which exceeds server limits. ${errorText !== "Unknown error" ? `Server message: ${errorText}` : ''}`;
+        } else {
+          errorMessage = `Server error (${response.status}): ${errorText || response.statusText}`;
+        }
+        
+        const error = new Error(errorMessage);
         logData.status = response.status;
         logData.statusText = response.statusText;
         logData.errorText = errorText;
         logData.error = error.message;
+        logData.payloadSize = payloadSize;
+        logData.payloadSizeKB = payloadSizeKB;
+        logData.payloadSizeMB = payloadSizeMB;
         logger.error("Backend error in streamChat", logData);
         return { success: false, error };
       }
