@@ -215,7 +215,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If the request failed, don't create follow-up nodes or cascade updates
       if (result === null) {
-        logger.error('[INPUT] Stream failed', logData);
+        const errorMessage = logData.error || 'Unknown error';
+        logger.error(`[INPUT_STREAM] [FAIL] Input Stream Failed: ${errorMessage}`, logData);
         return;
       }
 
@@ -373,7 +374,16 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       // Cascading updates: find all descendant response nodes and update them level by level
       await handleCascadeUpdate(responseNodeId, nodesWithQuery);
 
-      logger.info('[INPUT] Stream completed', logData);
+      // Comprehensive completion log with observability status
+      const completionType = result.type === "image" ? 'Image' : 'Text';
+      const nodeCount = Object.keys(nodesWithQuery).length;
+      const finalMessage = `Input Flow Complete: ${completionType} response (${logData.totalChunks} chunks, ${youtubeVideos.length} videos, ${nodeCount} total nodes)`;
+      
+      logger.info(`[INPUT_STREAM] [OK] ${finalMessage}`, {
+        ...logData,
+        nodeCount,
+        finalMessage,
+      });
     },
     [graphCanvasRef, handleCascadeUpdate, selectedModel, selectedImageModel, webSearchEnabled]
   );

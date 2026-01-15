@@ -329,18 +329,26 @@ export class aiService {
         messageCount: payloadAnalysis.messageCount,
       };
 
-      if (payloadAnalysis.dataUrlCount > 0) {
-        logger.warn(`⚠️ Payload contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) totaling ${Math.round(payloadAnalysis.dataUrlLength / 1024)}KB. This may cause payload size issues.`, logData);
-      }
+      // Determine logging level based on payload health
+      const hasDataUrls = payloadAnalysis.dataUrlCount > 0;
+      const payloadTooLarge = payloadSize > 500000; // 500KB threshold
+      const logLevel = payloadTooLarge ? 'error' : hasDataUrls ? 'warn' : 'info';
+      const logMessage = payloadTooLarge 
+        ? `CRITICAL: Payload exceeds safe size (${logData.payloadSizeMB}MB / 500KB limit)`
+        : hasDataUrls
+        ? `Payload contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) (${logData.payloadBreakdown.dataUrlsKB}KB)`
+        : `Payload optimal (${logData.payloadSizeKB}KB, all hosted URLs)`;
 
-      logger.structure('📤 Payload Size Breakdown', {
-        totalSizeKB: logData.payloadSizeKB,
-        totalSizeMB: logData.payloadSizeMB,
-        breakdown: logData.payloadBreakdown,
-        warning: payloadAnalysis.dataUrlCount > 0 
-          ? `⚠️ Contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) - these should be URLs instead`
-          : '✅ No base64 data URLs found',
-      });
+      const fullMessage = `[PAYLOAD_ANALYSIS] [${logLevel.toUpperCase()}] ${logMessage}`;
+
+      // Single comprehensive log call
+      if (logLevel === 'error') {
+        logger.error(fullMessage, logData);
+      } else if (logLevel === 'warn') {
+        logger.warn(fullMessage, logData);
+      } else {
+        logger.info(fullMessage, logData);
+      }
 
       const TIMEOUT_MS = options?.timeoutMs || 120000; // 2 minutes default timeout
       logData.timeoutMs = TIMEOUT_MS;
