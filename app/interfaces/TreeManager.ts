@@ -370,33 +370,41 @@ export class TreeManager {
           }
 
           // Add all images (both image-context and image-response)
-          // Filter out data URLs (base64) - only use actual URLs
+          // Only include hosted URLs (https://...), skip base64 data URLs as they blow up the payload
           const imageStats = {
             total: imageNodes.length,
             dataUrls: 0,
-            urls: 0,
+            hostedUrls: 0,
+            invalidUrls: 0,
             dataUrlSizes: [] as number[],
             skippedDataUrls: [] as string[],
+            invalidUrlNodes: [] as string[],
           };
 
           imageNodes.forEach((node) => {
             const imageValue = node.value;
             const isDataUrl = imageValue.startsWith('data:');
+            const isHostedUrl = imageValue.startsWith('http://') || imageValue.startsWith('https://');
             
             if (isDataUrl) {
-              // Skip base64 data URLs - they're too large for the payload
+              // Skip base64 data URLs - they're way too large for the payload
               imageStats.dataUrls++;
               const dataUrlSize = imageValue.length;
               imageStats.dataUrlSizes.push(dataUrlSize);
               imageStats.skippedDataUrls.push(`${node.type}(${node.id.substring(0, 8)})`);
               logger.warn(`Skipping base64 data URL for ${node.type} node ${node.id.substring(0, 8)} - size: ${Math.round(dataUrlSize / 1024)}KB. Image upload may not have completed yet.`);
-            } else {
-              // Only include actual URLs
-              imageStats.urls++;
+            } else if (isHostedUrl) {
+              // Include hosted URLs (generated images or uploaded images)
+              imageStats.hostedUrls++;
               contentArray.push({
                 type: "image_url",
                 image_url: { url: imageValue },
               });
+            } else {
+              // Invalid URL format
+              imageStats.invalidUrls++;
+              imageStats.invalidUrlNodes.push(`${node.type}(${node.id.substring(0, 8)})`);
+              logger.warn(`Invalid image URL format for ${node.type} node ${node.id.substring(0, 8)}: ${imageValue.substring(0, 50)}`);
             }
           });
 
@@ -405,14 +413,18 @@ export class TreeManager {
             const totalDataUrlSize = imageStats.dataUrlSizes.reduce((sum, size) => sum + size, 0);
             logger.structure('🖼️ Image Payload Analysis', {
               totalImages: imageStats.total,
-              urlsIncluded: imageStats.urls,
+              hostedUrlsIncluded: imageStats.hostedUrls,
               dataUrlsSkipped: imageStats.dataUrls,
+              invalidUrls: imageStats.invalidUrls,
               skippedDataUrlSizeKB: Math.round(totalDataUrlSize / 1024),
               skippedDataUrlSizeMB: (totalDataUrlSize / (1024 * 1024)).toFixed(2),
               skippedNodes: imageStats.skippedDataUrls,
+              invalidUrlNodes: imageStats.invalidUrlNodes,
               message: imageStats.dataUrls > 0 
                 ? `⚠️ Skipped ${imageStats.dataUrls} base64 data URL(s) totaling ${Math.round(totalDataUrlSize / 1024)}KB. These images may still be uploading.`
-                : '✅ All images are URLs (no base64 data URLs found)',
+                : imageStats.invalidUrls > 0
+                ? `⚠️ Found ${imageStats.invalidUrls} invalid URL(s).`
+                : `✅ All images are hosted URLs (${imageStats.hostedUrls} total)`,
             });
           }
 
