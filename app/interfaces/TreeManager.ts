@@ -370,12 +370,51 @@ export class TreeManager {
           }
 
           // Add all images (both image-context and image-response)
+          // Filter out data URLs (base64) - only use actual URLs
+          const imageStats = {
+            total: imageNodes.length,
+            dataUrls: 0,
+            urls: 0,
+            dataUrlSizes: [] as number[],
+            skippedDataUrls: [] as string[],
+          };
+
           imageNodes.forEach((node) => {
-            contentArray.push({
-              type: "image_url",
-              image_url: { url: node.value },
-            });
+            const imageValue = node.value;
+            const isDataUrl = imageValue.startsWith('data:');
+            
+            if (isDataUrl) {
+              // Skip base64 data URLs - they're too large for the payload
+              imageStats.dataUrls++;
+              const dataUrlSize = imageValue.length;
+              imageStats.dataUrlSizes.push(dataUrlSize);
+              imageStats.skippedDataUrls.push(`${node.type}(${node.id.substring(0, 8)})`);
+              logger.warn(`Skipping base64 data URL for ${node.type} node ${node.id.substring(0, 8)} - size: ${Math.round(dataUrlSize / 1024)}KB. Image upload may not have completed yet.`);
+            } else {
+              // Only include actual URLs
+              imageStats.urls++;
+              contentArray.push({
+                type: "image_url",
+                image_url: { url: imageValue },
+              });
+            }
           });
+
+          // Log image statistics
+          if (imageStats.total > 0) {
+            const totalDataUrlSize = imageStats.dataUrlSizes.reduce((sum, size) => sum + size, 0);
+            logger.structure('🖼️ Image Payload Analysis', {
+              totalImages: imageStats.total,
+              urlsIncluded: imageStats.urls,
+              dataUrlsSkipped: imageStats.dataUrls,
+              skippedDataUrlSizeKB: Math.round(totalDataUrlSize / 1024),
+              skippedDataUrlSizeMB: (totalDataUrlSize / (1024 * 1024)).toFixed(2),
+              skippedNodes: imageStats.skippedDataUrls,
+              message: imageStats.dataUrls > 0 
+                ? `⚠️ Skipped ${imageStats.dataUrls} base64 data URL(s) totaling ${Math.round(totalDataUrlSize / 1024)}KB. These images may still be uploading.`
+                : '✅ All images are URLs (no base64 data URLs found)',
+            });
+          }
 
           messages.push({
             role: "user",

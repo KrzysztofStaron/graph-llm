@@ -233,6 +233,14 @@ export class aiService {
       payloadSize?: number;
       payloadSizeKB?: number;
       payloadSizeMB?: string;
+      payloadBreakdown?: {
+        textKB?: number;
+        imageUrlsKB?: number;
+        dataUrlsKB?: number;
+        dataUrlCount?: number;
+        imageCount?: number;
+        messageCount?: number;
+      };
       readError?: string;
       fallbackToNonStreaming?: boolean;
       rawResultLength?: number;
@@ -258,10 +266,43 @@ export class aiService {
     };
 
     try {
+      const messagesArray = Array.isArray(message)
+        ? message
+        : [{ role: "user", content: message }];
+      
+      // Analyze payload composition
+      const payloadAnalysis = {
+        messageCount: messagesArray.length,
+        imageCount: 0,
+        textLength: 0,
+        imageUrlLength: 0,
+        dataUrlLength: 0,
+        dataUrlCount: 0,
+      };
+
+      messagesArray.forEach((msg) => {
+        if (Array.isArray(msg.content)) {
+          msg.content.forEach((part) => {
+            if (part.type === 'text') {
+              payloadAnalysis.textLength += part.text?.length || 0;
+            } else if (part.type === 'image_url') {
+              payloadAnalysis.imageCount++;
+              const url = part.image_url?.url || '';
+              if (url.startsWith('data:')) {
+                payloadAnalysis.dataUrlCount++;
+                payloadAnalysis.dataUrlLength += url.length;
+              } else {
+                payloadAnalysis.imageUrlLength += url.length;
+              }
+            }
+          });
+        } else if (typeof msg.content === 'string') {
+          payloadAnalysis.textLength += msg.content.length;
+        }
+      });
+
       const payload = JSON.stringify({
-        messages: Array.isArray(message)
-          ? message
-          : [{ role: "user", content: message }],
+        messages: messagesArray,
         ...(options?.model && { model: options.model }),
         ...(options?.imageModel && { imageModel: options.imageModel }),
         ...(options?.provider && { provider: options.provider }),
@@ -273,6 +314,32 @@ export class aiService {
             }
           ]
         }),
+      });
+
+      const payloadSize = payload.length;
+      logData.payloadSize = payloadSize;
+      logData.payloadSizeKB = Math.round(payloadSize / 1024);
+      logData.payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
+      logData.payloadBreakdown = {
+        textKB: Math.round(payloadAnalysis.textLength / 1024),
+        imageUrlsKB: Math.round(payloadAnalysis.imageUrlLength / 1024),
+        dataUrlsKB: Math.round(payloadAnalysis.dataUrlLength / 1024),
+        dataUrlCount: payloadAnalysis.dataUrlCount,
+        imageCount: payloadAnalysis.imageCount,
+        messageCount: payloadAnalysis.messageCount,
+      };
+
+      if (payloadAnalysis.dataUrlCount > 0) {
+        logger.warn(`⚠️ Payload contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) totaling ${Math.round(payloadAnalysis.dataUrlLength / 1024)}KB. This may cause payload size issues.`, logData);
+      }
+
+      logger.structure('📤 Payload Size Breakdown', {
+        totalSizeKB: logData.payloadSizeKB,
+        totalSizeMB: logData.payloadSizeMB,
+        breakdown: logData.payloadBreakdown,
+        warning: payloadAnalysis.dataUrlCount > 0 
+          ? `⚠️ Contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) - these should be URLs instead`
+          : '✅ No base64 data URLs found',
       });
 
       const TIMEOUT_MS = options?.timeoutMs || 120000; // 2 minutes default timeout
