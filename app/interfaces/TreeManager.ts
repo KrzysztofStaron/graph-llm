@@ -586,7 +586,7 @@ export class TreeManager {
         
         return {
           index: idx,
-          role: msg.role === 'system' ? '🔧 system' : msg.role === 'user' ? '👤 user' : '🤖 assistant',
+          role: msg.role,
           contentType: msg.role === 'system' ? 'system prompt' : isMultipart ? `multipart (${imageCount} images)` : 'text',
           preview: msg.role === 'system' ? '[System prompt]' : textPreview,
           ...(imageCount > 0 && { images: `${imageCount} image(s)` }),
