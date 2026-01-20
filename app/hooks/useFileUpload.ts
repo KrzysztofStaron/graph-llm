@@ -5,6 +5,7 @@ import { storageService } from "../interfaces/storageService";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import logger from "../utils/logger";
+import { compressImageToDataUrl } from "../utils/imageCompression";
 
 interface UseFileUploadProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -106,19 +107,28 @@ export function useFileUpload({
         "below"
       );
 
-      // Image specyfic logic
+      // Image specific logic
 
-      // Start FileReader and fetch in parallel
-      const dataUrlPromise = new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.readAsDataURL(file);
+      // Start compression and upload in parallel
+      // Compression creates a smaller data URL for immediate display (especially important on mobile)
+      const compressedDataUrlPromise = compressImageToDataUrl(file, {
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxSizeBytes: 500 * 1024, // 500KB max for data URLs
+      }).catch((err) => {
+        // Fallback to raw FileReader if compression fails
+        logger.warn("Image compression failed, using raw data URL", { error: String(err) });
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
       });
 
       const uploadPromise = storageService.uploadFile(file);
 
-      // Wait for FileReader to complete, then create node immediately
-      const dataUrl = await dataUrlPromise;
+      // Wait for compressed data URL to complete, then create node immediately
+      const dataUrl = await compressedDataUrlPromise;
 
       const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
 
@@ -127,11 +137,22 @@ export function useFileUpload({
       treeManager.addNode(nodeWithValue);
       workingNodes[nodeWithValue.id] = nodeWithValue;
 
-      // Update with URL when upload completes (fetch continues in parallel)
+      logger.info("Created image-context node", {
+        nodeId: nodeWithValue.id.substring(0, 8),
+        originalSize: `${Math.round(file.size / 1024)}KB`,
+        dataUrlSize: `${Math.round(dataUrl.length / 1024)}KB`,
+        compressionRatio: `${((1 - dataUrl.length / file.size) * 100).toFixed(1)}%`,
+      });
+
+      // Update with hosted URL when upload completes (fetch continues in parallel)
       const uploadData = await uploadPromise;
       
       if (uploadData?.url) {
         treeManager.patchNode(nodeWithValue.id, { value: uploadData.url });
+        logger.info("Updated image-context node with hosted URL", {
+          nodeId: nodeWithValue.id.substring(0, 8),
+          url: uploadData.url.substring(0, 50),
+        });
       }
     });
     

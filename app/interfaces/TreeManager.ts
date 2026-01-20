@@ -15,6 +15,10 @@ import type {
 import { aiService, type ChatMessage } from "./aiService";
 import logger from "../utils/logger";
 
+// Maximum size for a single data URL in the payload (500KB)
+// This prevents payload explosion on mobile devices
+const MAX_DATA_URL_SIZE_FOR_PAYLOAD = 500 * 1024;
+
 export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
   | { type: "ADD_NODE"; node: GraphNode }
@@ -396,9 +400,23 @@ export class TreeManager {
                 image_url: { url: imageValue },
               });
             } else if (isDataUrl) {
+              const dataUrlSize = imageValue.length;
+              
+              // Skip data URLs that are too large (prevents payload explosion on mobile)
+              if (dataUrlSize > MAX_DATA_URL_SIZE_FOR_PAYLOAD) {
+                imageStats.skipped++;
+                imageStats.skippedNodes.push(`${node.type}(${node.id.substring(0, 8)}) - TOO LARGE (${Math.round(dataUrlSize / 1024)}KB)`);
+                logger.warn(`Skipping oversized data URL in payload`, {
+                  nodeId: node.id.substring(0, 8),
+                  nodeType: node.type,
+                  sizeKB: Math.round(dataUrlSize / 1024),
+                  maxSizeKB: Math.round(MAX_DATA_URL_SIZE_FOR_PAYLOAD / 1024),
+                });
+                return;
+              }
+              
               // Include base64 data URLs as fallback when hosted URL isn't ready
               imageStats.dataUrls++;
-              const dataUrlSize = imageValue.length;
               imageStats.dataUrlSizes.push(dataUrlSize);
               imageStats.dataUrlNodes.push(`${node.type}(${node.id.substring(0, 8)})`);
               contentArray.push({
