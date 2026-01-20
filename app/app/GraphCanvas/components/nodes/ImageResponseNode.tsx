@@ -72,6 +72,7 @@ export const ImageResponseNode = memo(
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showActions, setShowActions] = useState(false);
     const isTouchDevice = useIsTouchDevice();
     // Show loading when value is empty or undefined
     const isLoading = (!node.value || node.value === "") && !node.error;
@@ -158,7 +159,10 @@ export const ImageResponseNode = memo(
                 </div>
               </div>
             ) : (
-              <div className="relative">
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => setShowActions(prev => !prev)}
+              >
                 {!isLoaded && (
                   <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
                     <div className="size-5 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
@@ -176,15 +180,15 @@ export const ImageResponseNode = memo(
                   onError={() => setHasError(true)}
                 />
                 
-                {/* Overlay with actions - always visible on touch, hover on desktop */}
+                {/* Overlay with actions - click to toggle on touch, hover on desktop */}
                 <div 
-                  className={`absolute inset-0 flex items-end justify-center ${
+                  className={`absolute inset-0 flex items-end justify-center transition-opacity duration-150 ${
                     isTouchDevice 
-                      ? 'opacity-100' 
-                      : 'bg-black/0 hover:bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-150'
+                      ? (showActions ? 'opacity-100 bg-black/30' : 'opacity-0 pointer-events-none')
+                      : 'bg-black/0 hover:bg-black/40 opacity-0 hover:opacity-100'
                   }`}
                 >
-                  <div className="flex gap-2 p-3">
+                  <div className="flex gap-2 p-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={handleDownload}
                       onMouseDown={(e) => e.stopPropagation()}
