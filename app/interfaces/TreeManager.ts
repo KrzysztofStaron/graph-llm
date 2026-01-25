@@ -18,6 +18,11 @@ import logger from "../utils/logger";
 // Maximum size for a single data URL in the payload (500KB)
 // This prevents payload explosion on mobile devices
 const MAX_DATA_URL_SIZE_FOR_PAYLOAD = 500 * 1024;
+// Overall payload safety budgets to avoid 413 errors
+const MAX_TOTAL_DATA_URL_BYTES = 220 * 1024;
+const MAX_TOTAL_TEXT_CHARS = 150 * 1024;
+const MAX_TEXT_NODE_CHARS = 12000;
+const TEXT_TRUNCATION_SUFFIX = "\n[...truncated]";
 
 export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -262,44 +267,170 @@ export class TreeManager {
     }
     
     const messages = [];
+    let remainingTextBudget = MAX_TOTAL_TEXT_CHARS;
+    let remainingDataUrlBudget = MAX_TOTAL_DATA_URL_BYTES;
+    const textBudgetStats: { truncatedNodes: string[]; skippedNodes: string[] } = {
+      truncatedNodes: [],
+      skippedNodes: [],
+    };
 
-    const wrapContextMetadata = (node: GraphNode) => {
+    const truncatePlainText = (
+      text: string,
+      maxChars: number
+    ): { text: string; truncated: boolean } => {
+      if (text.length <= maxChars) {
+        return { text, truncated: false };
+      }
+      if (maxChars <= TEXT_TRUNCATION_SUFFIX.length) {
+        return {
+          text: TEXT_TRUNCATION_SUFFIX.slice(0, maxChars),
+          truncated: true,
+        };
+      }
+      const trimmed = text.slice(0, maxChars - TEXT_TRUNCATION_SUFFIX.length);
+      return { text: `${trimmed}${TEXT_TRUNCATION_SUFFIX}`, truncated: true };
+    };
+
+    const truncateDocumentText = (
+      text: string,
+      maxChars: number
+    ): { text: string; truncated: boolean } => {
+      if (text.length <= maxChars) {
+        return { text, truncated: false };
+      }
+      if (!text.startsWith("FILENAME:")) {
+        return truncatePlainText(text, maxChars);
+      }
+      const newlineIndex = text.indexOf("\n");
+      const headerEnd = newlineIndex === -1 ? text.length : newlineIndex + 1;
+      const header = text.slice(0, headerEnd);
+      const available = Math.max(
+        0,
+        maxChars - header.length - TEXT_TRUNCATION_SUFFIX.length
+      );
+      if (available <= 0) {
+        return truncatePlainText(text, maxChars);
+      }
+      const body = text.slice(headerEnd, headerEnd + available);
+      return {
+        text: `${header}${body}${TEXT_TRUNCATION_SUFFIX}`,
+        truncated: true,
+      };
+    };
+
+    const formatNodeValue = (
+      node: GraphNode,
+      maxChars: number
+    ): { text: string; truncated: boolean } => {
+      if (node.type === "document") {
+        return truncateDocumentText(node.value, maxChars);
+      }
+      return truncatePlainText(node.value, maxChars);
+    };
+
+    const nodeLabelForLog = (node: GraphNode): string =>
+      `${node.type}(${node.id.substring(0, 8)})`;
+
+    const buildNodeText = (node: GraphNode): string => {
+      if (remainingTextBudget <= 0) {
+        textBudgetStats.skippedNodes.push(nodeLabelForLog(node));
+        return "";
+      }
+
       if (node.type === "summary") {
-        // Parse summary nodes as straight assistant messages (no metadata wrappers)
-        return node.value;
+        const maxChars = Math.min(MAX_TEXT_NODE_CHARS, remainingTextBudget);
+        if (maxChars <= 0) {
+          textBudgetStats.skippedNodes.push(nodeLabelForLog(node));
+          return "";
+        }
+        const { text, truncated } = truncatePlainText(node.value, maxChars);
+        remainingTextBudget -= text.length;
+        if (truncated) {
+          textBudgetStats.truncatedNodes.push(nodeLabelForLog(node));
+        }
+        return text;
       }
 
       // Use a simpler format that won't trigger data leakage safety filters
       // Map UUIDs to sequential numbers to avoid looking like leaked credentials
       const nodeNum = nodeIdMap.get(node.id) || 0;
-      const typeLabel = node.type === "input" ? "Q" : 
-                       node.type === "response" ? "A" : 
-                       node.type === "image-response" ? "IMG" :
-                       node.type === "document" ? "DOC" :
-                       node.type === "context" ? "CTX" : 
-                       node.type.toUpperCase();
-      
+      const typeLabel =
+        node.type === "input"
+          ? "Q"
+          : node.type === "response"
+          ? "A"
+          : node.type === "image-response"
+          ? "IMG"
+          : node.type === "document"
+          ? "DOC"
+          : node.type === "context"
+          ? "CTX"
+          : node.type.toUpperCase();
+
       // Include parent references using mapped sequential IDs
       const parentRefs = node.parentIds
-        .map(pid => {
+        .map((pid) => {
           const parentNode = nodes[pid];
           if (!parentNode) return null;
           const parentNum = nodeIdMap.get(pid);
-          const parentLabel = parentNode.type === "input" ? "Q" : 
-                             parentNode.type === "response" ? "A" : 
-                             parentNode.type === "image-response" ? "IMG" :
-                             parentNode.type === "document" ? "DOC" :
-                             parentNode.type === "context" ? "CTX" : 
-                             parentNode.type === "summary" ? "SUM" :
-                             parentNode.type.toUpperCase();
+          const parentLabel =
+            parentNode.type === "input"
+              ? "Q"
+              : parentNode.type === "response"
+              ? "A"
+              : parentNode.type === "image-response"
+              ? "IMG"
+              : parentNode.type === "document"
+              ? "DOC"
+              : parentNode.type === "context"
+              ? "CTX"
+              : parentNode.type === "summary"
+              ? "SUM"
+              : parentNode.type.toUpperCase();
           return `${parentLabel}${parentNum}`;
         })
-        .filter(ref => ref !== null)
+        .filter((ref) => ref !== null)
         .join(",");
-      
+
       const parentInfo = parentRefs ? ` replying-to="${parentRefs}"` : "";
-      
-      return `[${typeLabel}${nodeNum}${parentInfo}]\n${node.value}\n[/${typeLabel}${nodeNum}]`;
+      const prefix = `[${typeLabel}${nodeNum}${parentInfo}]\n`;
+      const suffix = `\n[/${typeLabel}${nodeNum}]`;
+      const maxValueChars = Math.min(
+        MAX_TEXT_NODE_CHARS,
+        Math.max(0, remainingTextBudget - prefix.length - suffix.length)
+      );
+
+      if (maxValueChars <= 0) {
+        textBudgetStats.skippedNodes.push(nodeLabelForLog(node));
+        return "";
+      }
+
+      const { text: value, truncated } = formatNodeValue(node, maxValueChars);
+      const wrapped = `${prefix}${value}${suffix}`;
+      remainingTextBudget -= wrapped.length;
+      if (truncated) {
+        textBudgetStats.truncatedNodes.push(nodeLabelForLog(node));
+      }
+      return wrapped;
+    };
+
+    const consumePlainTextBudget = (label: string, text: string): string => {
+      if (!text) return "";
+      if (remainingTextBudget <= 0) {
+        textBudgetStats.skippedNodes.push(label);
+        return "";
+      }
+      const maxChars = Math.min(text.length, remainingTextBudget);
+      if (maxChars <= 0) {
+        textBudgetStats.skippedNodes.push(label);
+        return "";
+      }
+      const { text: trimmed, truncated } = truncatePlainText(text, maxChars);
+      remainingTextBudget -= trimmed.length;
+      if (truncated) {
+        textBudgetStats.truncatedNodes.push(label);
+      }
+      return trimmed;
     };
 
     for (let level = 0; level <= maxLevel; level++) {
@@ -344,11 +475,17 @@ export class TreeManager {
           > = [];
 
           // Add text parts (user-side text nodes)
+          const userTextParts: string[] = [];
           if (userTextNodes.length > 0) {
-            const mergedText = userTextNodes
-              .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
-              .join("<separatorOfContextualData />");
-
+            userTextNodes.forEach((node) => {
+              const textPart = buildNodeText(nodes[node.id] as GraphNode);
+              if (textPart) {
+                userTextParts.push(textPart);
+              }
+            });
+          }
+          const mergedText = userTextParts.join("<separatorOfContextualData />");
+          if (mergedText.length > 0) {
             contentArray.push({
               type: "text",
               text: mergedText,
@@ -367,10 +504,16 @@ export class TreeManager {
             .filter((caption) => caption.length > 0);
 
           if (generatedImageCaptions.length > 0) {
-            contentArray.push({
-              type: "text",
-              text: generatedImageCaptions.join("\n"),
-            });
+            const captionText = consumePlainTextBudget(
+              `image-captions(level-${level})`,
+              generatedImageCaptions.join("\n")
+            );
+            if (captionText.length > 0) {
+              contentArray.push({
+                type: "text",
+                text: captionText,
+              });
+            }
           }
 
           // Add all images (both image-context and image-response)
@@ -380,6 +523,8 @@ export class TreeManager {
             hostedUrls: 0,
             dataUrls: 0,
             skipped: 0,
+            skippedOversize: 0,
+            skippedBudget: 0,
             dataUrlSizes: [] as number[],
             hostedUrlNodes: [] as string[],
             dataUrlNodes: [] as string[],
@@ -405,7 +550,10 @@ export class TreeManager {
               // Skip data URLs that are too large (prevents payload explosion on mobile)
               if (dataUrlSize > MAX_DATA_URL_SIZE_FOR_PAYLOAD) {
                 imageStats.skipped++;
-                imageStats.skippedNodes.push(`${node.type}(${node.id.substring(0, 8)}) - TOO LARGE (${Math.round(dataUrlSize / 1024)}KB)`);
+                imageStats.skippedOversize++;
+                imageStats.skippedNodes.push(
+                  `${node.type}(${node.id.substring(0, 8)}) - TOO LARGE (${Math.round(dataUrlSize / 1024)}KB)`
+                );
                 logger.warn(`Skipping oversized data URL in payload`, {
                   nodeId: node.id.substring(0, 8),
                   nodeType: node.type,
@@ -414,6 +562,23 @@ export class TreeManager {
                 });
                 return;
               }
+
+              if (dataUrlSize > remainingDataUrlBudget) {
+                imageStats.skipped++;
+                imageStats.skippedBudget++;
+                imageStats.skippedNodes.push(
+                  `${node.type}(${node.id.substring(0, 8)}) - BUDGET (${Math.round(dataUrlSize / 1024)}KB)`
+                );
+                logger.warn(`Skipping data URL due to payload budget`, {
+                  nodeId: node.id.substring(0, 8),
+                  nodeType: node.type,
+                  sizeKB: Math.round(dataUrlSize / 1024),
+                  remainingBudgetKB: Math.round(remainingDataUrlBudget / 1024),
+                });
+                return;
+              }
+
+              remainingDataUrlBudget -= dataUrlSize;
               
               // Include base64 data URLs as fallback when hosted URL isn't ready
               imageStats.dataUrls++;
@@ -438,8 +603,12 @@ export class TreeManager {
               hostedUrls: imageStats.hostedUrls,
               dataUrlsIncluded: imageStats.dataUrls,
               skipped: imageStats.skipped,
+              skippedOversize: imageStats.skippedOversize,
+              skippedBudget: imageStats.skippedBudget,
               dataUrlsKB: Math.round(totalDataUrlSize / 1024),
               dataUrlsMB: (totalDataUrlSize / (1024 * 1024)).toFixed(2),
+              dataUrlBudgetKB: Math.round(MAX_TOTAL_DATA_URL_BYTES / 1024),
+              dataUrlBudgetRemainingKB: Math.round(remainingDataUrlBudget / 1024),
               hostedUrlNodes: imageStats.hostedUrlNodes,
               dataUrlNodes: imageStats.dataUrlNodes,
               skippedNodes: imageStats.skippedNodes,
@@ -468,35 +637,63 @@ export class TreeManager {
             }
           }
 
-          messages.push({
-            role: "user",
-            content: contentArray,
-          });
+          if (contentArray.length > 0) {
+            messages.push({
+              role: "user",
+              content: contentArray,
+            });
+          }
         } else {
           // Text-only user message
-          const mergedText = userTextNodes
-            .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
-            .join("<separatorOfContextualData />");
-
-          messages.push({
-            role: "user",
-            content: mergedText,
+          const userTextParts: string[] = [];
+          userTextNodes.forEach((node) => {
+            const textPart = buildNodeText(nodes[node.id] as GraphNode);
+            if (textPart) {
+              userTextParts.push(textPart);
+            }
           });
+          const mergedText = userTextParts.join("<separatorOfContextualData />");
+          if (mergedText.length > 0) {
+            messages.push({
+              role: "user",
+              content: mergedText,
+            });
+          }
         }
       }
 
       // Build assistant message after user message (if any assistant text nodes)
       // Pushed AFTER user message so that after messages.reverse(), it appears BEFORE
       if (assistantTextNodes.length > 0) {
-        const mergedText = assistantTextNodes
-          .map((node) => wrapContextMetadata(nodes[node.id] as GraphNode))
-          .join("<separatorOfContextualData />");
-
-        messages.push({
-          role: "assistant",
-          content: mergedText,
+        const assistantTextParts: string[] = [];
+        assistantTextNodes.forEach((node) => {
+          const textPart = buildNodeText(nodes[node.id] as GraphNode);
+          if (textPart) {
+            assistantTextParts.push(textPart);
+          }
         });
+        const mergedText = assistantTextParts.join("<separatorOfContextualData />");
+        if (mergedText.length > 0) {
+          messages.push({
+            role: "assistant",
+            content: mergedText,
+          });
+        }
       }
+    }
+
+    if (
+      textBudgetStats.truncatedNodes.length > 0 ||
+      textBudgetStats.skippedNodes.length > 0
+    ) {
+      logger.warn("[PAYLOAD_BUDGET] Text trimmed to avoid 413 errors", {
+        truncatedCount: textBudgetStats.truncatedNodes.length,
+        skippedCount: textBudgetStats.skippedNodes.length,
+        truncatedNodes: textBudgetStats.truncatedNodes.slice(0, 10),
+        skippedNodes: textBudgetStats.skippedNodes.slice(0, 10),
+        remainingTextBudget,
+        maxTextBudget: MAX_TOTAL_TEXT_CHARS,
+      });
     }
 
     const ret = [
