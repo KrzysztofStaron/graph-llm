@@ -15,9 +15,10 @@ import type {
 import { aiService, type ChatMessage } from "./aiService";
 import logger from "../utils/logger";
 
-// Maximum size for a single data URL in the payload (500KB)
-// This prevents payload explosion on mobile devices
-const MAX_DATA_URL_SIZE_FOR_PAYLOAD = 500 * 1024;
+// Allow legacy inline images into the request preparation stage, where they
+// are recompressed and the complete serialized payload is capped. Extremely
+// large raw images are still skipped to protect memory on mobile devices.
+const MAX_LEGACY_DATA_URL_SIZE_FOR_PREPARATION = 1024 * 1024;
 
 export type GraphAction =
   | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
@@ -403,14 +404,14 @@ export class TreeManager {
               const dataUrlSize = imageValue.length;
               
               // Skip data URLs that are too large (prevents payload explosion on mobile)
-              if (dataUrlSize > MAX_DATA_URL_SIZE_FOR_PAYLOAD) {
+              if (dataUrlSize > MAX_LEGACY_DATA_URL_SIZE_FOR_PREPARATION) {
                 imageStats.skipped++;
                 imageStats.skippedNodes.push(`${node.type}(${node.id.substring(0, 8)}) - TOO LARGE (${Math.round(dataUrlSize / 1024)}KB)`);
                 logger.warn(`Skipping oversized data URL in payload`, {
                   nodeId: node.id.substring(0, 8),
                   nodeType: node.type,
                   sizeKB: Math.round(dataUrlSize / 1024),
-                  maxSizeKB: Math.round(MAX_DATA_URL_SIZE_FOR_PAYLOAD / 1024),
+                  maxSizeKB: Math.round(MAX_LEGACY_DATA_URL_SIZE_FOR_PREPARATION / 1024),
                 });
                 return;
               }
@@ -590,10 +591,10 @@ export class TreeManager {
         const isMultipart = Array.isArray(msg.content);
         const content = msg.content;
         const imageCount = isMultipart && Array.isArray(content)
-          ? content.filter((p: any) => p.type === 'image_url').length 
+          ? content.filter((p) => p.type === 'image_url').length
           : 0;
         const textParts = isMultipart && Array.isArray(content)
-          ? content.filter((p: any) => p.type === 'text') as { type: 'text'; text: string }[]
+          ? content.filter((p) => p.type === 'text') as { type: 'text'; text: string }[]
           : [];
         const firstTextPart = textParts.length > 0 ? textParts[0] : null;
         const textPreview = isMultipart && firstTextPart
@@ -626,9 +627,6 @@ export class TreeManager {
         });
       }
     });
-
-    // Log the complete raw message objects for deep inspection
-    logger.structure('📤 Complete ChatML Request (Raw Objects)', ret);
 
     return ret;
   }

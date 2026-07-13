@@ -8,7 +8,7 @@ export interface ModelOption {
 export const availableModels: ModelOption[] = [
   {
     label: "Grok",
-    value: "x-ai/grok-4.1-fast",
+    value: "x-ai/grok-4.3",
   },
   {
     label: "Gemini",

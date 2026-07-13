@@ -7,9 +7,9 @@
 const MAX_IMAGE_WIDTH = 1920;
 const MAX_IMAGE_HEIGHT = 1080;
 
-// Maximum base64 data URL size in bytes (500KB)
+// Maximum base64 data URL size in bytes (192KB)
 // This keeps payloads reasonable for mobile networks
-const MAX_DATA_URL_SIZE = 500 * 1024;
+export const MAX_INLINE_IMAGE_DATA_URL_SIZE = 192 * 1024;
 
 // Quality settings for JPEG compression (0-1)
 const HIGH_QUALITY = 0.85;
@@ -34,7 +34,7 @@ export async function compressImageToDataUrl(
   const {
     maxWidth = MAX_IMAGE_WIDTH,
     maxHeight = MAX_IMAGE_HEIGHT,
-    maxSizeBytes = MAX_DATA_URL_SIZE,
+    maxSizeBytes = MAX_INLINE_IMAGE_DATA_URL_SIZE,
     initialQuality = HIGH_QUALITY,
   } = options;
 
@@ -91,15 +91,16 @@ export async function compressImageToDataUrl(
     dataUrl = canvas.toDataURL("image/jpeg", quality);
   }
 
-  // If still too large, reduce dimensions further
-  if (dataUrl.length > maxSizeBytes) {
-    const scale = 0.7;
-    canvas.width = Math.round(targetWidth * scale);
-    canvas.height = Math.round(targetHeight * scale);
+  // If still too large, progressively reduce dimensions. Repeated passes are
+  // necessary for large screenshots and high-detail mobile photos.
+  for (let attempt = 0; dataUrl.length > maxSizeBytes && attempt < 5; attempt++) {
+    const scale = 0.75;
+    canvas.width = Math.max(100, Math.round(canvas.width * scale));
+    canvas.height = Math.max(100, Math.round(canvas.height * scale));
 
-    // Re-create bitmap for rescaling
     const tempBitmap = await createImageBitmap(file);
-    ctx.drawImage(tempBitmap, 0, 0, canvas.width, canvas.height);
+    const resizedContext = canvas.getContext("2d");
+    resizedContext?.drawImage(tempBitmap, 0, 0, canvas.width, canvas.height);
     tempBitmap.close();
 
     dataUrl = canvas.toDataURL("image/jpeg", LOW_QUALITY);
@@ -114,7 +115,7 @@ export async function compressImageToDataUrl(
  */
 export async function compressDataUrlIfNeeded(
   dataUrl: string,
-  maxSizeBytes: number = MAX_DATA_URL_SIZE
+  maxSizeBytes: number = MAX_INLINE_IMAGE_DATA_URL_SIZE
 ): Promise<string> {
   // If already small enough, return as-is
   if (dataUrl.length <= maxSizeBytes) {
@@ -156,11 +157,13 @@ export async function compressDataUrlIfNeeded(
     compressed = canvas.toDataURL("image/jpeg", LOW_QUALITY);
   }
 
-  // If still too large, reduce dimensions more aggressively
-  if (compressed.length > maxSizeBytes) {
-    canvas.width = Math.round(targetWidth * 0.5);
-    canvas.height = Math.round(targetHeight * 0.5);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // If still too large, progressively reduce dimensions until it fits or the
+  // image reaches a practical minimum size.
+  for (let attempt = 0; compressed.length > maxSizeBytes && attempt < 5; attempt++) {
+    canvas.width = Math.max(100, Math.round(canvas.width * 0.7));
+    canvas.height = Math.max(100, Math.round(canvas.height * 0.7));
+    const resizedContext = canvas.getContext("2d");
+    resizedContext?.drawImage(img, 0, 0, canvas.width, canvas.height);
     compressed = canvas.toDataURL("image/jpeg", LOW_QUALITY);
   }
 
@@ -187,4 +190,3 @@ export function isDataUrl(url: string): boolean {
 export function isHostedUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
-

@@ -5,7 +5,10 @@ import { storageService } from "../interfaces/storageService";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import logger from "../utils/logger";
-import { compressImageToDataUrl } from "../utils/imageCompression";
+import {
+  MAX_INLINE_IMAGE_DATA_URL_SIZE,
+  compressImageToDataUrl,
+} from "../utils/imageCompression";
 
 interface UseFileUploadProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -114,7 +117,7 @@ export function useFileUpload({
       const compressedDataUrlPromise = compressImageToDataUrl(file, {
         maxWidth: 1920,
         maxHeight: 1080,
-        maxSizeBytes: 500 * 1024, // 500KB max for data URLs
+        maxSizeBytes: MAX_INLINE_IMAGE_DATA_URL_SIZE,
       }).catch((err) => {
         // Fallback to raw FileReader if compression fails
         logger.warn("Image compression failed, using raw data URL", { error: String(err) });

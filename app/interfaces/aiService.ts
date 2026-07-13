@@ -1,7 +1,7 @@
 import { globals } from "../globals";
-import { getOrCreateClientId } from "../utils/clientId";
 import logger from "../utils/logger";
 import { getRequestHeaders } from "../utils/requestHeaders";
+import { prepareChatRequest } from "../utils/chatPayload";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -20,6 +20,63 @@ export type ChatMessage = {
 export type StreamResponse = 
   | { type: "text"; content: string }
   | { type: "image"; content: string; prompt?: string };
+
+const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+class ChatRequestError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly status?: number,
+    readonly retryAfterMs?: number
+  ) {
+    super(message);
+    this.name = "ChatRequestError";
+  }
+}
+
+const isTransientErrorMessage = (message: string): boolean =>
+  /network|fetch|timeout|timed out|temporar|overload|rate.?limit|try again|connection|empty response|429|50[0234]/i.test(
+    message
+  );
+
+const getStreamErrorMessage = (error: string, details?: string): string => {
+  if (!details) return error;
+
+  const bodyMarker = "Body: ";
+  const bodyIndex = details.indexOf(bodyMarker);
+  if (bodyIndex !== -1) {
+    try {
+      const body = JSON.parse(details.slice(bodyIndex + bodyMarker.length)) as {
+        error?: { message?: string };
+      };
+      if (body.error?.message) return `${error}: ${body.error.message}`;
+    } catch {
+      // Fall through to a bounded plain-text detail.
+    }
+  }
+
+  const normalizedDetails = details.replace(/\s+/g, " ").trim();
+  return `${error}: ${normalizedDetails.slice(0, 500)}`;
+};
+
+const isRetryableError = (error: Error): boolean =>
+  error instanceof ChatRequestError
+    ? error.retryable
+    : error instanceof TypeError ||
+      error.name === "AbortError" ||
+      isTransientErrorMessage(error.message);
+
+const getRetryAfterMs = (response: Response): number | undefined => {
+  const value = response.headers.get("Retry-After");
+  if (!value) return undefined;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
+};
 
 export class aiService {
   static async chat(
@@ -53,22 +110,12 @@ export class aiService {
 
     let response: Response;
 
-    const requestBody = {
-      messages: Array.isArray(message)
-        ? message
-        : [{ role: "user", content: message }],
-      ...(options?.model && { model: options.model }),
-      ...(options?.imageModel && { imageModel: options.imageModel }),
-      ...(options?.provider && { provider: options.provider }),
-      ...(options?.webSearchEnabled && { 
-        plugins: [
-          {
-            id: "web",
-            engine: "native" 
-          }
-        ]
-      }),
-    };
+    const preparedRequest = await prepareChatRequest(message, options);
+    const payloadWasReduced =
+      preparedRequest.stats.finalBytes < preparedRequest.stats.originalBytes;
+    if (payloadWasReduced) {
+      logger.warn("Chat payload reduced before sending", preparedRequest.stats);
+    }
 
     try {
       response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
@@ -76,7 +123,7 @@ export class aiService {
         headers: getRequestHeaders({
           "Content-Type": "application/json",
         }),
-        body: JSON.stringify(requestBody),
+        body: preparedRequest.payload,
       });
     } catch (error) {
       // Differentiate between network errors and other issues
@@ -164,10 +211,23 @@ export class aiService {
       return { type: "text", content: result };
     }
 
+    const preparedRequest = await prepareChatRequest(message, options);
+    if (preparedRequest.stats.finalBytes < preparedRequest.stats.originalBytes) {
+      logger.warn("StreamChat payload reduced before sending", preparedRequest.stats);
+    }
+
     // Retry logic with exponential backoff
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
-        const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        const retryAfterMs =
+          lastError instanceof ChatRequestError
+            ? lastError.retryAfterMs
+            : undefined;
+        const backoffMs = Math.min(
+          retryAfterMs ??
+            750 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250),
+          10000
+        );
         logData.attempt = attempt + 1;
         logData.maxRetries = maxRetries + 1;
         logData.backoffMs = backoffMs;
@@ -175,33 +235,43 @@ export class aiService {
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
 
-      const result = await this._attemptStreamChat(message, onChunk, options, onImage, onReasoning, onYoutube);
+      const result = await this._attemptStreamChat(
+        preparedRequest.messages,
+        preparedRequest.payload,
+        onChunk,
+        options,
+        onImage,
+        onReasoning,
+        onYoutube
+      );
       if (result.success) {
         return result.data;
       }
 
       lastError = result.error;
-      
-      // Only retry on "Stream ended without any content" errors
-      if (!result.error.message.includes("Stream ended without any content")) {
-        logData.error = lastError.message;
-        logger.error("StreamChat failed", logData);
-        throw result.error;
+
+      if (attempt < maxRetries && isRetryableError(result.error)) {
+        logger.warn("StreamChat attempt failed; retrying", {
+          attempt: attempt + 1,
+          maxAttempts: maxRetries + 1,
+          error: result.error.message,
+        });
+        continue;
       }
-      
-      if (attempt === maxRetries) {
-        logData.attempts = maxRetries + 1;
-        logData.lastError = lastError.message;
-        logger.error("All retry attempts exhausted for streamChat", logData);
-        throw lastError;
-      }
+
+      logData.attempts = attempt + 1;
+      logData.lastError = lastError.message;
+      logData.error = lastError.message;
+      logger.error(`StreamChat failed: ${lastError.message}`, logData);
+      throw lastError;
     }
 
     throw lastError || new Error("Unknown error in streamChat");
   }
 
   private static async _attemptStreamChat(
-    message: string | ChatMessage[],
+    messagesArray: ChatMessage[],
+    payload: string,
     onChunk: (chunk: string) => void,
     options?: {
       model?: string;
@@ -261,15 +331,11 @@ export class aiService {
     } = {
       url: `${globals.graphLLMBackendUrl}/api/v1/chat/stream`,
       model: options?.model,
-      messageCount: Array.isArray(message) ? message.length : 1,
+      messageCount: messagesArray.length,
       webSearchEnabled: options?.webSearchEnabled,
     };
 
     try {
-      const messagesArray = Array.isArray(message)
-        ? message
-        : [{ role: "user", content: message }];
-      
       // Analyze payload composition
       const payloadAnalysis = {
         messageCount: messagesArray.length,
@@ -301,21 +367,6 @@ export class aiService {
         }
       });
 
-      const payload = JSON.stringify({
-        messages: messagesArray,
-        ...(options?.model && { model: options.model }),
-        ...(options?.imageModel && { imageModel: options.imageModel }),
-        ...(options?.provider && { provider: options.provider }),
-        ...(options?.webSearchEnabled && { 
-          plugins: [
-            {
-              id: "web",
-              engine: "native" 
-            }
-          ]
-        }),
-      });
-
       const payloadSize = payload.length;
       logData.payloadSize = payloadSize;
       logData.payloadSizeKB = Math.round(payloadSize / 1024);
@@ -331,20 +382,15 @@ export class aiService {
 
       // Determine logging level based on payload health
       const hasDataUrls = payloadAnalysis.dataUrlCount > 0;
-      const payloadTooLarge = payloadSize > 500000; // 500KB threshold
-      const logLevel = payloadTooLarge ? 'error' : hasDataUrls ? 'warn' : 'info';
-      const logMessage = payloadTooLarge 
-        ? `CRITICAL: Payload exceeds safe size (${logData.payloadSizeMB}MB / 500KB limit)`
-        : hasDataUrls
+      const logLevel = hasDataUrls ? 'warn' : 'info';
+      const logMessage = hasDataUrls
         ? `Payload contains ${payloadAnalysis.dataUrlCount} base64 data URL(s) (${logData.payloadBreakdown.dataUrlsKB}KB)`
         : `Payload optimal (${logData.payloadSizeKB}KB, all hosted URLs)`;
 
       const fullMessage = `[PAYLOAD_ANALYSIS] [${logLevel.toUpperCase()}] ${logMessage}`;
 
       // Single comprehensive log call
-      if (logLevel === 'error') {
-        logger.error(fullMessage, logData);
-      } else if (logLevel === 'warn') {
+      if (logLevel === 'warn') {
         logger.warn(fullMessage, logData);
       } else {
         logger.info(fullMessage, logData);
@@ -398,9 +444,12 @@ export class aiService {
         
         // Handle specific error types
         if (fetchError instanceof Error && fetchError.name === "AbortError") {
-          const timeoutError = new Error(`Request timeout after ${TIMEOUT_MS / 1000} seconds`);
+          const timeoutError = new ChatRequestError(
+            `Request timeout after ${TIMEOUT_MS / 1000} seconds`,
+            true
+          );
           logData.error = timeoutError.message;
-          logger.error("Request timeout in streamChat", logData);
+          logger.warn("Request timeout in streamChat", logData);
           return { success: false, error: timeoutError };
         }
         
@@ -422,18 +471,24 @@ export class aiService {
             errorMsg = `Network error: ${errorMessage}. Cannot reach ${globals.graphLLMBackendUrl}. Payload size: ${payloadSizeKB}KB`;
           }
           
-          const networkError = new Error(errorMsg);
+          const networkError = new ChatRequestError(
+            errorMsg,
+            extractedStatus !== 413,
+            extractedStatus
+          );
           logData.error = networkError.message;
-          logger.error("Network error in streamChat", logData);
+          logger.warn("Network error in streamChat", logData);
           return { success: false, error: networkError };
         }
         
         // Handle other errors with full details
-        const fullError = new Error(
-          `Fetch error (${errorName}): ${errorMessage}${extractedStatus ? ` [Status: ${extractedStatus}]` : ''}. Payload size: ${payloadSizeKB}KB`
+        const fullError = new ChatRequestError(
+          `Fetch error (${errorName}): ${errorMessage}${extractedStatus ? ` [Status: ${extractedStatus}]` : ''}. Payload size: ${payloadSizeKB}KB`,
+          extractedStatus ? RETRYABLE_HTTP_STATUSES.has(extractedStatus) : true,
+          extractedStatus
         );
         logData.error = fullError.message;
-        logger.error("Fetch error in streamChat", logData);
+        logger.warn("Fetch error in streamChat", logData);
         return { success: false, error: fullError };
       }
 
@@ -463,7 +518,12 @@ export class aiService {
           errorMessage = `Server error (${response.status}): ${errorText || response.statusText}`;
         }
         
-        const error = new Error(errorMessage);
+        const error = new ChatRequestError(
+          errorMessage,
+          RETRYABLE_HTTP_STATUSES.has(response.status),
+          response.status,
+          getRetryAfterMs(response)
+        );
         logData.status = response.status;
         logData.statusText = response.statusText;
         logData.errorText = errorText;
@@ -471,7 +531,7 @@ export class aiService {
         logData.payloadSize = payloadSize;
         logData.payloadSizeKB = payloadSizeKB;
         logData.payloadSizeMB = payloadSizeMB;
-        logger.error("Backend error in streamChat", logData);
+        logger.warn("Backend error in streamChat", logData);
         return { success: false, error };
       }
 
@@ -524,21 +584,24 @@ export class aiService {
           }
         };
 
+        let inactivityTimeoutId: ReturnType<typeof setTimeout> | undefined;
+        let inactivityTimedOut = false;
+        const resetInactivityTimeout = () => {
+          if (inactivityTimeoutId) clearTimeout(inactivityTimeoutId);
+          inactivityTimeoutId = setTimeout(() => {
+            inactivityTimedOut = true;
+            timeoutController.abort();
+          }, 60000);
+        };
+
         try {
-          let lastChunkTime = Date.now();
           const INACTIVITY_TIMEOUT_MS = 60000; // 60 seconds of no data (increased for image generation)
           logData.inactivityTimeoutMs = INACTIVITY_TIMEOUT_MS;
+          resetInactivityTimeout();
 
           while (true) {
-            // Check for inactivity timeout
-            if (Date.now() - lastChunkTime > INACTIVITY_TIMEOUT_MS) {
-              const timeoutError = new Error("Stream timeout: No data received for 60 seconds");
-              logData.error = timeoutError.message;
-              logger.error("Stream inactivity timeout", logData);
-              return { success: false, error: timeoutError };
-            }
-
             const { done, value } = await reader.read();
+            resetInactivityTimeout();
 
             if (done) {
               // If we got an image response, return it
@@ -557,20 +620,19 @@ export class aiService {
               
               // Stream ended without [DONE] signal - clean and return
               if (fullResponse.length === 0) {
-                const streamError = new Error(
-                  "Stream ended without any content. This may happen if the LLM provider rejected the request or returned an empty response. Retrying..."
+                const streamError = new ChatRequestError(
+                  "Stream ended without any content. This may happen if the LLM provider rejected the request or returned an empty response. Retrying...",
+                  true
                 );
                 logData.error = streamError.message;
-                logData.messagePreview = Array.isArray(message) 
-                  ? message.map(m => ({
-                      role: m.role,
-                      contentPreview: typeof m.content === 'string' 
-                        ? m.content.substring(0, 300) 
-                        : '[multipart]'
-                    }))
-                  : typeof message === 'string' ? message.substring(0, 300) : '[unknown]';
+                logData.messagePreview = messagesArray.map(m => ({
+                  role: m.role,
+                  contentPreview: typeof m.content === 'string'
+                    ? m.content.substring(0, 300)
+                    : '[multipart]'
+                }));
                 logData.buffer = buffer.substring(0, 500);
-                logger.error("Stream ended without content (empty fullResponse)", logData);
+                logger.warn("Stream ended without content (empty fullResponse)", logData);
                 return { success: false, error: streamError };
               }
               
@@ -585,7 +647,6 @@ export class aiService {
               return { success: true, data: { type: "text", content: cleanedResponse } };
             }
 
-            lastChunkTime = Date.now();
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n\n");
             buffer = lines.pop() || "";
@@ -623,6 +684,7 @@ export class aiService {
                     content?: string; 
                     reasoning?: string;
                     error?: string;
+                    details?: string;
                     type?: "image" | "youtube";
                     prompt?: string;
                     videoId?: string;
@@ -659,10 +721,17 @@ export class aiService {
                   }
                   
                   if (parsed.error) {
-                    const streamError = new Error(parsed.error);
+                    const streamErrorMessage = getStreamErrorMessage(
+                      parsed.error,
+                      parsed.details
+                    );
+                    const streamError = new ChatRequestError(
+                      streamErrorMessage,
+                      isTransientErrorMessage(streamErrorMessage)
+                    );
                     logData.error = streamError.message;
-                    logData.parsedError = parsed.error;
-                    logger.error("Stream error from backend", logData);
+                    logData.parsedError = streamErrorMessage;
+                    logger.warn("Stream error from backend", logData);
                     return { success: false, error: streamError };
                   }
                 } catch (parseError) {
@@ -673,18 +742,39 @@ export class aiService {
               }
             }
           }
+        } catch (readError) {
+          if (inactivityTimedOut) {
+            const timeoutError = new ChatRequestError(
+              "Stream timeout: No data received for 60 seconds",
+              true
+            );
+            logData.error = timeoutError.message;
+            logger.warn("Stream inactivity timeout", logData);
+            return { success: false, error: timeoutError };
+          }
+          throw readError;
         } finally {
+          if (inactivityTimeoutId) clearTimeout(inactivityTimeoutId);
           reader.releaseLock();
         }
       } finally {
         clearTimeout(timeoutId);
       }
     } catch (error) {
-      logData.error = error instanceof Error ? error.message : String(error);
-      logger.error("StreamChat attempt failed", logData);
+      const normalizedError =
+        error instanceof Error && error.name === "AbortError"
+          ? new ChatRequestError(
+              `Request timeout after ${(logData.timeoutMs ?? 120000) / 1000} seconds`,
+              true
+            )
+          : error instanceof Error
+            ? error
+            : new Error(String(error));
+      logData.error = normalizedError.message;
+      logger.warn("StreamChat attempt failed", logData);
       return { 
         success: false, 
-        error: error instanceof Error ? error : new Error(String(error)) 
+        error: normalizedError
       };
     }
   }
@@ -788,18 +878,20 @@ export class aiService {
       rawTextLength?: number;
     } = {};
 
+    const preparedRequest = await prepareChatRequest(messages, {
+      model: "openai/gpt-oss-120b",
+      provider: { sort: "latency" },
+    });
+    if (preparedRequest.stats.finalBytes < preparedRequest.stats.originalBytes) {
+      logger.warn("FastChat payload reduced before sending", preparedRequest.stats);
+    }
+
     const response = await fetch(`${globals.graphLLMBackendUrl}/api/v1/chat`, {
       method: "POST",
       headers: getRequestHeaders({
         "Content-Type": "application/json",
       }),
-      body: JSON.stringify({
-        messages,
-        model: "openai/gpt-oss-120b",
-        provider: {
-          sort: "latency",
-        },
-      }),
+      body: preparedRequest.payload,
     });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");

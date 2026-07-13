@@ -26,8 +26,13 @@ class Logger {
 
     // Log to console immediately
     if (typeof window !== 'undefined') {
-      const consoleMethod = level === 'error' ? console.error : 
+      // Next.js turns console.error into a development overlay even when the
+      // application has already handled and displayed the failure. Keep these
+      // structured application errors visible without interrupting the UI.
+      const consoleMethod = level === 'error' && process.env.NODE_ENV !== 'development'
+                           ? console.error :
                            level === 'warn' ? console.warn : 
+                           level === 'error' ? console.warn :
                            level === 'debug' ? console.debug : 
                            console.log;
       consoleMethod(`[${level.toUpperCase()}]`, message, meta);
@@ -64,11 +69,30 @@ class Logger {
 
   // Helper to log images with console.image()
   image(url: string, label?: string, meta?: LogMeta): void {
+    const isInlineImage = url.startsWith('data:');
+    const imageSizeKB = isInlineImage ? Math.round(url.length / 1024) : undefined;
+
     if (typeof window !== 'undefined' && url) {
-      console.log(`[IMAGE] ${label || 'Image'}:`, meta);
+      console.log(
+        `[IMAGE] ${label || 'Image'}${isInlineImage ? ` (inline, ${imageSizeKB}KB)` : ''}:`,
+        meta
+      );
+      // Passing a base64 image through console APIs duplicates a large string in
+      // memory and can overwhelm the Next.js development console overlay.
+      if (isInlineImage) {
+        this.info(`Image: ${label || 'inline image'}`, {
+          ...meta,
+          imageKind: 'inline',
+          imageSizeKB,
+        });
+        return;
+      }
       // Use console.image if available (some browsers), otherwise log URL
-      if (typeof (console as any).image === 'function') {
-        (console as any).image(url);
+      const consoleWithImage = console as Console & {
+        image?: (imageUrl: string) => void;
+      };
+      if (typeof consoleWithImage.image === 'function') {
+        consoleWithImage.image(url);
       } else {
         // Fallback: create a styled console log with the image
         console.log(
@@ -77,7 +101,10 @@ class Logger {
         );
       }
     }
-    this.info(`Image: ${label || url.substring(0, 50)}`, { ...meta, imageUrl: url.substring(0, 100) });
+    this.info(`Image: ${label || url.substring(0, 50)}`, {
+      ...meta,
+      imageUrl: url.substring(0, 100),
+    });
   }
 
   // Helper to log structured data with better formatting
@@ -94,4 +121,3 @@ class Logger {
 const logger = new Logger();
 
 export default logger;
-
