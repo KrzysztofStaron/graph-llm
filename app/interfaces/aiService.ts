@@ -2,6 +2,7 @@ import { globals } from "../globals";
 import logger from "../utils/logger";
 import { getRequestHeaders } from "../utils/requestHeaders";
 import { prepareChatRequest } from "../utils/chatPayload";
+import { verifyAction, ActionContext } from "../lib/jev-gate";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -91,6 +92,39 @@ export class aiService {
       webSearchEnabled?: boolean;
     }
   ): Promise<string> {
+    // Jev gate: verify action before proceeding
+    const actionContext: ActionContext = {
+      actionType: 'chat',
+      description: `Non-streaming chat request with ${Array.isArray(message) ? message.length : 1} message(s)`,
+      userIntent: Array.isArray(message) 
+        ? (message[message.length - 1]?.content as string || '').substring(0, 200)
+        : message.substring(0, 200),
+      model: options?.model,
+      metadata: {
+        webSearchEnabled: options?.webSearchEnabled,
+        provider: options?.provider,
+      },
+    };
+
+    const decision = await verifyAction(actionContext);
+
+    if (decision.finalAction === 'abort') {
+      const abortError = new Error(
+        `[Jev Gate] Action aborted: ${decision.reason || 'Action deemed unsafe'}`
+      );
+      logger.warn('[Jev Gate] Chat action aborted', { decision, actionContext });
+      throw abortError;
+    }
+
+    if (decision.finalAction === 'ask_user') {
+      logger.warn('[Jev Gate] Action requires user confirmation', { decision, actionContext });
+      throw new Error(
+        `[Jev Gate] This action requires user confirmation: ${decision.reason || 'Action needs verification'}`
+      );
+    }
+
+    logger.info('[Jev Gate] Action approved', { decision, actionContext });
+
     const logData: {
       url?: string;
       model?: string;
@@ -180,6 +214,42 @@ export class aiService {
     onReasoning?: (reasoning: string) => void,
     onYoutube?: (videoId: string, explanation?: string) => void
   ): Promise<StreamResponse> {
+    // Jev gate: verify action before proceeding
+    const actionContext: ActionContext = {
+      actionType: 'stream_chat',
+      description: `Streaming chat request with ${Array.isArray(message) ? message.length : 1} message(s)`,
+      userIntent: Array.isArray(message) 
+        ? (message[message.length - 1]?.content as string || '').substring(0, 200)
+        : message.substring(0, 200),
+      model: options?.model,
+      metadata: {
+        webSearchEnabled: options?.webSearchEnabled,
+        provider: options?.provider,
+        hasImageCallback: !!onImage,
+        hasReasoningCallback: !!onReasoning,
+        hasYoutubeCallback: !!onYoutube,
+      },
+    };
+
+    const decision = await verifyAction(actionContext);
+
+    if (decision.finalAction === 'abort') {
+      const abortError = new Error(
+        `[Jev Gate] Action aborted: ${decision.reason || 'Action deemed unsafe'}`
+      );
+      logger.warn('[Jev Gate] StreamChat action aborted', { decision, actionContext });
+      throw abortError;
+    }
+
+    if (decision.finalAction === 'ask_user') {
+      logger.warn('[Jev Gate] Action requires user confirmation', { decision, actionContext });
+      throw new Error(
+        `[Jev Gate] This action requires user confirmation: ${decision.reason || 'Action needs verification'}`
+      );
+    }
+
+    logger.info('[Jev Gate] Action approved', { decision, actionContext });
+
     const maxRetries = options?.retries ?? 2;
     let lastError: Error | null = null;
 
