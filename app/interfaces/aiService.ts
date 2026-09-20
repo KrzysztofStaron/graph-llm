@@ -2,6 +2,10 @@ import { globals } from "../globals";
 import logger from "../utils/logger";
 import { getRequestHeaders } from "../utils/requestHeaders";
 import { prepareChatRequest } from "../utils/chatPayload";
+import {
+  collectImageUrls,
+  generateImageOnClient,
+} from "../utils/openaiImage";
 
 // Content types for multi-modal messages
 type TextContentPart = { type: "text"; text: string };
@@ -575,6 +579,56 @@ export class aiService {
         let pendingUpdate = false;
         let pendingReasoningUpdate = false;
         let imageResponse: { url: string; prompt?: string } | null = null;
+        const completeOpenAIImage = async (): Promise<
+          | { success: true; data: StreamResponse }
+          | { success: false; error: Error }
+        > => {
+          if (!imageResponse) {
+            return {
+              success: false,
+              error: new ChatRequestError("Missing image response", false),
+            };
+          }
+
+          if (!imageResponse.prompt) {
+            return {
+              success: true,
+              data: {
+                type: "image",
+                content: imageResponse.url,
+                prompt: imageResponse.prompt,
+              },
+            };
+          }
+
+          const generated = await generateImageOnClient({
+            prompt: imageResponse.prompt,
+            model: options?.imageModel,
+            images: collectImageUrls(messagesArray),
+          });
+
+          if (!generated.ok) {
+            const error = new ChatRequestError(generated.error, true);
+            logData.error = error.message;
+            logger.warn("OpenAI image generation failed", logData);
+            return { success: false, error };
+          }
+
+          logData.imageUrl = generated.url.substring(0, 100);
+          logData.imagePrompt = imageResponse.prompt;
+          logger.image(generated.url, "OpenAI image response", {
+            prompt: imageResponse.prompt,
+            model: options?.imageModel,
+          });
+          return {
+            success: true,
+            data: {
+              type: "image",
+              content: generated.url,
+              prompt: imageResponse.prompt,
+            },
+          };
+        };
         const THROTTLE_MS = 300;
 
         const throttledOnChunk = (content: string) => {
@@ -623,13 +677,9 @@ export class aiService {
               // If we got an image response, return it
               if (imageResponse) {
                 logData.imageReceived = true;
-                logData.imageUrl = imageResponse.url.substring(0, 100);
                 logData.imagePrompt = imageResponse.prompt;
-                logger.info("Stream completed with image", logData);
-                return { 
-                  success: true, 
-                  data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
-                };
+                logger.info("Stream completed with image, generating via OpenAI", logData);
+                return await completeOpenAIImage();
               }
               
               logData.fullResponseLength = fullResponse.length;
@@ -674,13 +724,9 @@ export class aiService {
                   // If we got an image response, return it
                   if (imageResponse) {
                     logData.imageReceived = true;
-                    logData.imageUrl = imageResponse.url.substring(0, 100);
                     logData.imagePrompt = imageResponse.prompt;
-                    logger.info("Stream completed with [DONE] - image response", logData);
-                    return { 
-                      success: true, 
-                      data: { type: "image", content: imageResponse.url, prompt: imageResponse.prompt } 
-                    };
+                    logger.info("Stream completed with [DONE] - generating via OpenAI", logData);
+                    return await completeOpenAIImage();
                   }
                   
                   logData.fullResponseLength = fullResponse.length;
@@ -720,16 +766,15 @@ export class aiService {
                   throttledOnReasoning(fullReasoning);
                 }
 
-                if (eventType === "image" && eventContent) {
+                if (eventType === "image" && (eventPrompt || eventContent)) {
                   logData.imageReceived = true;
-                  logData.imageUrl = eventContent.substring(0, 100);
                   logData.imagePrompt = eventPrompt;
-                  logger.image(eventContent, "Stream image response", {
+                  imageResponse = {
+                    url: eventContent || "",
                     prompt: eventPrompt,
-                  });
-                  imageResponse = { url: eventContent, prompt: eventPrompt };
+                  };
                   if (onImage) {
-                    onImage(eventContent, eventPrompt);
+                    onImage("", eventPrompt);
                   }
                 } else if (eventType === "youtube" && eventVideoId) {
                   logData.youtubeReceived = true;

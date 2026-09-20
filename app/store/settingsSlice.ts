@@ -22,12 +22,12 @@ export const availableModels: ModelOption[] = [
 
 export const availableImageModels: ModelOption[] = [
   {
-    label: "Gemini 3.1 Flash Image",
-    value: "google/gemini-3.1-flash-image",
+    label: "GPT Image Mini",
+    value: "gpt-image-1-mini",
   },
   {
-    label: "Gemini 3 Pro Image",
-    value: "google/gemini-3-pro-image",
+    label: "GPT Image",
+    value: "gpt-image-1",
   },
 ];
 
@@ -39,7 +39,7 @@ interface SettingsState {
 
 const initialState: SettingsState = {
   selectedModel: availableModels[0].value, // Default to Grok
-  selectedImageModel: availableImageModels[1].value, // Default to Gemini 3 Pro Image
+  selectedImageModel: availableImageModels[1].value,
   webSearchEnabled: true, // Default to enabled
 };
 
