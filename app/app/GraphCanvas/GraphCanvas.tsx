@@ -18,6 +18,7 @@ import {
   createContext,
 } from "react";
 import { layoutMovesAfterResize } from "../../utils/nodeResizeLayout";
+import { removedNodeIds } from "../../utils/requestAbort";
 import { graphReducer } from "../../interfaces/TreeManager";
 import type { GraphAction, TreeManager } from "../../interfaces/TreeManager";
 import EdgesRenderer from "./components/EdgesRenderer";
@@ -59,6 +60,7 @@ interface GraphCanvasProps {
     nodeId?: string
   ) => void;
   onNodeDragToStorage?: (nodeId: string, clientX: number, clientY: number) => void;
+  onNodesRemoved?: (nodeIds: string[]) => void;
 }
 
 export const CanvasContext = createContext<{
@@ -80,21 +82,22 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onRequestNodeMove,
       onRequestContextMenu,
       onNodeDragToStorage,
+      onNodesRemoved,
     } = props;
     const shouldReduceMotion = useReducedMotion();
-
-    // Nodes state
     const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
     const nodesRef = useRef(nodes);
     const dispatchAndSync = useCallback((action: GraphAction) => {
-      nodesRef.current = graphReducer(nodesRef.current, action);
+      const before = nodesRef.current;
+      nodesRef.current = graphReducer(before, action);
+      const removed = removedNodeIds(before, nodesRef.current);
+      if (removed.length > 0) onNodesRemoved?.(removed);
       dispatch(action);
-    }, []);
+    }, [onNodesRemoved]);
     useLayoutEffect(() => {
       nodesRef.current = nodes;
     }, [nodes]);
 
-    // Node dimensions state
     const [nodeDimensions, setNodeDimensions] = useReducer(
       (prev: NodeDimensions, next: NodeDimensions) => next,
       {}

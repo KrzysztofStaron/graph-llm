@@ -164,7 +164,7 @@ const AppPageContent = () => {
   });
 
   // AI chat hook
-  const { onInputSubmit } = useAIChat({ graphCanvasRef });
+  const { onInputSubmit, cancelRequestsForNodes } = useAIChat({ graphCanvasRef });
 
   const handleRequestNodeMove = useCallback((nodeId: string, dx: number, dy: number) => {
     const treeManager = graphCanvasRef.current?.treeManager;
@@ -304,6 +304,7 @@ const AppPageContent = () => {
         onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
         onNodeDragToStorage={handleNodeDroppedToStorage}
+        onNodesRemoved={cancelRequestsForNodes}
       />
       {quickMenuOpen ? (
         <SettingsModal

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test app/utils/placement.test.ts app/utils/getNodeCenter.test.ts app/utils/nodeResizeLayout.test.ts"
+    "test": "tsx --test app/utils/placement.test.ts app/utils/getNodeCenter.test.ts app/utils/nodeResizeLayout.test.ts app/utils/imageLayoutReady.test.ts app/utils/requestAbort.test.ts app/utils/openaiImage.test.ts"
   },
   "dependencies": {
     "@openrouter/sdk": "^0.3.10",
