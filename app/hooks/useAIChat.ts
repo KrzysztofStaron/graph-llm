@@ -104,6 +104,36 @@ function imageHasLayoutSize(nodeId: string): boolean {
   return img.offsetWidth >= paintedWidth - 1 && shell.offsetWidth >= paintedWidth - 1;
 }
 
+function scheduleAlignWhenPainted(args: {
+  nodeId: string;
+  parent: GraphNode;
+  nodesRef: { current: GraphNodes };
+  nodeDimensionsRef: { current: NodeDimensions };
+  treeManager: TreeManager;
+  nodesWithQuery: GraphNodes;
+}) {
+  let attempts = 0;
+  const tick = () => {
+    attempts += 1;
+    const current = args.nodesRef.current[args.nodeId];
+    const size = readDomNodeSize(args.nodeId);
+    if (current && size && size.width > 20) {
+      commitAlignedNode({
+        node: current,
+        parent: args.parent,
+        nodesRef: args.nodesRef,
+        nodeDimensionsRef: args.nodeDimensionsRef,
+        treeManager: args.treeManager,
+        nodesWithQuery: args.nodesWithQuery,
+      });
+    }
+    if (attempts < 30) {
+      requestAnimationFrame(tick);
+    }
+  };
+  requestAnimationFrame(tick);
+}
+
 function waitForPaintedImage(nodeId: string): Promise<void> {
   return new Promise((resolve) => {
     const started = performance.now();
@@ -208,6 +238,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         }
         treeManager.patchNode(responseNodeId, patch);
         responseNode = nodesRef.current[responseNodeId];
+        scheduleAlignWhenPainted({
+          nodeId: responseNodeId,
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       } else {
         // create a new response node with smart placement - close to parent
         const callerDim =
@@ -230,6 +268,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         responseNodeId = newNode.id;
         treeManager.addNode(newNode);
         treeManager.linkNodes(caller.id, newNode.id);
+        nodesRef.current[newNode.id] = newNode;
 
         responseNode = newNode;
         nodesWithQuery[newNode.id] = newNode;
@@ -239,6 +278,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             ? nodesWithQuery[caller.id].childrenIds
             : [...nodesWithQuery[caller.id].childrenIds, newNode.id],
         };
+        scheduleAlignWhenPainted({
+          nodeId: responseNodeId,
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       }
 
       // Track if we receive an image response, and collect youtube videos
@@ -290,6 +337,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             };
             
             imageResult = { url: imageUrl, prompt };
+            scheduleAlignWhenPainted({
+              nodeId: responseNodeId,
+              parent: currentCaller,
+              nodesRef,
+              nodeDimensionsRef,
+              treeManager,
+              nodesWithQuery,
+            });
           },
           // onReasoning callback - called when reasoning tokens are streamed
           (reasoning) => {

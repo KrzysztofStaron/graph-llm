@@ -8,6 +8,7 @@ import {
 } from "../../types/GraphCanvas.types";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useCallback,
@@ -85,7 +86,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Nodes state
     const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
     const nodesRef = useRef(nodes);
-    useEffect(() => {
+    useLayoutEffect(() => {
       nodesRef.current = nodes;
     }, [nodes]);
 
@@ -190,11 +191,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         clearSelection,
       ]
     );
-
-    // Update refs when state changes
-    useEffect(() => {
-      nodesRef.current = nodes;
-    }, [nodes]);
 
     const nodesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastChangeTimeRef = useRef<number>(0);
@@ -373,20 +369,20 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           if (!origin || !live) {
             continue;
           }
-          const dx = origin.x + move.dx - live.x;
-          const dy = origin.y + move.dy - live.y;
-          if (dx === 0 && dy === 0) {
+          const x = origin.x + move.dx;
+          const y = origin.y + move.dy;
+          if (x === live.x && y === live.y) {
             continue;
           }
-          onRequestNodeMove(move.nodeId, dx, dy);
+          treeManager.patchNode(move.nodeId, { x, y });
           nodesRef.current[move.nodeId] = {
             ...live,
-            x: live.x + dx,
-            y: live.y + dy,
+            x,
+            y,
           };
         }
       },
-      [onRequestNodeMove, isUndoingRef]
+      [treeManager, isUndoingRef]
     );
 
     // Track node appear/delete particle effects
