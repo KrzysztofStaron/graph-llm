@@ -605,6 +605,7 @@ export class aiService {
             prompt: imageResponse.prompt,
             model: options?.imageModel,
             images: collectImageUrls(messagesArray),
+            signal: options?.signal,
           });
 
           if (!generated.ok) {

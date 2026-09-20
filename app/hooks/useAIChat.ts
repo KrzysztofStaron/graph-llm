@@ -7,10 +7,15 @@ import {
   hasRenderableContent,
   placeCenteredBelowOrForce,
 } from "../utils/placement";
+import { imageHasLayoutSize } from "../utils/imageLayoutReady";
 import { aiService } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
 import logger from "../utils/logger";
 import { cascadeUpdateDescendants } from "../utils/cascadeUpdate";
+import {
+  abortRequestsForNodes,
+  isAbortError,
+} from "../utils/requestAbort";
 
 function readDomNodeSize(nodeId: string): { width: number; height: number } | undefined {
   const element = document.querySelector(`[data-node-id="${nodeId}"]`);
@@ -69,7 +74,10 @@ function commitAlignedNode(args: {
   treeManager: TreeManager;
   nodesWithQuery: GraphNodes;
 }): GraphNode {
-  const current = args.nodesRef.current[args.node.id] ?? args.node;
+  const current = args.nodesRef.current[args.node.id];
+  if (!current) {
+    return args.node;
+  }
   const parent = args.nodesRef.current[args.parent.id] ?? args.parent;
   const aligned = alignChildUnderParent({
     child: current,
@@ -81,6 +89,9 @@ function commitAlignedNode(args: {
     },
     dimensions: args.nodeDimensionsRef.current,
   });
+  if (!args.nodesRef.current[args.node.id]) {
+    return args.node;
+  }
   args.nodeDimensionsRef.current = aligned.dimensions;
   args.treeManager.patchNode(args.node.id, {
     x: aligned.node.x,
@@ -89,19 +100,6 @@ function commitAlignedNode(args: {
   args.nodesRef.current[args.node.id] = aligned.node;
   args.nodesWithQuery[args.node.id] = aligned.node;
   return aligned.node;
-}
-
-function imageHasLayoutSize(nodeId: string): boolean {
-  const img = document.querySelector(`[data-node-id="${nodeId}"] img`);
-  const shell = document.querySelector(`[data-node-id="${nodeId}"]`);
-  if (!(img instanceof HTMLImageElement) || !(shell instanceof HTMLElement)) {
-    return false;
-  }
-  if (!img.complete || img.naturalWidth <= 0) {
-    return false;
-  }
-  const paintedWidth = Math.min(img.naturalWidth, 606);
-  return img.offsetWidth >= paintedWidth - 1 && shell.offsetWidth >= paintedWidth - 1;
 }
 
 function scheduleAlignWhenPainted(args: {
@@ -134,11 +132,18 @@ function scheduleAlignWhenPainted(args: {
   requestAnimationFrame(tick);
 }
 
-function waitForPaintedImage(nodeId: string): Promise<void> {
+function waitForPaintedImage(
+  nodeId: string,
+  nodesRef: { current: GraphNodes }
+): Promise<void> {
   return new Promise((resolve) => {
     const started = performance.now();
     const poll = () => {
-      if (imageHasLayoutSize(nodeId) || performance.now() - started > 15000) {
+      if (
+        !nodesRef.current[nodeId] ||
+        imageHasLayoutSize(nodeId) ||
+        performance.now() - started > 15000
+      ) {
         resolve();
         return;
       }
@@ -154,10 +159,7 @@ interface UseAIChatProps {
 
 interface UseAIChatReturn {
   onInputSubmit: (query: string, caller: GraphNode) => Promise<void>;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
+  cancelRequestsForNodes: (nodeIds: string[]) => void;
 }
 
 export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
@@ -167,10 +169,11 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   const abortByResponseIdRef = useRef(new Map<string, AbortController>());
 
   const abortStream = useCallback((responseId: string) => {
-    const existing = abortByResponseIdRef.current.get(responseId);
-    if (!existing) return;
-    existing.abort();
-    abortByResponseIdRef.current.delete(responseId);
+    abortRequestsForNodes(abortByResponseIdRef.current, [responseId]);
+  }, []);
+
+  const cancelRequestsForNodes = useCallback((nodeIds: string[]) => {
+    abortRequestsForNodes(abortByResponseIdRef.current, nodeIds);
   }, []);
 
   useEffect(() => {
@@ -186,7 +189,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   const handleCascadeUpdate = useCallback(
     async (startNodeId: string, currentNodes: GraphNodes) => {
       const treeManager = graphCanvasRef.current?.treeManager;
-      if (!treeManager) return;
+      const nodesRef = graphCanvasRef.current?.nodesRef;
+      if (!treeManager || !nodesRef) return;
 
       await cascadeUpdateDescendants({
         startNodeId,
@@ -195,6 +199,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         selectedModel,
         selectedImageModel,
         webSearchEnabled,
+        abortByNodeId: abortByResponseIdRef.current,
+        isNodeLive: (nodeId) => Boolean(nodesRef.current[nodeId]),
       });
     },
     [graphCanvasRef, selectedModel, selectedImageModel, webSearchEnabled]
@@ -339,6 +345,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           TreeManager.buildChatML(nodesWithQuery, updatedCaller),
           (response) => {
             mainChunkCount++;
+            if (!nodesRef.current[responseNodeId]) return;
             treeManager.patchNode(responseNodeId, {
               value: response,
               error: undefined,
@@ -357,6 +364,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled, signal: streamController.signal },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
+            if (!nodesRef.current[responseNodeId]) return;
             logData.imageGenerated = true;
             logData.imagePrompt = prompt;
             logger.image(imageUrl, `Input response ${responseNodeId.substring(0, 8)}`, { prompt });
@@ -391,6 +399,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           },
           // onReasoning callback - called when reasoning tokens are streamed
           (reasoning) => {
+            if (!nodesRef.current[responseNodeId]) return;
             const live = nodesWithQuery[responseNodeId];
             if (live?.type !== "response") return;
             treeManager.patchNode(responseNodeId, {
@@ -433,7 +442,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If the request failed, don't create follow-up nodes or cascade updates
       abortByResponseIdRef.current.delete(responseNodeId);
-      if (result === "aborted") return;
+      if (result === "aborted" || !nodesRef.current[responseNodeId]) return;
       if (result === null) {
         const errorMessage = logData.error || 'Unknown error';
         logger.error(`[INPUT_STREAM] [FAIL] Input Stream Failed: ${errorMessage}`, logData);
@@ -468,9 +477,11 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           prompt: result.prompt,
           status: "done",
         };
-        await waitForPaintedImage(responseNodeId);
+        await waitForPaintedImage(responseNodeId, nodesRef);
+        const liveImage = nodesRef.current[responseNodeId];
+        if (!liveImage) return;
         responseNode = commitAlignedNode({
-          node: nodesRef.current[responseNodeId] ?? nodesWithQuery[responseNodeId],
+          node: liveImage,
           parent: currentCaller,
           nodesRef,
           nodeDimensionsRef,
@@ -496,8 +507,10 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           value: finalValue,
           status: "done",
         };
+        const liveText = nodesRef.current[responseNodeId];
+        if (!liveText) return;
         responseNode = commitAlignedNode({
-          node: nodesRef.current[responseNodeId] ?? nodesWithQuery[responseNodeId],
+          node: liveText,
           parent: currentCaller,
           nodesRef,
           nodeDimensionsRef,
@@ -505,6 +518,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           nodesWithQuery,
         });
       }
+
+      if (!nodesRef.current[responseNodeId]) return;
 
       // Create YouTube nodes if any were collected during streaming
       if (youtubeVideos.length > 0) {
@@ -543,8 +558,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If response has no Input Node, create a new one
       // Use nodesRef to get fresh data after potential node replacement
-      const finishedNode =
-        nodesRef.current[responseNodeId] || nodesWithQuery[responseNodeId];
+      const finishedNode = nodesRef.current[responseNodeId];
       if (!finishedNode) return;
       const alreadyHasFollowUp =
         finishedNode.childrenIds.some(
@@ -597,5 +611,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
   return {
     onInputSubmit,
+    cancelRequestsForNodes,
   };
 }

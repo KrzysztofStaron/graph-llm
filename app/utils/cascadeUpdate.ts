@@ -3,6 +3,7 @@ import { TreeManager } from "../interfaces/TreeManager";
 import { aiService } from "../interfaces/aiService";
 import type { TreeManager as TreeManagerType } from "../interfaces/TreeManager";
 import logger from "./logger";
+import { isAbortError } from "./requestAbort";
 
 interface CascadeUpdateParams {
   startNodeId: string;
@@ -11,6 +12,8 @@ interface CascadeUpdateParams {
   selectedModel: string;
   selectedImageModel: string;
   webSearchEnabled: boolean;
+  abortByNodeId: Map<string, AbortController>;
+  isNodeLive: (nodeId: string) => boolean;
 }
 
 /**
@@ -24,6 +27,8 @@ export async function cascadeUpdateDescendants({
   selectedModel,
   selectedImageModel,
   webSearchEnabled,
+  abortByNodeId,
+  isNodeLive,
 }: CascadeUpdateParams): Promise<void> {
   // Find all descendant response nodes grouped by depth level
   const descendantLevels = TreeManager.findDescendantResponseNodes(
@@ -38,7 +43,7 @@ export async function cascadeUpdateDescendants({
     // Put all nodes in this level into loading state
     for (const node of levelNodes) {
       const existing = currentNodes[node.id];
-      if (!existing) continue;
+      if (!existing || !isNodeLive(node.id)) continue;
       const patch: {
         value: string;
         error: undefined;
@@ -65,6 +70,8 @@ export async function cascadeUpdateDescendants({
     // Update all nodes at this level in parallel
     await Promise.all(
       levelNodes.map(async (responseNode) => {
+        if (!isNodeLive(responseNode.id)) return;
+
         // Find the input node parent of this response node to build ChatML
         const inputParentId = responseNode.parentIds.find((parentId) => {
           const parent = currentNodes[parentId];
@@ -95,11 +102,14 @@ export async function cascadeUpdateDescendants({
 
         // Stream the AI response
         let chunkCount = 0;
+        const controller = new AbortController();
+        abortByNodeId.set(responseNode.id, controller);
         const result = await aiService
           .streamChat(
             TreeManager.buildChatML(currentNodes, inputParent),
             (response) => {
               chunkCount++;
+              if (!isNodeLive(responseNode.id)) return;
               const live = currentNodes[responseNode.id];
               if (!live) return;
               treeManager.patchNode(responseNode.id, {
@@ -114,9 +124,10 @@ export async function cascadeUpdateDescendants({
                 status: "streaming",
               };
             },
-            { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
+            { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled, signal: controller.signal },
             // onImage callback for cascade regeneration
             (imageUrl, prompt) => {
+              if (!isNodeLive(responseNode.id)) return;
               logData.imageGenerated = true;
               logData.imagePrompt = prompt;
               logger.image(imageUrl, `Cascade node ${responseNode.id.substring(0, 8)}`, { prompt });
@@ -141,6 +152,7 @@ export async function cascadeUpdateDescendants({
             },
             // onReasoning callback for cascade regeneration
             (reasoning) => {
+              if (!isNodeLive(responseNode.id)) return;
               const live = currentNodes[responseNode.id];
               if (live?.type !== "response") return;
               treeManager.patchNode(responseNode.id, {
@@ -153,6 +165,10 @@ export async function cascadeUpdateDescendants({
             }
           )
           .catch((error) => {
+            abortByNodeId.delete(responseNode.id);
+            if (isAbortError(error) || !isNodeLive(responseNode.id)) {
+              return "aborted";
+            }
             const errorMessage =
               error instanceof Error ? error.message : String(error);
             logData.error = errorMessage;
@@ -171,6 +187,8 @@ export async function cascadeUpdateDescendants({
             return null;
           });
 
+        abortByNodeId.delete(responseNode.id);
+        if (result === "aborted" || !isNodeLive(responseNode.id)) return;
         if (result === null) {
           logger.error('[CASCADE] Stream failed', logData);
           return;

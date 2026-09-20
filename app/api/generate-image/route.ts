@@ -66,7 +66,8 @@ const imageUrlFromOpenAI = (data: unknown): { url: string } | { error: string } 
 };
 
 const blobFromImageUrl = async (
-  url: string
+  url: string,
+  signal: AbortSignal
 ): Promise<{ ok: true; blob: Blob } | { ok: false; error: string }> => {
   if (url.startsWith("data:")) {
     const comma = url.indexOf(",");
@@ -77,7 +78,7 @@ const blobFromImageUrl = async (
     return { ok: true, blob: new Blob([buffer], { type: mime }) };
   }
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
   if (!response.ok) {
     return {
       ok: false,
@@ -87,7 +88,11 @@ const blobFromImageUrl = async (
   return { ok: true, blob: await response.blob() };
 };
 
-const requestOpenAIImage = async (body: GenerateImageBody, apiKey: string) => {
+const requestOpenAIImage = async (
+  body: GenerateImageBody,
+  apiKey: string,
+  signal: AbortSignal
+) => {
   if (body.images.length === 0) {
     return fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
@@ -101,6 +106,7 @@ const requestOpenAIImage = async (body: GenerateImageBody, apiKey: string) => {
         n: 1,
         size: "1024x1024",
       }),
+      signal,
     });
   }
 
@@ -112,7 +118,7 @@ const requestOpenAIImage = async (body: GenerateImageBody, apiKey: string) => {
 
   let attached = 0;
   for (const [index, imageUrl] of body.images.entries()) {
-    const image = await blobFromImageUrl(imageUrl);
+    const image = await blobFromImageUrl(imageUrl, signal);
     if (!image.ok) continue;
     const extension = image.blob.type.includes("jpeg") ? "jpg" : "png";
     form.append("image[]", image.blob, `reference-${index}.${extension}`);
@@ -132,6 +138,7 @@ const requestOpenAIImage = async (body: GenerateImageBody, apiKey: string) => {
         n: 1,
         size: "1024x1024",
       }),
+      signal,
     });
   }
 
@@ -141,6 +148,7 @@ const requestOpenAIImage = async (body: GenerateImageBody, apiKey: string) => {
       Authorization: `Bearer ${apiKey}`,
     },
     body: form,
+    signal,
   });
 };
 
@@ -158,7 +166,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const openaiResponse = await requestOpenAIImage(parsed, apiKey);
+  const openaiResponse = await requestOpenAIImage(parsed, apiKey, request.signal);
   const openaiBody: unknown = await openaiResponse.json();
   const image = imageUrlFromOpenAI(openaiBody);
 
