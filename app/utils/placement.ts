@@ -45,6 +45,10 @@ export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
       return { width: 520, height: 180 };
     case "youtube":
       return { width: 640, height: 400 };
+    default: {
+      const _exhaustive: never = nodeType;
+      return _exhaustive;
+    }
   }
 }
 

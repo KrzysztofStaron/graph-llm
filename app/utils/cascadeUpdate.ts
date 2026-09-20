@@ -1,4 +1,4 @@
-import { GraphNodes, ResponseNode, GraphNode } from "../types/GraphCanvas.types";
+import { GraphNodes } from "../types/GraphCanvas.types";
 import { TreeManager } from "../interfaces/TreeManager";
 import { aiService } from "../interfaces/aiService";
 import type { TreeManager as TreeManagerType } from "../interfaces/TreeManager";
@@ -37,24 +37,29 @@ export async function cascadeUpdateDescendants({
 
     // Put all nodes in this level into loading state
     for (const node of levelNodes) {
-      const patch: { value: string; error: undefined; reasoning?: undefined } = { value: "", error: undefined };
+      const existing = currentNodes[node.id];
+      if (!existing) continue;
+      const patch: {
+        value: string;
+        error: undefined;
+        status: "streaming";
+        reasoning?: undefined;
+      } = { value: "", error: undefined, status: "streaming" };
       if (node.type === "response") {
         patch.reasoning = undefined;
       }
       treeManager.patchNode(node.id, patch);
-      const updatedNode = node.type === "response"
-        ? ({
-            ...currentNodes[node.id],
-            value: "",
-            error: undefined,
-            reasoning: undefined,
-          } as ResponseNode)
-        : ({
-            ...currentNodes[node.id],
-            value: "",
-            error: undefined,
-          } as GraphNode);
-      currentNodes[node.id] = updatedNode;
+      currentNodes[node.id] =
+        node.type === "response"
+          ? {
+              ...existing,
+              ...patch,
+              type: "response" as const,
+            }
+          : {
+              ...existing,
+              ...patch,
+            };
     }
 
     // Update all nodes at this level in parallel
@@ -69,6 +74,7 @@ export async function cascadeUpdateDescendants({
         if (!inputParentId) return;
 
         const inputParent = currentNodes[inputParentId];
+        if (!inputParent) return;
 
         const logData: {
           nodeId?: string;
@@ -94,14 +100,18 @@ export async function cascadeUpdateDescendants({
             TreeManager.buildChatML(currentNodes, inputParent),
             (response) => {
               chunkCount++;
+              const live = currentNodes[responseNode.id];
+              if (!live) return;
               treeManager.patchNode(responseNode.id, {
                 value: response,
                 error: undefined,
+                status: "streaming",
               });
               currentNodes[responseNode.id] = {
-                ...currentNodes[responseNode.id],
+                ...live,
                 value: response,
                 error: undefined,
+                status: "streaming",
               };
             },
             { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
@@ -112,40 +122,52 @@ export async function cascadeUpdateDescendants({
               logger.image(imageUrl, `Cascade node ${responseNode.id.substring(0, 8)}`, { prompt });
               
               // Immediately swap to image-response type to show image loading animation
+              const live = currentNodes[responseNode.id];
               treeManager.patchNode(responseNode.id, {
                 type: "image-response",
                 value: "",
                 error: undefined,
+                status: "streaming",
               });
-              currentNodes[responseNode.id] = {
-                ...currentNodes[responseNode.id],
-                type: "image-response",
-                value: "",
-                error: undefined,
-              };
+              if (live) {
+                currentNodes[responseNode.id] = {
+                  ...live,
+                  type: "image-response",
+                  value: "",
+                  error: undefined,
+                  status: "streaming",
+                };
+              }
             },
             // onReasoning callback for cascade regeneration
             (reasoning) => {
-              if (currentNodes[responseNode.id]?.type === 'response') {
-                treeManager.patchNode(responseNode.id, {
-                  reasoning,
-                });
-                currentNodes[responseNode.id] = {
-                  ...currentNodes[responseNode.id],
-                  reasoning,
-                } as GraphNode;
-              }
+              const live = currentNodes[responseNode.id];
+              if (live?.type !== "response") return;
+              treeManager.patchNode(responseNode.id, {
+                reasoning,
+              });
+              currentNodes[responseNode.id] = {
+                ...live,
+                reasoning,
+              };
             }
           )
           .catch((error) => {
             const errorMessage =
               error instanceof Error ? error.message : String(error);
             logData.error = errorMessage;
-            treeManager.patchNode(responseNode.id, { error: errorMessage });
-            currentNodes[responseNode.id] = {
-              ...currentNodes[responseNode.id],
+            const live = currentNodes[responseNode.id];
+            treeManager.patchNode(responseNode.id, {
               error: errorMessage,
-            };
+              status: "error",
+            });
+            if (live) {
+              currentNodes[responseNode.id] = {
+                ...live,
+                error: errorMessage,
+                status: "error",
+              };
+            }
             return null;
           });
 
@@ -172,22 +194,32 @@ export async function cascadeUpdateDescendants({
             type: "image-response",
             value: result.content,
             prompt: result.prompt,
+            status: "done",
           });
-          currentNodes[responseNode.id] = {
-            ...currentNodes[responseNode.id],
-            type: "image-response",
-            value: result.content,
-            prompt: result.prompt,
-          };
+          const live = currentNodes[responseNode.id];
+          if (live) {
+            currentNodes[responseNode.id] = {
+              ...live,
+              type: "image-response",
+              value: result.content,
+              prompt: result.prompt,
+              status: "done",
+            };
+          }
         } else {
           // For text responses, ensure type is "response"
           treeManager.patchNode(responseNode.id, {
             type: "response",
+            status: "done",
           });
-          currentNodes[responseNode.id] = {
-            ...currentNodes[responseNode.id],
-            type: "response",
-          };
+          const live = currentNodes[responseNode.id];
+          if (live) {
+            currentNodes[responseNode.id] = {
+              ...live,
+              type: "response",
+              status: "done",
+            };
+          }
         }
       })
     );

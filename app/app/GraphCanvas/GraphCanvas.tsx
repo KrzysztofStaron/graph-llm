@@ -19,7 +19,7 @@ import {
 } from "react";
 import { layoutMovesAfterResize } from "../../utils/nodeResizeLayout";
 import { graphReducer } from "../../interfaces/TreeManager";
-import type { TreeManager } from "../../interfaces/TreeManager";
+import type { GraphAction, TreeManager } from "../../interfaces/TreeManager";
 import EdgesRenderer from "./components/EdgesRenderer";
 import NodesRenderer from "./components/nodes/NodesRenderer";
 import ParticleRenderer from "./components/ParticleRenderer";
@@ -86,6 +86,10 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Nodes state
     const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
     const nodesRef = useRef(nodes);
+    const dispatchAndSync = useCallback((action: GraphAction) => {
+      nodesRef.current = graphReducer(nodesRef.current, action);
+      dispatch(action);
+    }, []);
     useLayoutEffect(() => {
       nodesRef.current = nodes;
     }, [nodes]);
@@ -146,7 +150,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     const { treeManager, undo, isUndoingRef } = useGraphHistory({
       nodes,
       nodesRef,
-      dispatch,
+      dispatch: dispatchAndSync,
     });
 
     // Pointer gestures (drag + mobile selection + long-press)

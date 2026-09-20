@@ -76,8 +76,9 @@ export const ImageResponseNode = memo(
     const [isDownloading, setIsDownloading] = useState(false);
     const [showActions, setShowActions] = useState(false);
     const isTouchDevice = useIsTouchDevice();
-    // Show loading when value is empty or undefined
-    const isLoading = (!node.value || node.value === "") && !node.error;
+    const isLoading =
+      node.status === "streaming" ||
+      (node.status === undefined && (!node.value || node.value === "") && !node.error);
 
     useLayoutEffect(() => {
       const shell = document.querySelector(`[data-node-id="${node.id}"]`);
@@ -265,6 +266,7 @@ export const ImageResponseNode = memo(
     return (
       prev.node.value === next.node.value &&
       prev.node.error === next.node.error &&
+      prev.node.status === next.node.status &&
       prev.node.prompt === next.node.prompt &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&

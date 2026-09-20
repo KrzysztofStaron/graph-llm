@@ -3,6 +3,7 @@ import {
   MAX_INLINE_IMAGE_DATA_URL_SIZE,
   compressDataUrlIfNeeded,
 } from "./imageCompression";
+import { isOpenAIImageModel } from "./openaiImage";
 
 export const MAX_CHAT_REQUEST_BYTES = 450 * 1024;
 
@@ -10,8 +11,27 @@ const OMITTED_CONTENT_MARKER =
   "\n\n[... older content omitted to keep the request within the size limit ...]\n\n";
 const OMITTED_IMAGE_MARKER =
   "[An inline image was omitted to keep the request within the size limit.]";
+
 const MODEL_ALIASES: Record<string, string> = {
-  "x-ai/grok-4.1-fast": "x-ai/grok-4.3",
+  "x-ai/grok-4.1-fast": "x-ai/grok-4.6",
+  "x-ai/grok-4.3": "x-ai/grok-4.6",
+  "google/gemini-3-flash-preview": "google/gemini-3.8-flash",
+  "anthropic/claude-sonnet-4.5": "anthropic/claude-sonnet-4.6",
+};
+
+const IMAGE_MODEL_ALIASES: Record<string, string> = {
+  "google/gemini-2.5-flash-image": "gpt-image-1-mini",
+  "google/gemini-3.1-flash-image": "gpt-image-1-mini",
+  "google/gemini-3-pro-image-preview": "gpt-image-1",
+  "google/gemini-3-pro-image": "gpt-image-1",
+};
+
+const resolveModelId = (model?: string): string | undefined =>
+  model ? MODEL_ALIASES[model] ?? model : undefined;
+
+const resolveImageModelId = (model?: string): string | undefined => {
+  if (!model) return undefined;
+  return IMAGE_MODEL_ALIASES[model] ?? model;
 };
 
 type RequestOptions = {
@@ -61,14 +81,15 @@ const serializeRequest = (
   messages: ChatMessage[],
   options?: RequestOptions
 ): string => {
-  const model = options?.model
-    ? MODEL_ALIASES[options.model] ?? options.model
-    : undefined;
+  const model = resolveModelId(options?.model);
+  const imageModel = resolveImageModelId(options?.imageModel);
+  const backendImageModel =
+    imageModel && !isOpenAIImageModel(imageModel) ? imageModel : undefined;
 
   return JSON.stringify({
     messages,
     ...(model && { model }),
-    ...(options?.imageModel && { imageModel: options.imageModel }),
+    ...(backendImageModel && { imageModel: backendImageModel }),
     ...(options?.provider && { provider: options.provider }),
     ...(options?.webSearchEnabled && {
       plugins: [{ id: "web", engine: "native" }],
