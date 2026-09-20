@@ -71,7 +71,7 @@ export function GraphNodeFrame({
   return (
     <motion.div
       ref={ref}
-      className={`absolute cursor-move ${node.type === "response" ? "w-max" : ""}`}
+      className={`absolute cursor-move has-[[data-editing]]:z-40 ${node.type === "response" ? "w-max" : ""}`}
       data-node-id={node.id}
       suppressHydrationWarning
       style={{

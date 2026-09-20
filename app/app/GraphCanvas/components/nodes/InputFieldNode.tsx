@@ -116,6 +116,7 @@ export const InputFieldNode = memo(
     <div
       ref={containerRef}
       className="w-[400px] group"
+      data-editing={mode === Mode.ASK || undefined}
     >
         <div
           className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-200 ${
