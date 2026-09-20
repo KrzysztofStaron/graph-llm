@@ -42,4 +42,5 @@ next-env.d.ts
 
 graph-llm.code-workspace
 
-skills
+# scratch notes — do not ignore .cursor/skills
+/skills
