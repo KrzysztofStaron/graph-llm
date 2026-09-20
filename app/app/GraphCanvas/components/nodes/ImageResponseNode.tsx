@@ -81,7 +81,7 @@ export const ImageResponseNode = memo(
     };
 
     return (
-      <div className="group flex items-center" style={{ maxWidth: "606px" }}>
+      <div className="group w-[520px]">
         <div
           className="relative w-full overflow-hidden rounded-3xl"
           style={{
@@ -196,8 +196,8 @@ export const ImageResponseNode = memo(
           )}
 
           {node.prompt && isLoaded && !hasError && (
-            <div className="border-t border-white/5 bg-white/2 px-4 py-2" style={{ width: "100%" }}>
-              <p className="line-clamp-2 font-mono text-xs text-white/40" style={{ maxWidth: "606px" }}>
+            <div className="w-full border-t border-white/5 bg-white/2 px-4 py-2">
+              <p className="line-clamp-2 font-mono text-xs text-white/40">
                 {node.prompt}
               </p>
             </div>
