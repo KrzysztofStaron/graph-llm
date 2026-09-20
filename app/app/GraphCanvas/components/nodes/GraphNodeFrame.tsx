@@ -5,14 +5,12 @@ import { useContext, useLayoutEffect, useRef } from "react";
 
 function layoutSignature(node: GraphNode): string {
   const reasoning = node.type === "response" ? node.reasoning ?? "" : "";
-  const prompt = node.type === "image-response" ? node.prompt ?? "" : "";
   const explanation = node.type === "youtube" ? node.explanation ?? "" : "";
   return [
     node.type,
     node.value,
     node.error ?? "",
     reasoning,
-    prompt,
     explanation,
   ].join("\0");
 }

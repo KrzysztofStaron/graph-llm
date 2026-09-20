@@ -194,14 +194,6 @@ export const ImageResponseNode = memo(
               )}
             </div>
           )}
-
-          {node.prompt && isLoaded && !hasError && (
-            <div className="w-full border-t border-white/5 bg-white/2 px-4 py-2">
-              <p className="line-clamp-2 font-mono text-xs text-white/40">
-                {node.prompt}
-              </p>
-            </div>
-          )}
         </div>
       </div>
     );
