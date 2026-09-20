@@ -1,4 +1,5 @@
 import type {
+  BaseNode,
   GraphNode,
   GraphNodes,
   InputNode,
@@ -20,8 +21,16 @@ import logger from "../utils/logger";
 // large raw images are still skipped to protect memory on mobile devices.
 const MAX_LEGACY_DATA_URL_SIZE_FOR_PREPARATION = 1024 * 1024;
 
+export type NodePatch = Partial<
+  Omit<BaseNode, "id" | "parentIds" | "childrenIds">
+> & {
+  reasoning?: string;
+  prompt?: string;
+  explanation?: string;
+};
+
 export type GraphAction =
-  | { type: "PATCH_NODE"; id: string; patch: Partial<GraphNode> }
+  | { type: "PATCH_NODE"; id: string; patch: NodePatch }
   | { type: "ADD_NODE"; node: GraphNode }
   | { type: "LINK"; fromId: string; toId: string }
   | { type: "UNLINK"; fromId: string; toId: string }
@@ -631,7 +640,7 @@ export class TreeManager {
     return ret;
   }
 
-  patchNode(id: string, patch: Partial<GraphNode>): void {
+  patchNode(id: string, patch: NodePatch): void {
     this.dispatch({ type: "PATCH_NODE", id, patch });
   }
 
@@ -685,6 +694,48 @@ export const deepCopyNodes = (nodes: GraphNodes): GraphNodes => {
   return copy;
 };
 
+function wouldCreateCycle(
+  nodes: GraphNodes,
+  fromId: string,
+  toId: string
+): boolean {
+  if (fromId === toId) return true;
+  const visited = new Set<string>();
+  const stack = [toId];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined) break;
+    if (id === fromId) return true;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const node = nodes[id];
+    if (!node) continue;
+    for (const childId of node.childrenIds) {
+      stack.push(childId);
+    }
+  }
+  return false;
+}
+
+function collectCascadeDeletes(nodes: GraphNodes, startId: string): Set<string> {
+  const toDelete = new Set<string>([startId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [id, node] of Object.entries(nodes)) {
+      if (toDelete.has(id) || node.parentIds.length === 0) continue;
+      const allParentsDeleted = node.parentIds.every((parentId) =>
+        toDelete.has(parentId)
+      );
+      if (allParentsDeleted) {
+        toDelete.add(id);
+        changed = true;
+      }
+    }
+  }
+  return toDelete;
+}
+
 export function graphReducer(
   nodes: GraphNodes,
   action: GraphAction
@@ -708,6 +759,7 @@ export function graphReducer(
       const fromNode = nodes[action.fromId];
       const toNode = nodes[action.toId];
       if (!fromNode || !toNode) return nodes;
+      if (wouldCreateCycle(nodes, action.fromId, action.toId)) return nodes;
 
       return {
         ...nodes,
@@ -808,42 +860,7 @@ export function graphReducer(
       const startNode = nodes[action.id];
       if (!startNode) return nodes;
 
-      // DFS to collect nodes to delete
-      // Rule: stop (and keep) a branch when we hit a node with >1 parent
-      const toDelete = new Set<string>();
-      const stack: string[] = [action.id];
-
-      while (stack.length > 0) {
-        const nodeId = stack.pop()!;
-
-        // Skip if already processed
-        if (toDelete.has(nodeId)) continue;
-
-        const node = nodes[nodeId];
-        if (!node) continue;
-
-        // For non-start nodes, check if this node has a parent outside the deletion set
-        if (nodeId !== action.id) {
-          // If node has >1 parent, stop here (keep this node and its descendants)
-          if (node.parentIds.length > 1) continue;
-
-          // If node has any parent not in toDelete, it still has a valid parent - keep it
-          const hasParentOutsideDeleteSet = node.parentIds.some(
-            (parentId) => !toDelete.has(parentId)
-          );
-          if (hasParentOutsideDeleteSet) continue;
-        }
-
-        // Mark for deletion
-        toDelete.add(nodeId);
-
-        // Add children to stack for DFS traversal
-        for (const childId of node.childrenIds) {
-          if (!toDelete.has(childId)) {
-            stack.push(childId);
-          }
-        }
-      }
+      const toDelete = collectCascadeDeletes(nodes, action.id);
 
       // Build the updated nodes object
       const updatedNodes: GraphNodes = {};
@@ -886,6 +903,10 @@ export function graphReducer(
       }
 
       return updatedNodes;
+    }
+    default: {
+      const _exhaustive: never = action;
+      return nodes;
     }
   }
 }

@@ -8,6 +8,22 @@ export interface WordTimestamp {
   end: number;
 }
 
+function isWordTimestamp(value: unknown): value is WordTimestamp {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "word" in value &&
+    typeof value.word === "string" &&
+    "start" in value &&
+    typeof value.start === "number" &&
+    "end" in value &&
+    typeof value.end === "number"
+  );
+}
+
+function isWordTimestampList(value: unknown): value is WordTimestamp[] {
+  return Array.isArray(value) && value.every(isWordTimestamp);
+}
+
 export interface TextToSpeechResult {
   audio: HTMLAudioElement;
   audioUrl: string;
@@ -54,14 +70,20 @@ export class audioService {
 
     // If timestamps are requested, response will be JSON with base64 audio
     if (includeTimestamps) {
-      const data = (await response.json()) as {
-        audio: string;
-        words: WordTimestamp[];
-        duration: number;
-      };
+      const data: unknown = await response.json();
+      if (typeof data !== "object" || data === null) {
+        throw new Error("Invalid TTS response");
+      }
+      const rec = data as Record<string, unknown>;
+      if (typeof rec.audio !== "string") {
+        throw new Error("Invalid TTS response");
+      }
+      const audioBase64 = rec.audio;
+      const words = isWordTimestampList(rec.words) ? rec.words : undefined;
+      const duration =
+        typeof rec.duration === "number" ? rec.duration : undefined;
 
-      // Convert base64 audio to blob
-      const audioBytes = Uint8Array.from(atob(data.audio), (c) =>
+      const audioBytes = Uint8Array.from(atob(audioBase64), (c) =>
         c.charCodeAt(0)
       );
       const audioBlob = new Blob([audioBytes], { type: "audio/mpeg" });
@@ -71,8 +93,8 @@ export class audioService {
       return {
         audio,
         audioUrl,
-        words: data.words,
-        duration: data.duration,
+        words,
+        duration,
       };
     }
 

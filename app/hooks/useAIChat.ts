@@ -1,9 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { GraphNode, GraphNodes, ImageResponseNode, ResponseNode } from "../types/GraphCanvas.types";
+import { GraphNode, GraphNodes } from "../types/GraphCanvas.types";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
 import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
-import { aiService, StreamResponse } from "../interfaces/aiService";
+import { aiService } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
 import logger from "../utils/logger";
 import { cascadeUpdateDescendants } from "../utils/cascadeUpdate";
@@ -16,10 +16,32 @@ interface UseAIChatReturn {
   onInputSubmit: (query: string, caller: GraphNode) => Promise<void>;
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
   const selectedModel = useAppSelector((state) => state.settings.selectedModel);
   const selectedImageModel = useAppSelector((state) => state.settings.selectedImageModel);
   const webSearchEnabled = useAppSelector((state) => state.settings.webSearchEnabled);
+  const abortByResponseIdRef = useRef(new Map<string, AbortController>());
+
+  const abortStream = useCallback((responseId: string) => {
+    const existing = abortByResponseIdRef.current.get(responseId);
+    if (!existing) return;
+    existing.abort();
+    abortByResponseIdRef.current.delete(responseId);
+  }, []);
+
+  useEffect(() => {
+    const abortMap = abortByResponseIdRef.current;
+    return () => {
+      for (const controller of abortMap.values()) {
+        controller.abort();
+      }
+      abortMap.clear();
+    };
+  }, []);
 
   const handleCascadeUpdate = useCallback(
     async (startNodeId: string, currentNodes: GraphNodes) => {
@@ -89,15 +111,22 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // Prepare the response node (will be replaced with image-response if AI generates an image)
       if (existingResponseNodeId) {
-        // put existing response node into loading state
         responseNodeId = existingResponseNodeId;
+        abortStream(responseNodeId);
         const existingNode = nodesRef.current[responseNodeId];
-        const patch: { value: string; error: undefined; reasoning?: undefined } = { value: "", error: undefined };
-        if (existingNode?.type === "response") {
+        if (!existingNode) return;
+        const patch: {
+          value: string;
+          error: undefined;
+          status: "streaming";
+          reasoning?: undefined;
+        } = { value: "", error: undefined, status: "streaming" };
+        if (existingNode.type === "response") {
           patch.reasoning = undefined;
         }
         treeManager.patchNode(responseNodeId, patch);
-        responseNode = nodesRef.current[responseNodeId];
+        responseNode = { ...existingNode, ...patch };
+        nodesWithQuery[responseNodeId] = responseNode;
       } else {
         // create a new response node with smart placement - close to parent
         const callerDim =
@@ -120,12 +149,16 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
         const newNode = createNode("response", freePos.x, freePos.y);
         responseNodeId = newNode.id;
-        treeManager.addNode(newNode);
+        const streamingNode = { ...newNode, status: "streaming" as const };
+        treeManager.addNode(streamingNode);
         treeManager.linkNodes(caller.id, newNode.id);
 
-        responseNode = newNode;
-        nodesWithQuery[newNode.id] = newNode;
+        responseNode = streamingNode;
+        nodesWithQuery[newNode.id] = streamingNode;
       }
+
+      const streamController = new AbortController();
+      abortByResponseIdRef.current.set(responseNodeId, streamController);
 
       // Track if we receive an image response, and collect youtube videos
       let imageResult: { url: string; prompt?: string } | null = null;
@@ -148,14 +181,19 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             treeManager.patchNode(responseNodeId, {
               value: response,
               error: undefined,
+              status: "streaming",
             });
-            nodesWithQuery[responseNodeId] = {
-              ...nodesWithQuery[responseNodeId],
-              value: response,
-              error: undefined,
-            };
+            const live = nodesWithQuery[responseNodeId];
+            if (live) {
+              nodesWithQuery[responseNodeId] = {
+                ...live,
+                value: response,
+                error: undefined,
+                status: "streaming",
+              };
+            }
           },
-          { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled },
+          { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled, signal: streamController.signal },
           // onImage callback - called when image tool is detected (before generation)
           (imageUrl, prompt) => {
             logData.imageGenerated = true;
@@ -167,27 +205,32 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               type: "image-response",
               value: "",
               error: undefined,
+              status: "streaming",
             });
-            nodesWithQuery[responseNodeId] = {
-              ...nodesWithQuery[responseNodeId],
-              type: "image-response",
-              value: "",
-              error: undefined,
-            };
+            const live = nodesWithQuery[responseNodeId];
+            if (live) {
+              nodesWithQuery[responseNodeId] = {
+                ...live,
+                type: "image-response",
+                value: "",
+                error: undefined,
+                status: "streaming",
+              };
+            }
             
             imageResult = { url: imageUrl, prompt };
           },
           // onReasoning callback - called when reasoning tokens are streamed
           (reasoning) => {
-            if (nodesWithQuery[responseNodeId]?.type === 'response') {
-              treeManager.patchNode(responseNodeId, {
-                reasoning,
-              });
-              nodesWithQuery[responseNodeId] = {
-                ...nodesWithQuery[responseNodeId],
-                reasoning,
-              } as GraphNode;
-            }
+            const live = nodesWithQuery[responseNodeId];
+            if (live?.type !== "response") return;
+            treeManager.patchNode(responseNodeId, {
+              reasoning,
+            });
+            nodesWithQuery[responseNodeId] = {
+              ...live,
+              reasoning,
+            };
           },
           // onYoutube callback - called when YouTube video tool is detected
           (videoId, explanation) => {
@@ -196,6 +239,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           }
         )
         .catch((error) => {
+          abortByResponseIdRef.current.delete(responseNodeId);
+          if (isAbortError(error)) return "aborted";
           const errorMessage =
             error instanceof Error ? error.message : String(error);
           const errorName = error instanceof Error ? error.name : 'Unknown';
@@ -205,15 +250,21 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           logData.errorName = errorName;
           logData.errorStack = errorStack;
           
-          treeManager.patchNode(responseNodeId, { error: errorMessage });
-          nodesWithQuery[responseNodeId] = {
-            ...nodesWithQuery[responseNodeId],
-            error: errorMessage,
-          };
+          treeManager.patchNode(responseNodeId, { error: errorMessage, status: "error" });
+          const live = nodesWithQuery[responseNodeId];
+          if (live) {
+            nodesWithQuery[responseNodeId] = {
+              ...live,
+              error: errorMessage,
+              status: "error",
+            };
+          }
           return null;
         });
 
       // If the request failed, don't create follow-up nodes or cascade updates
+      abortByResponseIdRef.current.delete(responseNodeId);
+      if (result === "aborted") return;
       if (result === null) {
         const errorMessage = logData.error || 'Unknown error';
         logger.error(`[INPUT_STREAM] [FAIL] Input Stream Failed: ${errorMessage}`, logData);
@@ -239,13 +290,18 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           type: "image-response",
           value: result.content,
           prompt: result.prompt,
+          status: "done",
         });
-        nodesWithQuery[responseNodeId] = {
-          ...nodesWithQuery[responseNodeId],
-          type: "image-response",
-          value: result.content,
-          prompt: result.prompt,
-        };
+        const live = nodesWithQuery[responseNodeId];
+        if (live) {
+          nodesWithQuery[responseNodeId] = {
+            ...live,
+            type: "image-response",
+            value: result.content,
+            prompt: result.prompt,
+            status: "done",
+          };
+        }
         responseNode = nodesWithQuery[responseNodeId];
       } else {
         // For text responses, ensure type is "response"
@@ -258,12 +314,17 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         treeManager.patchNode(responseNodeId, {
           type: "response",
           value: finalValue,
+          status: "done",
         });
-        nodesWithQuery[responseNodeId] = {
-          ...nodesWithQuery[responseNodeId],
-          type: "response",
-          value: finalValue,
-        };
+        const live = nodesWithQuery[responseNodeId];
+        if (live) {
+          nodesWithQuery[responseNodeId] = {
+            ...live,
+            type: "response",
+            value: finalValue,
+            status: "done",
+          };
+        }
         responseNode = nodesWithQuery[responseNodeId];
       }
 
@@ -326,7 +387,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If response has no Input Node, create a new one
       // Use nodesRef to get fresh data after potential node replacement
-      const currentResponseNode = nodesRef.current[responseNodeId] || responseNode;
+      const currentResponseNode = nodesRef.current[responseNodeId];
+      if (!currentResponseNode) return;
       if (
         !currentResponseNode.childrenIds.some(
           (childId) => nodesRef.current[childId]?.type === "input"
@@ -385,7 +447,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         finalMessage,
       });
     },
-    [graphCanvasRef, handleCascadeUpdate, selectedModel, selectedImageModel, webSearchEnabled]
+    [abortStream, graphCanvasRef, handleCascadeUpdate, selectedModel, selectedImageModel, webSearchEnabled]
   );
 
   return {

@@ -18,7 +18,7 @@ import {
 } from "react";
 import { resolveLocalCollisions } from "../../utils/collisionResolver";
 import { graphReducer } from "../../interfaces/TreeManager";
-import type { TreeManager } from "../../interfaces/TreeManager";
+import type { GraphAction, TreeManager } from "../../interfaces/TreeManager";
 import EdgesRenderer from "./components/EdgesRenderer";
 import NodesRenderer from "./components/nodes/NodesRenderer";
 import ParticleRenderer from "./components/ParticleRenderer";
@@ -84,6 +84,10 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     // Nodes state
     const [nodes, dispatch] = useReducer(graphReducer, initialNodes);
     const nodesRef = useRef(nodes);
+    const dispatchAndSync = useCallback((action: GraphAction) => {
+      nodesRef.current = graphReducer(nodesRef.current, action);
+      dispatch(action);
+    }, []);
 
     // Node dimensions state
     const [nodeDimensions, setNodeDimensions] = useReducer(
@@ -141,7 +145,7 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
     const { treeManager, undo, isUndoingRef } = useGraphHistory({
       nodes,
       nodesRef,
-      dispatch,
+      dispatch: dispatchAndSync,
     });
 
     // Pointer gestures (drag + mobile selection + long-press)

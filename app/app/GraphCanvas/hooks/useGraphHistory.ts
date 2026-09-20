@@ -72,6 +72,30 @@ export function useGraphHistory({
         return;
       }
 
+      if (action.type === "PATCH_NODE") {
+        const node = nodesRef.current[action.id];
+        if (
+          node &&
+          (node.type === "response" || node.type === "image-response")
+        ) {
+          const keys = Object.keys(action.patch);
+          const generationOnly = keys.every((key) =>
+            [
+              "value",
+              "error",
+              "status",
+              "reasoning",
+              "prompt",
+              "type",
+            ].includes(key)
+          );
+          if (generationOnly) {
+            dispatch(action);
+            return;
+          }
+        }
+      }
+
       const currentNodes = nodesRef.current;
       const currentHistory = historyRef.current;
       // Save current state to history before applying action
