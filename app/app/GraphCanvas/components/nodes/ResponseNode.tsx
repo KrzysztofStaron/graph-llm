@@ -7,6 +7,7 @@ import "katex/dist/katex.min.css";
 import { Check, Copy, X, Minimize2, Maximize2 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { PluggableList } from "unified";
+import LoadingState from "@/app/components/ui/LoadingState";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
@@ -322,11 +323,10 @@ export const ResponseNode = memo(
                 </div>
               </div>
             ) : isLoading ? (
-              <div className="flex items-center gap-3 text-white/70">
-                <div className="size-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-                <p className="text-sm font-mono">{reasoning ? "Generating response…" : "Reasoning…"}</p>
-
-              </div>
+              <LoadingState
+                label={reasoning ? "Generating response" : "Reasoning"}
+                variant="Drive"
+              />
             ) : isFailed ? (
               <div className="flex items-start gap-3 text-red-400">
                 <div className="size-4 mt-0.5 shrink-0">

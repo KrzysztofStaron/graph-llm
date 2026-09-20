@@ -5,6 +5,11 @@
   --background: rgb(10, 10, 10);
   --foreground: #ededed;
   --dark-bg: #050505;
+  --muted: rgb(18, 18, 18);
+  --ink: #ededed;
+  --ink-3: rgba(237, 237, 237, 0.45);
+  --tooltip-bg: #141414;
+  --tooltip-muted: rgba(237, 237, 237, 0.5);
 }
 
 @theme inline {
@@ -14,6 +19,9 @@
   --font-mono: var(--font-geist-mono);
   --font-universal-sans: var(--font-universal-sans);
   --color-dark-bg: var(--dark-bg);
+  --color-muted: var(--muted);
+  --color-ink: var(--ink);
+  --color-ink-3: var(--ink-3);
 }
 
 body {
@@ -117,4 +125,47 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+.shadow-overlay {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-loader-cell] {
+    animation: none !important;
+  }
+  .shimmer-label {
+    animation: none !important;
+  }
 }
