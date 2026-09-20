@@ -140,6 +140,12 @@ export function applyPredictedReplyType(args: {
   const live = args.nodesRef.current[args.nodeId] ?? args.nodesWithQuery[args.nodeId];
   if (!live) return undefined;
 
+  const generationStartedAt =
+    live.status === "streaming" &&
+    typeof live.generationStartedAt === "number"
+      ? live.generationStartedAt
+      : Date.now();
+
   const nextType = spawnNodeType(args.spawn);
   const patch =
     nextType === "response"
@@ -149,12 +155,14 @@ export function applyPredictedReplyType(args: {
           error: undefined,
           status: "streaming" as const,
           reasoning: undefined,
+          generationStartedAt,
         }
       : {
           type: "image-response" as const,
           value: "",
           error: undefined,
           status: "streaming" as const,
+          generationStartedAt,
         };
 
   args.treeManager.patchNode(args.nodeId, patch);
@@ -164,15 +172,65 @@ export function applyPredictedReplyType(args: {
   return updated;
 }
 
-export function createStreamingReplyNode(args: {
+/**
+ * Swap a still-streaming text reply to the Jev-predicted type.
+ * No-op for text, done/error nodes, or when the stream already set image bytes.
+ */
+export function applySpawnPrediction(args: {
+  nodeId: string;
   spawn: SpawnType;
+  parent: GraphNode;
+  treeManager: TreeManager;
+  nodesWithQuery: GraphNodes;
+  nodesRef: { current: GraphNodes };
+  nodeDimensionsRef: { current: NodeDimensions };
+}): string | undefined {
+  const live = args.nodesRef.current[args.nodeId] ?? args.nodesWithQuery[args.nodeId];
+  if (!live) return undefined;
+  if (live.status === "done" || live.status === "error") return undefined;
+
+  if (args.spawn === "image") {
+    if (live.type === "image-response" && live.value) return undefined;
+    applyPredictedReplyType({
+      nodeId: args.nodeId,
+      spawn: "image",
+      treeManager: args.treeManager,
+      nodesWithQuery: args.nodesWithQuery,
+      nodesRef: args.nodesRef,
+    });
+    scheduleAlignWhenPainted({
+      nodeId: args.nodeId,
+      parent: args.parent,
+      nodesRef: args.nodesRef,
+      nodeDimensionsRef: args.nodeDimensionsRef,
+      treeManager: args.treeManager,
+      nodesWithQuery: args.nodesWithQuery,
+    });
+    return undefined;
+  }
+
+  if (args.spawn === "youtube") {
+    const reply = args.nodesWithQuery[args.nodeId] ?? live;
+    return ensureYoutubeSkeleton({
+      responseNode: reply,
+      nodesWithQuery: args.nodesWithQuery,
+      nodeDimensionsRef: args.nodeDimensionsRef,
+      treeManager: args.treeManager,
+    });
+  }
+
+  return undefined;
+}
+
+export function createStreamingReplyNode(args: {
+  spawn?: SpawnType;
   parent: GraphNode;
   nodesWithQuery: GraphNodes;
   nodeDimensionsRef: { current: NodeDimensions };
   nodesRef: { current: GraphNodes };
   treeManager: TreeManager;
 }): { responseNode: GraphNode; responseNodeId: string } {
-  const replyType = spawnNodeType(args.spawn);
+  const replyType = spawnNodeType(args.spawn ?? "text");
   const replySize = getDefaultNodeDimensions(replyType);
   const callerDim =
     readDomNodeSize(args.parent.id) ??
@@ -198,7 +256,11 @@ export function createStreamingReplyNode(args: {
           ...createNode("response", freePos.x, freePos.y),
           parentIds: [args.parent.id],
         };
-  const streamingNode = { ...newNode, status: "streaming" as const };
+  const streamingNode = {
+    ...newNode,
+    status: "streaming" as const,
+    generationStartedAt: Date.now(),
+  };
   args.treeManager.addNode(streamingNode);
   args.treeManager.linkNodes(args.parent.id, newNode.id);
   args.nodesRef.current[streamingNode.id] = streamingNode;
@@ -277,6 +339,10 @@ export function ensureYoutubeSkeleton(args: {
     ...createNode("youtube", freePos.x, freePos.y),
     parentIds: [args.responseNode.id],
     status: "streaming" as const,
+    generationStartedAt:
+      typeof args.responseNode.generationStartedAt === "number"
+        ? args.responseNode.generationStartedAt
+        : Date.now(),
   };
   args.treeManager.addNode(youtubeNode);
   args.treeManager.linkNodes(args.responseNode.id, youtubeNode.id);

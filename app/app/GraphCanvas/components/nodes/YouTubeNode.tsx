@@ -92,7 +92,11 @@ export const YouTubeNode = memo(
               </div>
             ) : isLoading ? (
               <div className="space-y-3">
-                <LoadingState label="Finding video" variant="Drive" />
+                <LoadingState
+                  label="Finding video"
+                  startedAt={node.generationStartedAt}
+                  variant="Drive"
+                />
                 <div
                   className="relative w-full overflow-hidden rounded-xl bg-white/5"
                   style={{ paddingBottom: "56.25%" }}
@@ -129,6 +133,7 @@ export const YouTubeNode = memo(
       prev.node.explanation === next.node.explanation &&
       prev.node.error === next.node.error &&
       prev.node.status === next.node.status &&
+      prev.node.generationStartedAt === next.node.generationStartedAt &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected

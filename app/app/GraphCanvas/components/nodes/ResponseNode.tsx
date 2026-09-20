@@ -326,6 +326,7 @@ export const ResponseNode = memo(
             ) : isLoading ? (
               <LoadingState
                 label={reasoning ? "Generating response" : "Reasoning"}
+                startedAt={node.generationStartedAt}
                 variant="Drive"
               />
             ) : isFailed ? (
@@ -383,6 +384,7 @@ export const ResponseNode = memo(
       prev.node.reasoning === next.node.reasoning &&
       prev.node.error === next.node.error &&
       prev.node.status === next.node.status &&
+      prev.node.generationStartedAt === next.node.generationStartedAt &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected
