@@ -42,7 +42,13 @@ type RequestOptions = {
     allow_fallbacks?: boolean;
   };
   webSearchEnabled?: boolean;
+  reasoning?: {
+    effort?: "xhigh" | "high" | "medium" | "low" | "minimal" | "none";
+  };
 };
+
+/** OpenRouter/Grok default is `high`; use `low` to cut first-token latency. */
+export const DEFAULT_REASONING_EFFORT = "low" as const;
 
 export type PreparedChatRequest = {
   messages: ChatMessage[];
@@ -85,12 +91,16 @@ const serializeRequest = (
   const imageModel = resolveImageModelId(options?.imageModel);
   const backendImageModel =
     imageModel && !isOpenAIImageModel(imageModel) ? imageModel : undefined;
+  const reasoning = options?.reasoning ?? {
+    effort: DEFAULT_REASONING_EFFORT,
+  };
 
   return JSON.stringify({
     messages,
     ...(model && { model }),
     ...(backendImageModel && { imageModel: backendImageModel }),
     ...(options?.provider && { provider: options.provider }),
+    reasoning,
     ...(options?.webSearchEnabled && {
       plugins: [{ id: "web", engine: "native" }],
     }),
