@@ -482,12 +482,14 @@ export class aiService {
           } else if (isCorsError) {
             errorMsg = `CORS error: ${errorMessage}. Payload size: ${payloadSizeKB}KB. This may indicate the request was blocked due to size limits or CORS policy.`;
           } else {
-            errorMsg = `Network error: ${errorMessage}. Cannot reach ${globals.graphLLMBackendUrl}. Payload size: ${payloadSizeKB}KB`;
+            errorMsg = `The browser blocked the request to ${globals.graphLLMBackendUrl}. If this is CORS, this page origin is not on the API allow list. ${errorMessage}. Payload size: ${payloadSizeKB}KB`;
           }
           
           const networkError = new ChatRequestError(
             errorMsg,
-            extractedStatus !== 413,
+            extractedStatus !== undefined &&
+              extractedStatus !== 413 &&
+              RETRYABLE_HTTP_STATUSES.has(extractedStatus),
             extractedStatus
           );
           logData.error = networkError.message;
