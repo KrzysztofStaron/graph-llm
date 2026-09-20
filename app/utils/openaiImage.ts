@@ -1,3 +1,5 @@
+import { throwIfAborted } from "./requestAbort";
+
 export const OPENAI_IMAGE_MODELS = ["gpt-image-1", "gpt-image-1-mini"] as const;
 
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
@@ -53,11 +55,18 @@ export async function generateImageOnClient(params: {
   prompt: string;
   model?: string;
   images: string[];
+  signal?: AbortSignal;
 }): Promise<ImageGenerationResult> {
+  throwIfAborted(params.signal);
   const response = await fetch("/api/generate-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      prompt: params.prompt,
+      model: params.model,
+      images: params.images,
+    }),
+    signal: params.signal,
   });
 
   const data: unknown = await response.json();
