@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { GraphNode, GraphNodes } from "../types/GraphCanvas.types";
-import { createNode, TreeManager } from "../interfaces/TreeManager";
-import {
-  getDefaultNodeDimensions,
-  hasRenderableContent,
-  placeCenteredBelowOrForce,
-} from "../utils/placement";
+import { TreeManager } from "../interfaces/TreeManager";
 import { imageHasLayoutSize } from "../utils/imageLayoutReady";
 import { aiService } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
@@ -17,13 +12,13 @@ import {
   isAbortError,
 } from "../utils/requestAbort";
 import { estimateSpawnOrText } from "../utils/estimateSpawn";
+import { ensureFollowUpInput } from "./ensureFollowUpInput";
 import {
   applyPredictedReplyType,
+  applySpawnPrediction,
   commitAlignedNode,
   createStreamingReplyNode,
-  ensureYoutubeSkeleton,
   fillYoutubeNodes,
-  readDomNodeSize,
   scheduleAlignWhenPainted,
 } from "./spawnPredictedNode";
 
@@ -128,20 +123,18 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       };
       treeManager.patchNode(caller.id, { value: query });
 
-      const spawn = await estimateSpawnOrText({ prompt: query });
-      logData.predictedSpawn = spawn;
-
       let responseNodeId: string;
       let responseNode: GraphNode;
       let youtubeSkeletonId: string | undefined;
 
+      // Timed text loader first; Jev may swap the node type while streaming.
       if (existingResponseNodeId) {
         responseNodeId = existingResponseNodeId;
         abortStream(responseNodeId);
         if (!nodesRef.current[responseNodeId]) return;
         const patched = applyPredictedReplyType({
           nodeId: responseNodeId,
-          spawn,
+          spawn: "text",
           treeManager,
           nodesWithQuery,
           nodesRef,
@@ -158,7 +151,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         });
       } else {
         const created = createStreamingReplyNode({
-          spawn,
+          spawn: "text",
           parent: currentCaller,
           nodesWithQuery,
           nodeDimensionsRef,
@@ -167,17 +160,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         });
         responseNodeId = created.responseNodeId;
         responseNode = created.responseNode;
-      }
-
-      if (spawn === "youtube") {
-        youtubeSkeletonId = ensureYoutubeSkeleton({
-          responseNode,
-          nodesWithQuery,
-          nodeDimensionsRef,
-          treeManager,
-        });
-        const refreshed = nodesWithQuery[responseNodeId];
-        if (refreshed) responseNode = refreshed;
       }
 
       const streamController = new AbortController();
@@ -192,6 +174,23 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
       logData.isNewNode = !existingResponseNodeId;
       logData.model = selectedModel;
 
+      const spawnTask = estimateSpawnOrText({
+        prompt: query,
+        signal: streamController.signal,
+      }).then((spawn) => {
+        logData.predictedSpawn = spawn;
+        youtubeSkeletonId = applySpawnPrediction({
+          nodeId: responseNodeId,
+          spawn,
+          parent: currentCaller,
+          treeManager,
+          nodesWithQuery,
+          nodesRef,
+          nodeDimensionsRef,
+        });
+        return spawn;
+      });
+
       let mainChunkCount = 0;
       const result = await aiService
         .streamChat(
@@ -199,12 +198,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           (response) => {
             mainChunkCount++;
             if (!nodesRef.current[responseNodeId]) return;
+            const live = nodesWithQuery[responseNodeId];
             treeManager.patchNode(responseNodeId, {
               value: response,
               error: undefined,
               status: "streaming",
+              generationStartedAt: live?.generationStartedAt,
             });
-            const live = nodesWithQuery[responseNodeId];
             if (live) {
               nodesWithQuery[responseNodeId] = {
                 ...live,
@@ -229,13 +229,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               `Input response ${responseNodeId.substring(0, 8)}`,
               { prompt }
             );
+            const live = nodesWithQuery[responseNodeId];
             treeManager.patchNode(responseNodeId, {
               type: "image-response",
               value: "",
               error: undefined,
               status: "streaming",
+              generationStartedAt: live?.generationStartedAt,
             });
-            const live = nodesWithQuery[responseNodeId];
             if (live) {
               nodesWithQuery[responseNodeId] = {
                 ...live,
@@ -271,6 +272,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
               explanation,
               status: "streaming",
               error: undefined,
+              generationStartedAt: live.generationStartedAt,
             });
             nodesWithQuery[youtubeSkeletonId] = {
               ...live,
@@ -303,6 +305,8 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           }
           return null;
         });
+
+      await spawnTask;
 
       abortByResponseIdRef.current.delete(responseNodeId);
       if (result === "aborted" || !nodesRef.current[responseNodeId]) return;
@@ -395,39 +399,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         treeManager,
       });
 
-      const finishedNode = nodesRef.current[responseNodeId];
-      if (!finishedNode) return;
-      const alreadyHasFollowUp =
-        finishedNode.childrenIds.some(
-          (childId) => nodesRef.current[childId]?.type === "input"
-        ) ||
-        Object.values(nodesWithQuery).some(
-          (node) =>
-            node.type === "input" && node.parentIds.includes(responseNodeId)
-        );
-      if (hasRenderableContent(finishedNode) && !alreadyHasFollowUp) {
-        const responseDim =
-          readDomNodeSize(responseNodeId) ??
-          nodeDimensionsRef.current[responseNodeId];
-        const inputSize = getDefaultNodeDimensions("input");
-        const freePos = placeCenteredBelowOrForce({
-          parentX: finishedNode.x,
-          parentY: finishedNode.y,
-          parentWidth: responseDim?.width ?? 0,
-          parentHeight: responseDim?.height ?? 0,
-          childWidth: inputSize.width,
-          childHeight: inputSize.height,
-          nodes: nodesWithQuery,
-          dimensions: nodeDimensionsRef.current,
-        });
-        const newInputNode = {
-          ...createNode("input", freePos.x, freePos.y),
-          parentIds: [responseNodeId],
-        };
-        treeManager.addNode(newInputNode);
-        treeManager.linkNodes(responseNodeId, newInputNode.id);
-        nodesWithQuery[newInputNode.id] = newInputNode;
-      }
+      if (!nodesRef.current[responseNodeId]) return;
+      ensureFollowUpInput({
+        responseNodeId,
+        nodesWithQuery,
+        nodesRef,
+        nodeDimensionsRef,
+        treeManager,
+      });
 
       await handleCascadeUpdate(responseNodeId, nodesWithQuery);
       logger.info(

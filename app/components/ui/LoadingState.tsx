@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const chevron = Array.from({ length: 9 }, (_, i) => {
   const r = Math.floor(i / 3),
@@ -50,15 +50,40 @@ function LoaderGrid({ delays, dur, round }: GridPattern) {
   );
 }
 
-function useElapsed() {
-  const [ds, setDs] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setDs((d) => d + 1), 100);
-    return () => clearInterval(t);
-  }, []);
-  const total = ds / 10;
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, ms) / 1000;
   if (total < 60) return `${total.toFixed(1)}s`;
   return `${Math.floor(total / 60)}m ${(total % 60).toFixed(1)}s`;
+}
+
+/**
+ * Elapsed time since `startedAt` (request start). Falls back to mount time
+ * when startedAt is missing so remounts with the same startedAt continue.
+ */
+export function useElapsed(startedAt?: number): string {
+  const mountRef = useRef(Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, []);
+  const origin = startedAt ?? mountRef.current;
+  return formatElapsed(now - origin);
+}
+
+export function ElapsedCounter({
+  startedAt,
+  className,
+}: {
+  startedAt?: number;
+  className?: string;
+}) {
+  const elapsed = useElapsed(startedAt);
+  return (
+    <span className={className ?? "font-mono text-[12px] text-ink-3 tabular-nums"}>
+      {elapsed}
+    </span>
+  );
 }
 
 function isPatternName(variant: LoaderVariant): variant is PatternName {
@@ -69,18 +94,24 @@ export default function LoadingState({
   label,
   variant = "Drive",
   videoSrc = "https://95dnc2a95qgwt9ff.public.blob.vercel-storage.com/subway-surfers.mp4",
+  startedAt,
+  counterOnly = false,
 }: {
   label?: string;
   variant?: LoaderVariant;
   videoSrc?: string;
+  /** Epoch ms when the request started; keeps the counter continuous across remounts. */
+  startedAt?: number;
+  /** Show only the pixel grid + elapsed counter (no shimmer label). */
+  counterOnly?: boolean;
 }) {
-  const elapsed = useElapsed();
+  const elapsed = useElapsed(startedAt);
   const surfer = variant === "Surfer";
   const resolvedLabel = label ?? (surfer ? "Subway surfing" : "Churning");
   const [videoOk, setVideoOk] = useState(true);
   const pattern = isPatternName(variant) ? PATTERNS[variant] : PATTERNS.Drive;
 
-  const labelEl = (
+  const labelEl = counterOnly ? null : (
     <span
       className="shimmer-label bg-clip-text text-[13px] font-medium text-transparent"
       style={{

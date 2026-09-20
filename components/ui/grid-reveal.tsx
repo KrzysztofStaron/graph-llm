@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ export type GridRevealProps = Omit<ComponentProps<"div">, "children"> & {
   alt?: string;
   progress?: number;
   aspect?: number;
-  caption?: string;
+  caption?: ReactNode;
   estimatedDuration?: number;
   onRevealComplete?: () => void;
   onError?: () => void;
@@ -645,7 +645,7 @@ export function GridReveal({
         >
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
-              key={caption}
+              key="status-caption"
               layout="position"
               className={cn(
                 "block whitespace-nowrap text-[11px] font-medium leading-6",

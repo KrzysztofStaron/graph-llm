@@ -57,14 +57,15 @@ export async function cascadeUpdateDescendants({
         const existing = currentNodes[responseNode.id];
         if (!existing || !isNodeLive(responseNode.id)) return;
 
-        const spawn = await estimateSpawnOrText({
-          prompt: inputParent.value,
-        });
-
         const nodesRef = { current: currentNodes };
+
+        const controller = new AbortController();
+        abortByNodeId.set(responseNode.id, controller);
+
+        // Timed text loader first; Jev may swap the type while the stream runs.
         applyPredictedReplyType({
           nodeId: responseNode.id,
-          spawn,
+          spawn: "text",
           treeManager,
           nodesWithQuery: currentNodes,
           nodesRef,
@@ -86,12 +87,26 @@ export async function cascadeUpdateDescendants({
           nodeId: responseNode.id.substring(0, 8),
           inputParentId: inputParentId.substring(0, 8),
           model: selectedModel,
-          predictedSpawn: spawn,
         };
 
         let chunkCount = 0;
-        const controller = new AbortController();
-        abortByNodeId.set(responseNode.id, controller);
+
+        const spawnTask = estimateSpawnOrText({
+          prompt: inputParent.value,
+          signal: controller.signal,
+        }).then((spawn) => {
+          logData.predictedSpawn = spawn;
+          if (!isNodeLive(responseNode.id)) return spawn;
+          applyPredictedReplyType({
+            nodeId: responseNode.id,
+            spawn,
+            treeManager,
+            nodesWithQuery: currentNodes,
+            nodesRef,
+          });
+          return spawn;
+        });
+
         const result = await aiService
           .streamChat(
             TreeManager.buildChatML(currentNodes, inputParent),
@@ -134,6 +149,7 @@ export async function cascadeUpdateDescendants({
                 value: "",
                 error: undefined,
                 status: "streaming",
+                generationStartedAt: live?.generationStartedAt,
               });
               if (live) {
                 currentNodes[responseNode.id] = {
@@ -180,6 +196,8 @@ export async function cascadeUpdateDescendants({
             }
             return null;
           });
+
+        await spawnTask;
 
         abortByNodeId.delete(responseNode.id);
         if (result === "aborted" || !isNodeLive(responseNode.id)) return;

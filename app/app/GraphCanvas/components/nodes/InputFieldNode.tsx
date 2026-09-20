@@ -71,6 +71,11 @@ export const InputFieldNode = memo(
       setQuery(trimmedQuery);
       setMode(Mode.DISPLAY);
       onInputSubmit(trimmedQuery);
+      // Clear even when node.value is unchanged (edit → resubmit same text),
+      // otherwise the sync effect never runs and submit stays locked.
+      queueMicrotask(() => {
+        isSubmittingRef.current = false;
+      });
     };
 
     const hasInputDescendant = TreeManager.hasDescendant(
@@ -96,6 +101,7 @@ export const InputFieldNode = memo(
     };
 
   const handleEdit = useCallback(() => {
+    isSubmittingRef.current = false;
     setMode(Mode.ASK);
   }, []);
 

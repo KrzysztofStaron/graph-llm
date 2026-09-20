@@ -5,6 +5,7 @@ import { prepareChatRequest } from "../utils/chatPayload";
 import {
   collectImageUrls,
   generateImageOnClient,
+  isOpenAIImageModel,
 } from "../utils/openaiImage";
 
 // Content types for multi-modal messages
@@ -591,6 +592,15 @@ export class aiService {
           }
 
           if (!imageResponse.prompt) {
+            if (isOpenAIImageModel(options?.imageModel)) {
+              return {
+                success: false,
+                error: new ChatRequestError(
+                  "Missing image prompt for OpenAI generation",
+                  true
+                ),
+              };
+            }
             return {
               success: true,
               data: {

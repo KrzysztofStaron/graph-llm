@@ -21,6 +21,8 @@ export interface BaseNode {
   pinned?: boolean;
   error?: string;
   status?: GenerationStatus;
+  /** Epoch ms when the current generation request started. */
+  generationStartedAt?: number;
 }
 
 export interface ResponseNode extends BaseNode {

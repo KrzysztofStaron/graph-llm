@@ -1,6 +1,7 @@
 import { ImageResponseNode as ImageResponseNodeType } from "@/app/types/graph";
 import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 import GridReveal from "@/components/ui/grid-reveal";
+import { ElapsedCounter } from "@/app/components/ui/LoadingState";
 import { memo, useContext, useLayoutEffect, useState, useEffect } from "react";
 
 type ImageResponseNodeProps = {
@@ -119,7 +120,12 @@ export const ImageResponseNode = memo(
               <GridReveal
                 src={src}
                 alt={node.prompt || "Generated image"}
-                caption={src ? "Finishing…" : "Processing image…"}
+                caption={
+                  <ElapsedCounter
+                    startedAt={node.generationStartedAt}
+                    className="font-mono text-[11px] tabular-nums text-white/75"
+                  />
+                }
                 estimatedDuration={18000}
                 aspect={1}
                 onRevealComplete={() => setIsLoaded(true)}
@@ -204,6 +210,7 @@ export const ImageResponseNode = memo(
       prev.node.error === next.node.error &&
       prev.node.status === next.node.status &&
       prev.node.prompt === next.node.prompt &&
+      prev.node.generationStartedAt === next.node.generationStartedAt &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected

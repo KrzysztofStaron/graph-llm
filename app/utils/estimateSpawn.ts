@@ -1,7 +1,7 @@
 import type { SpawnType } from "./parseSpawnChoice";
 import { isSpawnType } from "./parseSpawnChoice";
 
-export const ESTIMATE_SPAWN_TIMEOUT_MS = 400;
+export const ESTIMATE_SPAWN_TIMEOUT_MS = 5000;
 
 export type EstimateSpawnResult =
   | { ok: true; type: SpawnType; probabilities?: Record<SpawnType, number> }

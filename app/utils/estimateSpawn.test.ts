@@ -69,6 +69,6 @@ describe("estimateSpawnOrText", () => {
       timeoutMs: 10,
     });
     assert.equal(type, "text");
-    assert.equal(ESTIMATE_SPAWN_TIMEOUT_MS, 400);
+    assert.equal(ESTIMATE_SPAWN_TIMEOUT_MS, 5000);
   });
 });
