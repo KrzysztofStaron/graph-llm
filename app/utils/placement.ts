@@ -58,8 +58,11 @@ export function getDefaultNodeDimensions(nodeType: GraphNode["type"]): {
 export function getNodeRect(
   node: GraphNode,
   dimensions: NodeDimensions
-): Rectangle {
-  const dim = dimensions[node.id] || getDefaultNodeDimensions(node.type);
+): Rectangle | undefined {
+  const dim = dimensions[node.id];
+  if (!dim) {
+    return undefined;
+  }
   return {
     x: node.x,
     y: node.y,
@@ -110,9 +113,16 @@ export function findFreePosition(
   const { gapPx, gridStepPx, maxSearchRings } = config;
 
   // Build list of existing rectangles
-  const existingRects = Object.values(existingNodes).map((node) =>
-    getNodeRect(node, dimensions)
-  );
+  const existingRects = Object.values(existingNodes).map((node) => {
+    return (
+      getNodeRect(node, dimensions) ?? {
+        x: node.x,
+        y: node.y,
+        width: 1,
+        height: 1,
+      }
+    );
+  });
 
   // Helper to check if a position is free
   const isPositionFree = (x: number, y: number): boolean => {
@@ -239,4 +249,292 @@ export function findFreePosition(
     "findFreePosition: Could not find free spot after max search rings, using target position"
   );
   return { x: targetX, y: targetY };
+}
+
+export const CHILD_BELOW_PARENT_GAP = 35;
+
+export const PLACE_FORCE_CONFIG: LayoutConfig = {
+  ...DEFAULT_LAYOUT_CONFIG,
+  gapPx: CHILD_BELOW_PARENT_GAP,
+};
+
+export function centeredBelowParent(args: {
+  parentX: number;
+  parentY: number;
+  parentWidth: number;
+  parentHeight: number;
+  childWidth: number;
+}): { x: number; y: number } {
+  return {
+    x: args.parentX + args.parentWidth / 2 - args.childWidth / 2,
+    y: args.parentY + args.parentHeight + CHILD_BELOW_PARENT_GAP,
+  };
+}
+
+export function parkBelowParent(args: {
+  parentX: number;
+  parentY: number;
+  parentHeight: number;
+  parentWidth?: number;
+  childWidth?: number;
+}): { x: number; y: number } {
+  return centeredBelowParent({
+    parentX: args.parentX,
+    parentY: args.parentY,
+    parentWidth: args.parentWidth ?? 0,
+    parentHeight: args.parentHeight,
+    childWidth: args.childWidth ?? 1,
+  });
+}
+
+export function centerUnderParentDx(args: {
+  parentX: number;
+  parentWidth: number;
+  childX: number;
+  childWidth: number;
+}): number {
+  return args.parentX + args.parentWidth / 2 - args.childWidth / 2 - args.childX;
+}
+
+export function hasRenderableContent(node: GraphNode): boolean {
+  return node.value.trim().length > 0;
+}
+
+function omitNodes(nodes: GraphNodes, ignore: ReadonlySet<string>): GraphNodes {
+  const next: GraphNodes = {};
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!ignore.has(id)) {
+      next[id] = node;
+    }
+  }
+  return next;
+}
+
+function withPositions(
+  nodes: GraphNodes,
+  pos: Record<string, { x: number; y: number }>
+): GraphNodes {
+  const next: GraphNodes = {};
+  for (const node of Object.values(nodes)) {
+    const placed = pos[node.id];
+    next[node.id] = placed ? { ...node, x: placed.x, y: placed.y } : node;
+  }
+  return next;
+}
+
+export function placeCenteredBelowOrForce(args: {
+  parentX: number;
+  parentY: number;
+  parentWidth: number;
+  parentHeight: number;
+  childWidth: number;
+  childHeight: number;
+  nodes: GraphNodes;
+  dimensions: NodeDimensions;
+  ignoreIds?: readonly string[];
+}): { x: number; y: number } {
+  const desired = centeredBelowParent(args);
+  const obstacles = Object.values(
+    omitNodes(args.nodes, new Set(args.ignoreIds ?? []))
+  ).flatMap((node) => {
+    const rect = getNodeRect(node, args.dimensions);
+    return rect ? [rect] : [];
+  });
+  const fits = (x: number, y: number) => {
+    const candidate = {
+      x,
+      y,
+      width: args.childWidth,
+      height: args.childHeight,
+    };
+    return obstacles.every(
+      (rect) => !rectanglesIntersect(candidate, rect, PLACE_FORCE_CONFIG.gapPx)
+    );
+  };
+  if (fits(desired.x, desired.y)) {
+    return desired;
+  }
+  const { gridStepPx, maxSearchRings } = PLACE_FORCE_CONFIG;
+  for (let ring = 1; ring <= maxSearchRings; ring++) {
+    const y = desired.y + gridStepPx * ring;
+    if (fits(desired.x, y)) {
+      return { x: desired.x, y };
+    }
+  }
+  return desired;
+}
+
+function layoutParentOf(
+  node: GraphNode,
+  nodes: GraphNodes
+): GraphNode | undefined {
+  if (
+    node.type === "response" ||
+    node.type === "image-response" ||
+    node.type === "image-context"
+  ) {
+    const parentId =
+      node.parentIds.find((id) => nodes[id]?.type === "input") ?? node.parentIds[0];
+    return parentId ? nodes[parentId] : undefined;
+  }
+  if (node.type === "input") {
+    const parentId = node.parentIds.find((id) => {
+      const parent = nodes[id];
+      return parent?.type === "response" || parent?.type === "image-response";
+    });
+    return parentId ? nodes[parentId] : undefined;
+  }
+  if (node.type === "youtube") {
+    const parentId = node.parentIds[0];
+    return parentId ? nodes[parentId] : undefined;
+  }
+  return undefined;
+}
+
+function stackHeightBelowParent(args: {
+  parent: GraphNode;
+  parentHeight: number;
+  nodes: GraphNodes;
+  dimensions: NodeDimensions;
+  pos: Record<string, { x: number; y: number }>;
+}): number {
+  let height = args.parentHeight;
+  const parentPos = args.pos[args.parent.id];
+  if (!parentPos) {
+    return height;
+  }
+  for (const id of args.parent.childrenIds) {
+    const sibling = args.nodes[id];
+    const dim = args.dimensions[id];
+    const siblingPos = args.pos[id];
+    if (!sibling || sibling.type !== "youtube" || !dim || !siblingPos) {
+      continue;
+    }
+    height = Math.max(height, siblingPos.y + dim.height - parentPos.y);
+  }
+  return height;
+}
+
+function placeNodeUnderParent(args: {
+  node: GraphNode;
+  width: number;
+  height: number;
+  nodes: GraphNodes;
+  dimensions: NodeDimensions;
+  pos: Record<string, { x: number; y: number }>;
+}) {
+  if (args.node.pinned) {
+    return;
+  }
+  const parent = layoutParentOf(args.node, args.nodes);
+  const parentPos = parent ? args.pos[parent.id] : undefined;
+  const parentDim = parent ? args.dimensions[parent.id] : undefined;
+  if (!parent || !parentPos || !parentDim) {
+    return;
+  }
+  const parentHeight =
+    args.node.type === "input"
+      ? stackHeightBelowParent({
+          parent,
+          parentHeight: parentDim.height,
+          nodes: args.nodes,
+          dimensions: args.dimensions,
+          pos: args.pos,
+        })
+      : parentDim.height;
+  const placed = placeCenteredBelowOrForce({
+    parentX: parentPos.x,
+    parentY: parentPos.y,
+    parentWidth: parentDim.width,
+    parentHeight,
+    childWidth: args.width,
+    childHeight: args.height,
+    nodes: withPositions(args.nodes, args.pos),
+    dimensions: args.dimensions,
+    ignoreIds: [args.node.id, ...args.node.childrenIds],
+  });
+  args.pos[args.node.id] = placed;
+}
+
+function netMoves(
+  nodes: GraphNodes,
+  pos: Record<string, { x: number; y: number }>
+): Array<{ nodeId: string; dx: number; dy: number }> {
+  const moves: Array<{ nodeId: string; dx: number; dy: number }> = [];
+  for (const node of Object.values(nodes)) {
+    const next = pos[node.id];
+    if (!next) {
+      continue;
+    }
+    const dx = next.x - node.x;
+    const dy = next.y - node.y;
+    if (dx !== 0 || dy !== 0) {
+      moves.push({ nodeId: node.id, dx, dy });
+    }
+  }
+  return moves;
+}
+
+export function layoutMovesForMeasuredNode(args: {
+  node: GraphNode;
+  width: number;
+  height: number;
+  nodes: GraphNodes;
+  dimensions: NodeDimensions;
+}): Array<{ nodeId: string; dx: number; dy: number }> {
+  const { node, width, height, nodes } = args;
+  const dimensions = {
+    ...args.dimensions,
+    [node.id]: { width, height },
+  };
+  const pos: Record<string, { x: number; y: number }> = {};
+  for (const current of Object.values(nodes)) {
+    pos[current.id] = { x: current.x, y: current.y };
+  }
+
+  placeNodeUnderParent({ node, width, height, nodes, dimensions, pos });
+
+  const isContentReply =
+    (node.type === "response" || node.type === "image-response") &&
+    hasRenderableContent(node);
+  if (isContentReply) {
+    for (const childId of node.childrenIds) {
+      const child = nodes[childId];
+      const childDim = dimensions[childId];
+      if (!child || child.type !== "input" || !childDim) {
+        continue;
+      }
+      placeNodeUnderParent({
+        node: child,
+        width: childDim.width,
+        height: childDim.height,
+        nodes,
+        dimensions,
+        pos,
+      });
+    }
+  }
+
+  if (node.type === "youtube") {
+    const parent = layoutParentOf(node, nodes);
+    if (parent) {
+      for (const childId of parent.childrenIds) {
+        const child = nodes[childId];
+        const childDim = dimensions[childId];
+        if (!child || child.type !== "input" || !childDim) {
+          continue;
+        }
+        placeNodeUnderParent({
+          node: child,
+          width: childDim.width,
+          height: childDim.height,
+          nodes,
+          dimensions,
+          pos,
+        });
+      }
+    }
+  }
+
+  return netMoves(nodes, pos);
 }

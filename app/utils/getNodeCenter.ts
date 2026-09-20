@@ -2,29 +2,12 @@ import { GraphNode, NodeDimensions } from "../types/";
 
 export const getNodeCenter = (node: GraphNode, dimensions: NodeDimensions) => {
   const dim = dimensions[node.id];
-  const width =
-    dim?.width ??
-    (node.type === "context"
-      ? 176
-      : node.type === "image-context"
-      ? 464
-      : node.type === "document"
-      ? 176
-      : 400);
-  const height =
-    dim?.height ??
-    (node.type === "context"
-      ? 96
-      : node.type === "image-context"
-      ? 384
-      : node.type === "document"
-      ? 96
-      : node.type === "input"
-      ? 120
-      : 80);
+  if (!dim) {
+    return { x: node.x, y: node.y };
+  }
 
   return {
-    x: node.x + width / 2,
-    y: node.y + height / 2,
+    x: node.x + dim.width / 2,
+    y: node.y + dim.height / 2,
   };
 };

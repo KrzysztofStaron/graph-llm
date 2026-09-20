@@ -224,7 +224,6 @@ export const ResponseNode = memo(
         style={{
           maxWidth: isCollapsed ? "300px" : "808px",
           minWidth: "200px",
-          transition: "max-width 0.3s ease",
         }}
       >
         <div

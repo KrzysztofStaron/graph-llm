@@ -8,6 +8,7 @@ import {
 } from "../../types/GraphCanvas.types";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useCallback,
@@ -16,7 +17,7 @@ import {
   forwardRef,
   createContext,
 } from "react";
-import { resolveLocalCollisions } from "../../utils/collisionResolver";
+import { layoutMovesAfterResize } from "../../utils/nodeResizeLayout";
 import { graphReducer } from "../../interfaces/TreeManager";
 import type { GraphAction, TreeManager } from "../../interfaces/TreeManager";
 import EdgesRenderer from "./components/EdgesRenderer";
@@ -27,7 +28,6 @@ import { useNodeParticles } from "./hooks/useNodeParticles";
 import { useGraphHistory } from "./hooks/useGraphHistory";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { usePointerGestures } from "./hooks/usePointerGestures";
-import { getDefaultNodeDimensions } from "../../utils/placement";
 import logger from "../../utils/logger";
 
 export interface GraphCanvasRef {
@@ -63,8 +63,10 @@ interface GraphCanvasProps {
 
 export const CanvasContext = createContext<{
   nodes: GraphNodes;
+  reportNodeSize: (nodeId: string, width: number, height: number) => void;
 }>({
   nodes: {},
+  reportNodeSize: () => {},
 });
 
 export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
@@ -88,6 +90,9 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       nodesRef.current = graphReducer(nodesRef.current, action);
       dispatch(action);
     }, []);
+    useLayoutEffect(() => {
+      nodesRef.current = nodes;
+    }, [nodes]);
 
     // Node dimensions state
     const [nodeDimensions, setNodeDimensions] = useReducer(
@@ -191,11 +196,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       ]
     );
 
-    // Update refs when state changes
-    useEffect(() => {
-      nodesRef.current = nodes;
-    }, [nodes]);
-
     const nodesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastChangeTimeRef = useRef<number>(0);
     const rapidChangeCountRef = useRef<number>(0);
@@ -272,10 +272,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       };
     }, [nodes]);
 
-    useEffect(() => {
-      nodeDimensionsRef.current = nodeDimensions;
-    }, [nodeDimensions]);
-
     // Center the starting input node on initial load
     const hasCenteredInitialNodeRef = useRef(false);
     useEffect(() => {
@@ -324,50 +320,73 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
 
     const updateNodeDimension = useCallback(
       (nodeId: string, width: number, height: number) => {
-        setLocalNodeDimensions((prev) => {
-          const existing = prev[nodeId];
+        const existing = nodeDimensionsRef.current[nodeId];
+        const sizeChanged =
+          !existing || existing.width !== width || existing.height !== height;
+        const updated = sizeChanged
+          ? { ...nodeDimensionsRef.current, [nodeId]: { width, height } }
+          : nodeDimensionsRef.current;
+
+        if (sizeChanged) {
+          nodeDimensionsRef.current = updated;
+          setLocalNodeDimensions(updated);
+          setNodeDimensions(updated);
+        }
+
+        if (width <= 0 || height <= 0 || isUndoingRef.current || !onRequestNodeMove) {
+          return;
+        }
+
+        const snapshot = nodesRef.current;
+        const liveNode = snapshot[nodeId];
+        if (!liveNode) {
+          return;
+        }
+
+        const dimensions = { ...nodeDimensionsRef.current };
+        for (const parentId of liveNode.parentIds) {
+          const parentEl = contentRef.current?.querySelector(
+            `[data-node-id="${parentId}"]`
+          );
           if (
-            existing &&
-            existing.width === width &&
-            existing.height === height
+            parentEl instanceof HTMLElement &&
+            parentEl.offsetWidth > 0 &&
+            parentEl.offsetHeight > 0
           ) {
-            return prev;
+            dimensions[parentId] = {
+              width: parentEl.offsetWidth,
+              height: parentEl.offsetHeight,
+            };
           }
-          const updated = { ...prev, [nodeId]: { width, height } };
+        }
 
-          // Defer parent state updates and side effects to avoid React warnings
-          requestAnimationFrame(() => {
-            setNodeDimensions(updated);
-
-            // Skip collision resolution during undo operations to prevent unwanted node movement
-            if (isUndoingRef.current) {
-              return;
-            }
-
-            const node = nodes[nodeId];
-            if (node?.type === "response" && existing && onRequestNodeMove) {
-              // If width changed, move node left by half of the change
-              if (width !== existing.width) {
-                const widthChange = width - existing.width;
-                const dx = -widthChange / 6;
-                onRequestNodeMove(nodeId, dx, 0);
-              }
-
-              // If this is a response node that grew, trigger collision resolution
-              if (height > existing.height + 5 || width > existing.width + 5) {
-                // Run collision resolution multiple times for more aggressive push
-                const moves = resolveLocalCollisions(nodeId, nodes, updated);
-                for (const move of moves) {
-                  onRequestNodeMove(move.nodeId, move.dx, move.dy);
-                }
-              }
-            }
-          });
-
-          return updated;
+        const moves = layoutMovesAfterResize({
+          node: liveNode,
+          width,
+          height,
+          nodes: snapshot,
+          dimensions,
         });
+        for (const move of moves) {
+          const origin = snapshot[move.nodeId];
+          const live = nodesRef.current[move.nodeId];
+          if (!origin || !live) {
+            continue;
+          }
+          const x = origin.x + move.dx;
+          const y = origin.y + move.dy;
+          if (x === live.x && y === live.y) {
+            continue;
+          }
+          treeManager.patchNode(move.nodeId, { x, y });
+          nodesRef.current[move.nodeId] = {
+            ...live,
+            x,
+            y,
+          };
+        }
       },
-      [onRequestNodeMove, nodes, isUndoingRef]
+      [treeManager, isUndoingRef]
     );
 
     // Track node appear/delete particle effects
@@ -390,53 +409,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onPanCanvas: panCanvas,
     });
 
-    // Set up ResizeObserver to track all node dimensions
-    useEffect(() => {
-      const container = contentRef.current;
-      if (!container) return;
-
-      const observer = new ResizeObserver((entries) => {
-        entries.forEach((entry) => {
-          const element = entry.target as HTMLElement;
-          const nodeId = element.dataset.nodeId;
-          if (nodeId) {
-            updateNodeDimension(
-              nodeId,
-              element.offsetWidth,
-              element.offsetHeight
-            );
-          }
-        });
-      });
-
-      // Use MutationObserver to detect when nodes are added/removed
-      const mutationObserver = new MutationObserver(() => {
-        const nodeElements =
-          container.querySelectorAll<HTMLElement>("[data-node-id]");
-        nodeElements.forEach((element) => {
-          observer.observe(element);
-        });
-      });
-
-      mutationObserver.observe(container, { childList: true, subtree: true });
-
-      // Initial observation of existing nodes
-      const nodeElements =
-        container.querySelectorAll<HTMLElement>("[data-node-id]");
-      nodeElements.forEach((element) => {
-        observer.observe(element);
-      });
-
-      return () => {
-        observer.disconnect();
-        mutationObserver.disconnect();
-      };
-      // contentRef is stable and doesn't need to be in deps
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [updateNodeDimension]);
-
     return (
-      <CanvasContext.Provider value={{ nodes }}>
+      <CanvasContext.Provider value={{ nodes, reportNodeSize: updateNodeDimension }}>
         <div className="relative w-full h-dvh overflow-hidden">
           <motion.div
             ref={viewportRef}

@@ -64,7 +64,7 @@ export const InputFieldNode = memo(
 
     const handleSubmit = () => {
       const trimmedQuery = query.trim();
-      if (trimmedQuery === "") return;
+      if (trimmedQuery === "" || isSubmittingRef.current) return;
 
       isSubmittingRef.current = true;
       setPreviousQuery(trimmedQuery);
@@ -116,7 +116,6 @@ export const InputFieldNode = memo(
     <div
       ref={containerRef}
       className="w-[400px] group"
-      data-node-id={node.id}
     >
         <div
           className={`relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20 transition-all duration-200 ${
@@ -215,7 +214,6 @@ export const InputFieldNode = memo(
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleSubmit();
                   }}
                 >
                   <ArrowUp strokeWidth={2} className="size-4" />

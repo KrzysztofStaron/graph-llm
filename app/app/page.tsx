@@ -166,12 +166,12 @@ const AppPageContent = () => {
   // AI chat hook
   const { onInputSubmit } = useAIChat({ graphCanvasRef });
 
-  const handleRequestNodeMove = (nodeId: string, dx: number, dy: number) => {
+  const handleRequestNodeMove = useCallback((nodeId: string, dx: number, dy: number) => {
     const treeManager = graphCanvasRef.current?.treeManager;
     if (treeManager) {
       treeManager.moveNode(nodeId, dx, dy);
     }
-  };
+  }, []);
 
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [tipsOpen, setTipsOpen] = useState(false);

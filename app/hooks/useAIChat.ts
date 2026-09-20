@@ -1,12 +1,152 @@
 import { useCallback, useEffect, useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
-import { GraphNode, GraphNodes } from "../types/GraphCanvas.types";
+import { GraphNode, GraphNodes, NodeDimensions } from "../types/GraphCanvas.types";
 import { createNode, TreeManager } from "../interfaces/TreeManager";
-import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import {
+  getDefaultNodeDimensions,
+  hasRenderableContent,
+  placeCenteredBelowOrForce,
+} from "../utils/placement";
 import { aiService } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
 import logger from "../utils/logger";
 import { cascadeUpdateDescendants } from "../utils/cascadeUpdate";
+
+function readDomNodeSize(nodeId: string): { width: number; height: number } | undefined {
+  const element = document.querySelector(`[data-node-id="${nodeId}"]`);
+  if (!(element instanceof HTMLElement)) {
+    return undefined;
+  }
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  if (width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return { width, height };
+}
+
+function alignChildUnderParent(args: {
+  child: GraphNode;
+  parentId: string;
+  nodes: GraphNodes;
+  dimensions: NodeDimensions;
+}): { node: GraphNode; dimensions: NodeDimensions } {
+  const parent = args.nodes[args.parentId];
+  const childDim = readDomNodeSize(args.child.id) ?? args.dimensions[args.child.id];
+  const parentDim = parent
+    ? (readDomNodeSize(parent.id) ?? args.dimensions[parent.id])
+    : undefined;
+  if (!parent || !childDim || !parentDim) {
+    return { node: args.child, dimensions: args.dimensions };
+  }
+  const dimensions = {
+    ...args.dimensions,
+    [args.child.id]: childDim,
+    [parent.id]: parentDim,
+  };
+  const placed = placeCenteredBelowOrForce({
+    parentX: parent.x,
+    parentY: parent.y,
+    parentWidth: parentDim.width,
+    parentHeight: parentDim.height,
+    childWidth: childDim.width,
+    childHeight: childDim.height,
+    nodes: args.nodes,
+    dimensions,
+    ignoreIds: [args.child.id, ...args.child.childrenIds],
+  });
+  return {
+    node: { ...args.child, x: placed.x, y: placed.y },
+    dimensions,
+  };
+}
+
+function commitAlignedNode(args: {
+  node: GraphNode;
+  parent: GraphNode;
+  nodesRef: { current: GraphNodes };
+  nodeDimensionsRef: { current: NodeDimensions };
+  treeManager: TreeManager;
+  nodesWithQuery: GraphNodes;
+}): GraphNode {
+  const current = args.nodesRef.current[args.node.id] ?? args.node;
+  const parent = args.nodesRef.current[args.parent.id] ?? args.parent;
+  const aligned = alignChildUnderParent({
+    child: current,
+    parentId: parent.id,
+    nodes: {
+      ...args.nodesRef.current,
+      [parent.id]: parent,
+      [current.id]: current,
+    },
+    dimensions: args.nodeDimensionsRef.current,
+  });
+  args.nodeDimensionsRef.current = aligned.dimensions;
+  args.treeManager.patchNode(args.node.id, {
+    x: aligned.node.x,
+    y: aligned.node.y,
+  });
+  args.nodesRef.current[args.node.id] = aligned.node;
+  args.nodesWithQuery[args.node.id] = aligned.node;
+  return aligned.node;
+}
+
+function imageHasLayoutSize(nodeId: string): boolean {
+  const img = document.querySelector(`[data-node-id="${nodeId}"] img`);
+  const shell = document.querySelector(`[data-node-id="${nodeId}"]`);
+  if (!(img instanceof HTMLImageElement) || !(shell instanceof HTMLElement)) {
+    return false;
+  }
+  if (!img.complete || img.naturalWidth <= 0) {
+    return false;
+  }
+  const paintedWidth = Math.min(img.naturalWidth, 606);
+  return img.offsetWidth >= paintedWidth - 1 && shell.offsetWidth >= paintedWidth - 1;
+}
+
+function scheduleAlignWhenPainted(args: {
+  nodeId: string;
+  parent: GraphNode;
+  nodesRef: { current: GraphNodes };
+  nodeDimensionsRef: { current: NodeDimensions };
+  treeManager: TreeManager;
+  nodesWithQuery: GraphNodes;
+}) {
+  let attempts = 0;
+  const tick = () => {
+    attempts += 1;
+    const current = args.nodesRef.current[args.nodeId];
+    const size = readDomNodeSize(args.nodeId);
+    if (current && size && size.width > 20) {
+      commitAlignedNode({
+        node: current,
+        parent: args.parent,
+        nodesRef: args.nodesRef,
+        nodeDimensionsRef: args.nodeDimensionsRef,
+        treeManager: args.treeManager,
+        nodesWithQuery: args.nodesWithQuery,
+      });
+    }
+    if (attempts < 30) {
+      requestAnimationFrame(tick);
+    }
+  };
+  requestAnimationFrame(tick);
+}
+
+function waitForPaintedImage(nodeId: string): Promise<void> {
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const poll = () => {
+      if (imageHasLayoutSize(nodeId) || performance.now() - started > 15000) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+}
 
 interface UseAIChatProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
@@ -127,34 +267,55 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         treeManager.patchNode(responseNodeId, patch);
         responseNode = { ...existingNode, ...patch };
         nodesWithQuery[responseNodeId] = responseNode;
+        scheduleAlignWhenPainted({
+          nodeId: responseNodeId,
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       } else {
         // create a new response node with smart placement - close to parent
         const callerDim =
-          nodeDimensionsRef.current[caller.id] ||
-          getDefaultNodeDimensions(caller.type);
+          readDomNodeSize(caller.id) ?? nodeDimensionsRef.current[caller.id];
+        const freePos = placeCenteredBelowOrForce({
+          parentX: currentCaller.x,
+          parentY: currentCaller.y,
+          parentWidth: callerDim?.width ?? 0,
+          parentHeight: callerDim?.height ?? 0,
+          childWidth: 1,
+          childHeight: 1,
+          nodes: nodesWithQuery,
+          dimensions: nodeDimensionsRef.current,
+        });
 
-        const targetX = currentCaller.x + callerDim.width / 4;
-        const targetY = currentCaller.y + callerDim.height + 30;
-
-        const newNodeDim = getDefaultNodeDimensions("response");
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          newNodeDim.width,
-          newNodeDim.height,
-          nodesWithQuery,
-          nodeDimensionsRef.current,
-          "below"
-        );
-
-        const newNode = createNode("response", freePos.x, freePos.y);
+        const newNode = {
+          ...createNode("response", freePos.x, freePos.y),
+          parentIds: [caller.id],
+        };
         responseNodeId = newNode.id;
         const streamingNode = { ...newNode, status: "streaming" as const };
         treeManager.addNode(streamingNode);
         treeManager.linkNodes(caller.id, newNode.id);
+        nodesRef.current[streamingNode.id] = streamingNode;
 
         responseNode = streamingNode;
         nodesWithQuery[newNode.id] = streamingNode;
+        nodesWithQuery[caller.id] = {
+          ...nodesWithQuery[caller.id],
+          childrenIds: nodesWithQuery[caller.id].childrenIds.includes(newNode.id)
+            ? nodesWithQuery[caller.id].childrenIds
+            : [...nodesWithQuery[caller.id].childrenIds, newNode.id],
+        };
+        scheduleAlignWhenPainted({
+          nodeId: responseNodeId,
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       }
 
       const streamController = new AbortController();
@@ -219,6 +380,14 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             }
             
             imageResult = { url: imageUrl, prompt };
+            scheduleAlignWhenPainted({
+              nodeId: responseNodeId,
+              parent: currentCaller,
+              nodesRef,
+              nodeDimensionsRef,
+              treeManager,
+              nodesWithQuery,
+            });
           },
           // onReasoning callback - called when reasoning tokens are streamed
           (reasoning) => {
@@ -292,17 +461,22 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           prompt: result.prompt,
           status: "done",
         });
-        const live = nodesWithQuery[responseNodeId];
-        if (live) {
-          nodesWithQuery[responseNodeId] = {
-            ...live,
-            type: "image-response",
-            value: result.content,
-            prompt: result.prompt,
-            status: "done",
-          };
-        }
-        responseNode = nodesWithQuery[responseNodeId];
+        nodesWithQuery[responseNodeId] = {
+          ...nodesWithQuery[responseNodeId],
+          type: "image-response",
+          value: result.content,
+          prompt: result.prompt,
+          status: "done",
+        };
+        await waitForPaintedImage(responseNodeId);
+        responseNode = commitAlignedNode({
+          node: nodesRef.current[responseNodeId] ?? nodesWithQuery[responseNodeId],
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       } else {
         // For text responses, ensure type is "response"
         // If we only got YouTube videos and no meaningful text, show a default message
@@ -316,61 +490,43 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
           value: finalValue,
           status: "done",
         });
-        const live = nodesWithQuery[responseNodeId];
-        if (live) {
-          nodesWithQuery[responseNodeId] = {
-            ...live,
-            type: "response",
-            value: finalValue,
-            status: "done",
-          };
-        }
-        responseNode = nodesWithQuery[responseNodeId];
+        nodesWithQuery[responseNodeId] = {
+          ...nodesWithQuery[responseNodeId],
+          type: "response",
+          value: finalValue,
+          status: "done",
+        };
+        responseNode = commitAlignedNode({
+          node: nodesRef.current[responseNodeId] ?? nodesWithQuery[responseNodeId],
+          parent: currentCaller,
+          nodesRef,
+          nodeDimensionsRef,
+          treeManager,
+          nodesWithQuery,
+        });
       }
 
       // Create YouTube nodes if any were collected during streaming
       if (youtubeVideos.length > 0) {
-        // Get the response node dimensions for placement calculation
-        const responseNodeDim =
-          nodeDimensionsRef.current[responseNodeId] ||
-          getDefaultNodeDimensions(responseNode.type);
+        const responseDim =
+          readDomNodeSize(responseNodeId) ?? nodeDimensionsRef.current[responseNodeId];
+        const youtubeSize = getDefaultNodeDimensions("youtube");
+        youtubeVideos.forEach((video) => {
+          const freePos = placeCenteredBelowOrForce({
+            parentX: responseNode.x,
+            parentY: responseNode.y,
+            parentWidth: responseDim?.width ?? 0,
+            parentHeight: responseDim?.height ?? 0,
+            childWidth: youtubeSize.width,
+            childHeight: youtubeSize.height,
+            nodes: nodesWithQuery,
+            dimensions: nodeDimensionsRef.current,
+          });
 
-        // Create YouTube nodes in a grid layout (max 2 per row)
-        const youtubeNodeDim = getDefaultNodeDimensions("youtube");
-        const horizontalGap = 30;
-        const verticalGap = 30;
-        const videosPerRow = 2;
-        
-        // Calculate starting position - center the grid below the response
-        const numRows = Math.ceil(youtubeVideos.length / videosPerRow);
-        const firstRowCount = Math.min(youtubeVideos.length, videosPerRow);
-        const firstRowWidth = firstRowCount * youtubeNodeDim.width + (firstRowCount - 1) * horizontalGap;
-        const startX = responseNode.x + (responseNodeDim.width / 2) - (firstRowWidth / 2);
-        const startY = responseNode.y + responseNodeDim.height + 40;
-
-        youtubeVideos.forEach((video, index) => {
-          const row = Math.floor(index / videosPerRow);
-          const col = index % videosPerRow;
-          
-          // Calculate videos in current row for centering
-          const videosInRow = Math.min(videosPerRow, youtubeVideos.length - row * videosPerRow);
-          const rowWidth = videosInRow * youtubeNodeDim.width + (videosInRow - 1) * horizontalGap;
-          const rowStartX = responseNode.x + (responseNodeDim.width / 2) - (rowWidth / 2);
-          
-          const targetX = rowStartX + col * (youtubeNodeDim.width + horizontalGap);
-          const targetY = startY + row * (youtubeNodeDim.height + verticalGap);
-
-          const freePos = findFreePosition(
-            targetX,
-            targetY,
-            youtubeNodeDim.width,
-            youtubeNodeDim.height,
-            nodesWithQuery,
-            nodeDimensionsRef.current,
-            "below"
-          );
-
-          const youtubeNode = createNode("youtube", freePos.x, freePos.y);
+          const youtubeNode = {
+            ...createNode("youtube", freePos.x, freePos.y),
+            parentIds: [responseNodeId],
+          };
           treeManager.addNode(youtubeNode);
           treeManager.patchNode(youtubeNode.id, {
             value: video.videoId,
@@ -387,46 +543,35 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
 
       // If response has no Input Node, create a new one
       // Use nodesRef to get fresh data after potential node replacement
-      const currentResponseNode = nodesRef.current[responseNodeId];
-      if (!currentResponseNode) return;
-      if (
-        !currentResponseNode.childrenIds.some(
+      const finishedNode =
+        nodesRef.current[responseNodeId] || nodesWithQuery[responseNodeId];
+      if (!finishedNode) return;
+      const alreadyHasFollowUp =
+        finishedNode.childrenIds.some(
           (childId) => nodesRef.current[childId]?.type === "input"
-        )
-      ) {
-        const responseNodeDim =
-          nodeDimensionsRef.current[responseNodeId] ||
-          getDefaultNodeDimensions(currentResponseNode.type);
-
-        // Calculate the center X of the response node
-        const responseNodeCenterX = currentResponseNode.x + responseNodeDim.width / 2;
-        
-        // Place directly below the response node (and any YouTube videos)
-        const newNodeDim = getDefaultNodeDimensions("input");
-        const targetX = responseNodeCenterX - newNodeDim.width / 2;
-        let targetY = currentResponseNode.y + responseNodeDim.height + 90;
-        
-        // If there are YouTube videos, place the input below them (accounting for grid layout)
-        if (youtubeVideos.length > 0) {
-          const youtubeNodeDim = getDefaultNodeDimensions("youtube");
-          const videosPerRow = 2;
-          const numRows = Math.ceil(youtubeVideos.length / videosPerRow);
-          const verticalGap = 30;
-          // Add space for all rows of videos
-          targetY += numRows * (youtubeNodeDim.height + verticalGap) + 50;
-        }
-
-        const freePos = findFreePosition(
-          targetX,
-          targetY,
-          newNodeDim.width,
-          newNodeDim.height,
-          nodesWithQuery,
-          nodeDimensionsRef.current,
-          "below"
+        ) ||
+        Object.values(nodesWithQuery).some(
+          (node) => node.type === "input" && node.parentIds.includes(responseNodeId)
         );
+      if (hasRenderableContent(finishedNode) && !alreadyHasFollowUp) {
+        const responseDim =
+          readDomNodeSize(responseNodeId) ?? nodeDimensionsRef.current[responseNodeId];
+        const inputSize = getDefaultNodeDimensions("input");
+        const freePos = placeCenteredBelowOrForce({
+          parentX: finishedNode.x,
+          parentY: finishedNode.y,
+          parentWidth: responseDim?.width ?? 0,
+          parentHeight: responseDim?.height ?? 0,
+          childWidth: inputSize.width,
+          childHeight: inputSize.height,
+          nodes: nodesWithQuery,
+          dimensions: nodeDimensionsRef.current,
+        });
 
-        const newInputNode = createNode("input", freePos.x, freePos.y);
+        const newInputNode = {
+          ...createNode("input", freePos.x, freePos.y),
+          parentIds: [responseNodeId],
+        };
 
         treeManager.addNode(newInputNode);
         treeManager.linkNodes(responseNodeId, newInputNode.id);

@@ -74,6 +74,7 @@ export function resolveLocalCollisions(
   if (!sourceNode) return moves;
 
   const sourceRect = getNodeRect(sourceNode, dimensions);
+  if (!sourceRect) return moves;
 
   // Find all nodes that overlap with the source
   const overlappingNodes: Array<{
@@ -86,6 +87,7 @@ export function resolveLocalCollisions(
     if (node.id === sourceNodeId) continue;
 
     const nodeRect = getNodeRect(node, dimensions);
+    if (!nodeRect) continue;
     if (rectanglesIntersect(sourceRect, nodeRect, gapPx)) {
       overlappingNodes.push({
         node,
