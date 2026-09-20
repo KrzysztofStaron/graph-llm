@@ -1,8 +1,9 @@
-import { GraphNode } from "@/app/types/GraphCanvas.types";
+import type { GraphNode, GraphNodes } from "@/app/types/GraphCanvas.types";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import React, { useContext } from "react";
+import { AnimatePresence } from "framer-motion";
+import { useContext } from "react";
 
+import { GraphNodeFrame } from "./GraphNodeFrame";
 import { InputFieldNode } from "./InputFieldNode";
 import { ResponseNode } from "./ResponseNode";
 import { ImageResponseNode } from "./ImageResponseNode";
@@ -13,6 +14,51 @@ import { SummaryNode } from "./SummaryNode";
 import { YouTubeNode } from "./YouTubeNode";
 
 import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
+
+function NodeBody({
+  node,
+  isSelected,
+  nodes,
+  onInputSubmit,
+  onDeleteNode,
+}: {
+  node: GraphNode;
+  isSelected: boolean;
+  nodes: GraphNodes;
+  onInputSubmit: (query: string, node: GraphNode) => void;
+  onDeleteNode: (nodeId: string) => void;
+}) {
+  if (node.type === "input") {
+    return (
+      <InputFieldNode
+        node={node}
+        isSelected={isSelected}
+        nodes={nodes}
+        onInputSubmit={(query) => onInputSubmit(query, node)}
+        onDelete={() => onDeleteNode(node.id)}
+      />
+    );
+  }
+  if (node.type === "response") {
+    return <ResponseNode node={node} isSelected={isSelected} />;
+  }
+  if (node.type === "image-response") {
+    return <ImageResponseNode node={node} isSelected={isSelected} />;
+  }
+  if (node.type === "context") {
+    return <ContextNode node={node} isSelected={isSelected} />;
+  }
+  if (node.type === "image-context") {
+    return <ImageContextNode node={node} isSelected={isSelected} />;
+  }
+  if (node.type === "document") {
+    return <DocumentNode node={node} isSelected={isSelected} />;
+  }
+  if (node.type === "summary") {
+    return <SummaryNode node={node} isSelected={isSelected} />;
+  }
+  return <YouTubeNode node={node} isSelected={isSelected} />;
+}
 
 const NodesRenderer = ({
   selectedNodeIds,
@@ -28,88 +74,37 @@ const NodesRenderer = ({
   onDeleteNode: (nodeId: string) => void;
 }) => {
   const { nodes } = useContext(CanvasContext);
-  const nodeArray = Object.values(nodes);
-  const shouldReduceMotion = useReducedMotion();
 
   return (
-    <>
-      <AnimatePresence mode="popLayout" initial={false}>
-        {nodeArray.map((node) => {
-          const isSelected = selectedNodeIds.has(node.id);
-          return (
-            <motion.div
-              key={node.id}
-              className={`absolute cursor-move ${
-                node.type === "response" ? "w-max" : ""
-              }`}
-              data-node-id={node.id}
-              suppressHydrationWarning
-              style={{
-                left: node.x,
-                top: node.y,
-                transformOrigin: "center center",
-              }}
-              initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0.3, opacity: 0 }}
-              animate={shouldReduceMotion ? {
-                opacity: 1,
-              } : {
-                scale: 1,
-                opacity: 1,
-                transition: {
-                  type: "spring",
-                  stiffness: 400,
-                  damping: 25,
-                  mass: 0.8,
-                },
-              }}
-              exit={shouldReduceMotion ? {
-                opacity: 0,
-              } : {
-                scale: 0.8,
-                opacity: 0,
-                transition: {
-                  duration: 0.15,
-                  ease: "easeIn",
-                },
-              }}
-              onPointerDown={(e) => {
-                handleNodePointerDown(e, node.id);
-              }}
-              onDoubleClick={(e) => {
-                if (node.type === "context" && setEditingContextNodeId) {
-                  e.stopPropagation();
-                  setEditingContextNodeId(node.id);
-                }
-              }}
-            >
-              {node.type === "input" ? (
-                <InputFieldNode
-                  node={node}
-                  isSelected={isSelected}
-                  nodes={nodes}
-                  onInputSubmit={(query) => onInputSubmit(query, node)}
-                  onDelete={() => onDeleteNode(node.id)}
-                />
-              ) : node.type === "response" ? (
-                <ResponseNode node={node} isSelected={isSelected} />
-              ) : node.type === "image-response" ? (
-                <ImageResponseNode node={node} isSelected={isSelected} />
-              ) : node.type === "context" ? (
-                <ContextNode node={node} isSelected={isSelected} />
-              ) : node.type === "image-context" ? (
-                <ImageContextNode node={node} isSelected={isSelected} />
-              ) : node.type === "document" ? (
-                <DocumentNode node={node} isSelected={isSelected} />
-              ) : node.type === "summary" ? (
-                <SummaryNode node={node} isSelected={isSelected} />
-              ) : node.type === "youtube" ? (
-                <YouTubeNode node={node} isSelected={isSelected} />
-              ) : null}
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-    </>
+    <AnimatePresence mode="popLayout" initial={false}>
+      {Object.values(nodes).map((node) => {
+        const isSelected = selectedNodeIds.has(node.id);
+        return (
+          <GraphNodeFrame
+            key={node.id}
+            node={node}
+            isSelected={isSelected}
+            onPointerDown={(e) => handleNodePointerDown(e, node.id)}
+            onDoubleClick={
+              node.type === "context" && setEditingContextNodeId
+                ? (e) => {
+                    e.stopPropagation();
+                    setEditingContextNodeId(node.id);
+                  }
+                : undefined
+            }
+          >
+            <NodeBody
+              node={node}
+              isSelected={isSelected}
+              nodes={nodes}
+              onInputSubmit={onInputSubmit}
+              onDeleteNode={onDeleteNode}
+            />
+          </GraphNodeFrame>
+        );
+      })}
+    </AnimatePresence>
   );
 };
 

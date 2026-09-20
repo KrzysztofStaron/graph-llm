@@ -1,5 +1,6 @@
 import { ImageResponseNode as ImageResponseNodeType } from "@/app/types/graph";
-import { memo, useState, useEffect } from "react";
+import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
+import { memo, useContext, useLayoutEffect, useState, useEffect } from "react";
 
 type ImageResponseNodeProps = {
   node: ImageResponseNodeType;
@@ -69,6 +70,7 @@ export const ImageResponseNode = memo(
     node,
     isSelected = false,
   }: ImageResponseNodeProps) {
+    const { reportNodeSize } = useContext(CanvasContext);
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -76,6 +78,17 @@ export const ImageResponseNode = memo(
     const isTouchDevice = useIsTouchDevice();
     // Show loading when value is empty or undefined
     const isLoading = (!node.value || node.value === "") && !node.error;
+
+    useLayoutEffect(() => {
+      const shell = document.querySelector(`[data-node-id="${node.id}"]`);
+      if (!(shell instanceof HTMLElement)) {
+        return;
+      }
+      if (shell.offsetWidth <= 0 || shell.offsetHeight <= 0) {
+        return;
+      }
+      reportNodeSize(node.id, shell.offsetWidth, shell.offsetHeight);
+    }, [isLoaded, isLoading, node.id, node.value, reportNodeSize]);
 
     const handleDownload = async () => {
       if (!node.value || isDownloading) return;
