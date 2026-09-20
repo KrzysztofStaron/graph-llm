@@ -175,6 +175,7 @@ export class aiService {
       timeoutMs?: number;
       retries?: number;
       webSearchEnabled?: boolean;
+      signal?: AbortSignal;
     },
     onImage?: (imageUrl: string, prompt?: string) => void,
     onReasoning?: (reasoning: string) => void,
@@ -250,6 +251,10 @@ export class aiService {
 
       lastError = result.error;
 
+      if (options?.signal?.aborted) {
+        throw lastError;
+      }
+
       if (attempt < maxRetries && isRetryableError(result.error)) {
         logger.warn("StreamChat attempt failed; retrying", {
           attempt: attempt + 1,
@@ -282,6 +287,7 @@ export class aiService {
       };
       timeoutMs?: number;
       webSearchEnabled?: boolean;
+      signal?: AbortSignal;
     },
     onImage?: (imageUrl: string, prompt?: string) => void,
     onReasoning?: (reasoning: string) => void,
@@ -400,6 +406,11 @@ export class aiService {
       logData.timeoutMs = TIMEOUT_MS;
       const timeoutController = new AbortController();
       const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_MS);
+      const onCallerAbort = () => timeoutController.abort();
+      options?.signal?.addEventListener("abort", onCallerAbort);
+      if (options?.signal?.aborted) {
+        timeoutController.abort();
+      }
 
       let response: Response;
 
@@ -444,6 +455,9 @@ export class aiService {
         
         // Handle specific error types
         if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          if (options?.signal?.aborted) {
+            return { success: false, error: fetchError };
+          }
           const timeoutError = new ChatRequestError(
             `Request timeout after ${TIMEOUT_MS / 1000} seconds`,
             true
@@ -468,12 +482,14 @@ export class aiService {
           } else if (isCorsError) {
             errorMsg = `CORS error: ${errorMessage}. Payload size: ${payloadSizeKB}KB. This may indicate the request was blocked due to size limits or CORS policy.`;
           } else {
-            errorMsg = `Network error: ${errorMessage}. Cannot reach ${globals.graphLLMBackendUrl}. Payload size: ${payloadSizeKB}KB`;
+            errorMsg = `The browser blocked the request to ${globals.graphLLMBackendUrl}. If this is CORS, this page origin is not on the API allow list. ${errorMessage}. Payload size: ${payloadSizeKB}KB`;
           }
           
           const networkError = new ChatRequestError(
             errorMsg,
-            extractedStatus !== 413,
+            extractedStatus !== undefined &&
+              extractedStatus !== 413 &&
+              RETRYABLE_HTTP_STATUSES.has(extractedStatus),
             extractedStatus
           );
           logData.error = networkError.message;
@@ -679,65 +695,68 @@ export class aiService {
                   return { success: true, data: { type: "text", content: cleanedResponse } };
                 }
 
+                let parsed: unknown;
                 try {
-                  const parsed = JSON.parse(data) as { 
-                    content?: string; 
-                    reasoning?: string;
-                    error?: string;
-                    details?: string;
-                    type?: "image" | "youtube";
-                    prompt?: string;
-                    videoId?: string;
-                    explanation?: string;
-                  };
-                  
-                  // Handle reasoning content
-                  if (parsed.reasoning) {
-                    fullReasoning += parsed.reasoning;
-                    throttledOnReasoning(fullReasoning);
-                  }
-                  
-                  // Handle image response from backend
-                  if (parsed.type === "image" && parsed.content) {
-                    logData.imageReceived = true;
-                    logData.imageUrl = parsed.content.substring(0, 100);
-                    logData.imagePrompt = parsed.prompt;
-                    logger.image(parsed.content, 'Stream image response', { prompt: parsed.prompt });
-                    imageResponse = { url: parsed.content, prompt: parsed.prompt };
-                    if (onImage) {
-                      onImage(parsed.content, parsed.prompt);
-                    }
-                  } else if (parsed.type === "youtube" && parsed.videoId) {
-                    logData.youtubeReceived = true;
-                    logData.youtubeVideoId = parsed.videoId;
-                    logData.youtubeExplanation = parsed.explanation;
-                    logData.hasYoutubeCallback = !!onYoutube;
-                    if (onYoutube) {
-                      onYoutube(parsed.videoId, parsed.explanation);
-                    }
-                  } else if (parsed.content) {
-                    fullResponse += parsed.content;
-                    throttledOnChunk(fullResponse);
-                  }
-                  
-                  if (parsed.error) {
-                    const streamErrorMessage = getStreamErrorMessage(
-                      parsed.error,
-                      parsed.details
-                    );
-                    const streamError = new ChatRequestError(
-                      streamErrorMessage,
-                      isTransientErrorMessage(streamErrorMessage)
-                    );
-                    logData.error = streamError.message;
-                    logData.parsedError = streamErrorMessage;
-                    logger.warn("Stream error from backend", logData);
-                    return { success: false, error: streamError };
-                  }
+                  parsed = JSON.parse(data);
                 } catch (parseError) {
-                  // Skip invalid JSON but log it for debugging
                   logData.parseError = parseError instanceof Error ? parseError.message : String(parseError);
                   logData.data = data.substring(0, 200);
+                  continue;
+                }
+
+                if (typeof parsed !== "object" || parsed === null) continue;
+                const event = parsed as Record<string, unknown>;
+                const eventContent = typeof event.content === "string" ? event.content : undefined;
+                const eventReasoning = typeof event.reasoning === "string" ? event.reasoning : undefined;
+                const eventError = typeof event.error === "string" ? event.error : undefined;
+                const eventDetails = typeof event.details === "string" ? event.details : undefined;
+                const eventType = event.type === "image" || event.type === "youtube" ? event.type : undefined;
+                const eventPrompt = typeof event.prompt === "string" ? event.prompt : undefined;
+                const eventVideoId = typeof event.videoId === "string" ? event.videoId : undefined;
+                const eventExplanation = typeof event.explanation === "string" ? event.explanation : undefined;
+
+                if (eventReasoning) {
+                  fullReasoning += eventReasoning;
+                  throttledOnReasoning(fullReasoning);
+                }
+
+                if (eventType === "image" && eventContent) {
+                  logData.imageReceived = true;
+                  logData.imageUrl = eventContent.substring(0, 100);
+                  logData.imagePrompt = eventPrompt;
+                  logger.image(eventContent, "Stream image response", {
+                    prompt: eventPrompt,
+                  });
+                  imageResponse = { url: eventContent, prompt: eventPrompt };
+                  if (onImage) {
+                    onImage(eventContent, eventPrompt);
+                  }
+                } else if (eventType === "youtube" && eventVideoId) {
+                  logData.youtubeReceived = true;
+                  logData.youtubeVideoId = eventVideoId;
+                  logData.youtubeExplanation = eventExplanation;
+                  logData.hasYoutubeCallback = !!onYoutube;
+                  if (onYoutube) {
+                    onYoutube(eventVideoId, eventExplanation);
+                  }
+                } else if (eventContent) {
+                  fullResponse += eventContent;
+                  throttledOnChunk(fullResponse);
+                }
+
+                if (eventError) {
+                  const streamErrorMessage = getStreamErrorMessage(
+                    eventError,
+                    eventDetails
+                  );
+                  const streamError = new ChatRequestError(
+                    streamErrorMessage,
+                    isTransientErrorMessage(streamErrorMessage)
+                  );
+                  logData.error = streamError.message;
+                  logData.parsedError = streamErrorMessage;
+                  logger.warn("Stream error from backend", logData);
+                  return { success: false, error: streamError };
                 }
               }
             }
@@ -759,14 +778,17 @@ export class aiService {
         }
       } finally {
         clearTimeout(timeoutId);
+        options?.signal?.removeEventListener("abort", onCallerAbort);
       }
     } catch (error) {
       const normalizedError =
         error instanceof Error && error.name === "AbortError"
-          ? new ChatRequestError(
-              `Request timeout after ${(logData.timeoutMs ?? 120000) / 1000} seconds`,
-              true
-            )
+          ? options?.signal?.aborted
+            ? error
+            : new ChatRequestError(
+                `Request timeout after ${(logData.timeoutMs ?? 120000) / 1000} seconds`,
+                true
+              )
           : error instanceof Error
             ? error
             : new Error(String(error));
