@@ -133,7 +133,9 @@ export const ResponseNode = memo(
   function ResponseNode({ node, isSelected = false }: ResponseNodeProps) {
     const rawContent = node.value;
     const reasoning = node.reasoning || "";
-    const isLoading = rawContent.length === 0 && !node.error;
+    const isLoading =
+      node.status === "streaming" ||
+      (node.status === undefined && rawContent.length === 0 && !node.error);
     const isFailed = !!node.error;
     const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
       "idle"
@@ -223,7 +225,6 @@ export const ResponseNode = memo(
         style={{
           maxWidth: isCollapsed ? "300px" : "808px",
           minWidth: "200px",
-          transition: "max-width 0.3s ease",
         }}
       >
         <div
@@ -381,6 +382,7 @@ export const ResponseNode = memo(
       prev.node.value === next.node.value &&
       prev.node.reasoning === next.node.reasoning &&
       prev.node.error === next.node.error &&
+      prev.node.status === next.node.status &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected

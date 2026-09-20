@@ -1,7 +1,8 @@
 import { ImageResponseNode as ImageResponseNodeType } from "@/app/types/graph";
 import LoadingState from "@/app/components/ui/LoadingState";
+import { CanvasContext } from "@/app/app/GraphCanvas/GraphCanvas";
 import GridReveal from "@/components/ui/grid-reveal";
-import { memo, useEffect, useState } from "react";
+import { memo, useContext, useLayoutEffect, useState, useEffect } from "react";
 
 type ImageResponseNodeProps = {
   node: ImageResponseNodeType;
@@ -27,18 +28,32 @@ export const ImageResponseNode = memo(
     node,
     isSelected = false,
   }: ImageResponseNodeProps) {
+    const { reportNodeSize } = useContext(CanvasContext);
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [showActions, setShowActions] = useState(false);
     const isTouchDevice = useIsTouchDevice();
-    const isLoading = (!node.value || node.value === "") && !node.error;
-    const src = isLoading ? null : node.value;
+    const isLoading =
+      node.status === "streaming" ||
+      (node.status === undefined && (!node.value || node.value === "") && !node.error);
+    const src = isLoading || !node.value ? null : node.value;
 
     useEffect(() => {
       setIsLoaded(false);
       setHasError(false);
     }, [node.value]);
+
+    useLayoutEffect(() => {
+      const shell = document.querySelector(`[data-node-id="${node.id}"]`);
+      if (!(shell instanceof HTMLElement)) {
+        return;
+      }
+      if (shell.offsetWidth <= 0 || shell.offsetHeight <= 0) {
+        return;
+      }
+      reportNodeSize(node.id, shell.offsetWidth, shell.offsetHeight);
+    }, [isLoaded, isLoading, node.id, node.value, reportNodeSize]);
 
     const handleDownload = async () => {
       if (!node.value || isDownloading) return;
@@ -201,6 +216,7 @@ export const ImageResponseNode = memo(
     return (
       prev.node.value === next.node.value &&
       prev.node.error === next.node.error &&
+      prev.node.status === next.node.status &&
       prev.node.prompt === next.node.prompt &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
