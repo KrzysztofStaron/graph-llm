@@ -1,4 +1,5 @@
 import { YouTubeNode as YouTubeNodeType } from "@/app/types/graph";
+import LoadingState from "@/app/components/ui/LoadingState";
 import { memo } from "react";
 
 type YouTubeNodeProps = {
@@ -15,6 +16,9 @@ export const YouTubeNode = memo(
     const videoId = node.value;
     const explanation = node.explanation;
     const isFailed = !!node.error;
+    const isLoading =
+      node.status === "streaming" ||
+      (node.status === undefined && (!videoId || videoId === "") && !node.error);
 
     return (
       <div
@@ -33,9 +37,7 @@ export const YouTubeNode = memo(
             transition: "box-shadow 0.2s ease",
           }}
         >
-          <div
-            className="block py-5 px-6 w-full rounded-3xl border-none bg-[#0a0a0a] text-white"
-          >
+          <div className="block py-5 px-6 w-full rounded-3xl border-none bg-[#0a0a0a] text-white">
             {isFailed ? (
               <div className="flex flex-col gap-3 text-yellow-400">
                 <div className="flex items-start gap-3">
@@ -71,7 +73,8 @@ export const YouTubeNode = memo(
                       </p>
                     ) : (
                       <p className="text-sm text-yellow-300/80">
-                        This video might be private, deleted, or the video ID may be incorrect.
+                        This video might be private, deleted, or the video ID may
+                        be incorrect.
                       </p>
                     )}
                     {videoId && (
@@ -87,14 +90,23 @@ export const YouTubeNode = memo(
                   </div>
                 </div>
               </div>
+            ) : isLoading ? (
+              <div className="space-y-3">
+                <LoadingState label="Finding video" variant="Drive" />
+                <div
+                  className="relative w-full overflow-hidden rounded-xl bg-white/5"
+                  style={{ paddingBottom: "56.25%" }}
+                />
+              </div>
             ) : (
               <div className="space-y-3">
                 {explanation && (
-                  <p className="text-sm text-white/70 mb-3">
-                    {explanation}
-                  </p>
+                  <p className="text-sm text-white/70 mb-3">{explanation}</p>
                 )}
-                <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                <div
+                  className="relative w-full"
+                  style={{ paddingBottom: "56.25%" }}
+                >
                   <iframe
                     className="absolute top-0 left-0 w-full h-full rounded-xl"
                     src={`https://www.youtube.com/embed/${videoId}`}
@@ -116,10 +128,10 @@ export const YouTubeNode = memo(
       prev.node.value === next.node.value &&
       prev.node.explanation === next.node.explanation &&
       prev.node.error === next.node.error &&
+      prev.node.status === next.node.status &&
       arraysEqual(prev.node.parentIds, next.node.parentIds) &&
       arraysEqual(prev.node.childrenIds, next.node.childrenIds) &&
       prev.isSelected === next.isSelected
     );
   }
 );
-
