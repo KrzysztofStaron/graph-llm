@@ -7,6 +7,7 @@ import {
   hasRenderableContent,
   placeCenteredBelowOrForce,
 } from "../utils/placement";
+import { imageHasLayoutSize } from "../utils/imageLayoutReady";
 import { aiService } from "../interfaces/aiService";
 import { useAppSelector } from "../store/hooks";
 import logger from "../utils/logger";
@@ -89,19 +90,6 @@ function commitAlignedNode(args: {
   args.nodesRef.current[args.node.id] = aligned.node;
   args.nodesWithQuery[args.node.id] = aligned.node;
   return aligned.node;
-}
-
-function imageHasLayoutSize(nodeId: string): boolean {
-  const img = document.querySelector(`[data-node-id="${nodeId}"] img`);
-  const shell = document.querySelector(`[data-node-id="${nodeId}"]`);
-  if (!(img instanceof HTMLImageElement) || !(shell instanceof HTMLElement)) {
-    return false;
-  }
-  if (!img.complete || img.naturalWidth <= 0) {
-    return false;
-  }
-  const paintedWidth = Math.min(img.naturalWidth, 606);
-  return img.offsetWidth >= paintedWidth - 1 && shell.offsetWidth >= paintedWidth - 1;
 }
 
 function scheduleAlignWhenPainted(args: {
