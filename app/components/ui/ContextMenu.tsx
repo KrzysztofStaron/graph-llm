@@ -147,7 +147,7 @@ export const ContextMenu = ({
           animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -10 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
-          className="fixed z-50 min-w-[180px] rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm"
+          className="fixed z-[100] min-w-[180px] rounded-lg border border-white/10 bg-[#0a0a0a] shadow-lg backdrop-blur-sm"
           role="menu"
           aria-label={`Context menu${selectedNodeCount > 0 ? ` for ${selectedNodeCount} selected ${selectedNodeCount === 1 ? 'node' : 'nodes'}` : ''}`}
           style={{
