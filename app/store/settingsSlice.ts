@@ -7,26 +7,26 @@ export interface ModelOption {
 
 export const availableModels: ModelOption[] = [
   {
-    label: "Grok 4.6",
+    label: "Grok",
     value: "x-ai/grok-4.6",
   },
   {
-    label: "Gemini 3.8 Flash",
+    label: "Gemini",
     value: "google/gemini-3.8-flash",
   },
   {
-    label: "Claude Sonnet 4.6",
+    label: "Claude",
     value: "anthropic/claude-sonnet-4.6",
   },
 ];
 
 export const availableImageModels: ModelOption[] = [
   {
-    label: "Nano Banana 2",
+    label: "Gemini 3.1 Flash Image",
     value: "google/gemini-3.1-flash-image",
   },
   {
-    label: "Nano Banana Pro",
+    label: "Gemini 3 Pro Image",
     value: "google/gemini-3-pro-image",
   },
 ];
@@ -39,7 +39,7 @@ interface SettingsState {
 
 const initialState: SettingsState = {
   selectedModel: availableModels[0].value, // Default to Grok
-  selectedImageModel: availableImageModels[1].value, // Default to Nano Banana pro
+  selectedImageModel: availableImageModels[1].value, // Default to Gemini 3 Pro Image
   webSearchEnabled: true, // Default to enabled
 };
 
