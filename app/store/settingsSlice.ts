@@ -7,15 +7,15 @@ export interface ModelOption {
 
 export const availableModels: ModelOption[] = [
   {
-    label: "Grok",
+    label: "Grok 4.6",
     value: "x-ai/grok-4.6",
   },
   {
-    label: "Gemini",
+    label: "Gemini 3.8 Flash",
     value: "google/gemini-3.8-flash",
   },
   {
-    label: "Claude",
+    label: "Claude Sonnet 4.6",
     value: "anthropic/claude-sonnet-4.6",
   },
 ];
