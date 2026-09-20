@@ -4,6 +4,8 @@ import { aiService } from "../interfaces/aiService";
 import type { TreeManager as TreeManagerType } from "../interfaces/TreeManager";
 import logger from "./logger";
 import { isAbortError } from "./requestAbort";
+import { estimateSpawnOrText } from "./estimateSpawn";
+import { applyPredictedReplyType } from "../hooks/spawnPredictedNode";
 
 interface CascadeUpdateParams {
   startNodeId: string;
@@ -30,49 +32,18 @@ export async function cascadeUpdateDescendants({
   abortByNodeId,
   isNodeLive,
 }: CascadeUpdateParams): Promise<void> {
-  // Find all descendant response nodes grouped by depth level
   const descendantLevels = TreeManager.findDescendantResponseNodes(
     startNodeId,
     currentNodes
   );
 
-  // Process each level sequentially
   for (const levelNodes of descendantLevels) {
     if (levelNodes.length === 0) continue;
 
-    // Put all nodes in this level into loading state
-    for (const node of levelNodes) {
-      const existing = currentNodes[node.id];
-      if (!existing || !isNodeLive(node.id)) continue;
-      const patch: {
-        value: string;
-        error: undefined;
-        status: "streaming";
-        reasoning?: undefined;
-      } = { value: "", error: undefined, status: "streaming" };
-      if (node.type === "response") {
-        patch.reasoning = undefined;
-      }
-      treeManager.patchNode(node.id, patch);
-      currentNodes[node.id] =
-        node.type === "response"
-          ? {
-              ...existing,
-              ...patch,
-              type: "response" as const,
-            }
-          : {
-              ...existing,
-              ...patch,
-            };
-    }
-
-    // Update all nodes at this level in parallel
     await Promise.all(
       levelNodes.map(async (responseNode) => {
         if (!isNodeLive(responseNode.id)) return;
 
-        // Find the input node parent of this response node to build ChatML
         const inputParentId = responseNode.parentIds.find((parentId) => {
           const parent = currentNodes[parentId];
           return parent?.type === "input";
@@ -83,10 +54,27 @@ export async function cascadeUpdateDescendants({
         const inputParent = currentNodes[inputParentId];
         if (!inputParent) return;
 
+        const existing = currentNodes[responseNode.id];
+        if (!existing || !isNodeLive(responseNode.id)) return;
+
+        const spawn = await estimateSpawnOrText({
+          prompt: inputParent.value,
+        });
+
+        const nodesRef = { current: currentNodes };
+        applyPredictedReplyType({
+          nodeId: responseNode.id,
+          spawn,
+          treeManager,
+          nodesWithQuery: currentNodes,
+          nodesRef,
+        });
+
         const logData: {
           nodeId?: string;
           inputParentId?: string;
           model?: string;
+          predictedSpawn?: string;
           resultType?: string;
           totalChunks?: number;
           contentLength?: number;
@@ -98,9 +86,9 @@ export async function cascadeUpdateDescendants({
           nodeId: responseNode.id.substring(0, 8),
           inputParentId: inputParentId.substring(0, 8),
           model: selectedModel,
+          predictedSpawn: spawn,
         };
 
-        // Stream the AI response
         let chunkCount = 0;
         const controller = new AbortController();
         abortByNodeId.set(responseNode.id, controller);
@@ -124,15 +112,22 @@ export async function cascadeUpdateDescendants({
                 status: "streaming",
               };
             },
-            { model: selectedModel, imageModel: selectedImageModel, webSearchEnabled, signal: controller.signal },
-            // onImage callback for cascade regeneration
+            {
+              model: selectedModel,
+              imageModel: selectedImageModel,
+              webSearchEnabled,
+              signal: controller.signal,
+            },
             (imageUrl, prompt) => {
               if (!isNodeLive(responseNode.id)) return;
               logData.imageGenerated = true;
               logData.imagePrompt = prompt;
-              logger.image(imageUrl, `Cascade node ${responseNode.id.substring(0, 8)}`, { prompt });
-              
-              // Immediately swap to image-response type to show image loading animation
+              logger.image(
+                imageUrl,
+                `Cascade node ${responseNode.id.substring(0, 8)}`,
+                { prompt }
+              );
+
               const live = currentNodes[responseNode.id];
               treeManager.patchNode(responseNode.id, {
                 type: "image-response",
@@ -150,7 +145,6 @@ export async function cascadeUpdateDescendants({
                 };
               }
             },
-            // onReasoning callback for cascade regeneration
             (reasoning) => {
               if (!isNodeLive(responseNode.id)) return;
               const live = currentNodes[responseNode.id];
@@ -190,7 +184,7 @@ export async function cascadeUpdateDescendants({
         abortByNodeId.delete(responseNode.id);
         if (result === "aborted" || !isNodeLive(responseNode.id)) return;
         if (result === null) {
-          logger.error('[CASCADE] Stream failed', logData);
+          logger.error("[CASCADE] Stream failed", logData);
           return;
         }
 
@@ -198,16 +192,18 @@ export async function cascadeUpdateDescendants({
         logData.totalChunks = chunkCount;
         logData.contentLength = result.content.length;
         logData.contentPreview = result.content.substring(0, 100);
-        logger.info('[CASCADE] Stream completed', logData);
+        logger.info("[CASCADE] Stream completed", logData);
 
-        // Handle result type switching (text <-> image) in-place
         if (result.type === "image") {
-          logger.image(result.content, `Final cascade image ${responseNode.id.substring(0, 8)}`, {
-            prompt: result.prompt,
-            nodeId: responseNode.id,
-          });
-          
-          // Patch the existing node to change its type to image-response
+          logger.image(
+            result.content,
+            `Final cascade image ${responseNode.id.substring(0, 8)}`,
+            {
+              prompt: result.prompt,
+              nodeId: responseNode.id,
+            }
+          );
+
           treeManager.patchNode(responseNode.id, {
             type: "image-response",
             value: result.content,
@@ -225,7 +221,6 @@ export async function cascadeUpdateDescendants({
             };
           }
         } else {
-          // For text responses, ensure type is "response"
           treeManager.patchNode(responseNode.id, {
             type: "response",
             status: "done",
@@ -243,4 +238,3 @@ export async function cascadeUpdateDescendants({
     );
   }
 }
-
