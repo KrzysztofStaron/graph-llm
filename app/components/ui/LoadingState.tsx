@@ -76,7 +76,8 @@ export default function LoadingState({
 }) {
   const elapsed = useElapsed();
   const surfer = variant === "Surfer";
-  const resolvedLabel = label ?? (surfer ? "Subway surfing" : "Churning");
+  const resolvedLabel =
+    label === undefined ? (surfer ? "Subway surfing" : "Churning") : label;
   const [videoOk, setVideoOk] = useState(true);
   const pattern = isPatternName(variant) ? PATTERNS[variant] : PATTERNS.Drive;
 
@@ -102,7 +103,7 @@ export default function LoadingState({
       <div role="status" className="flex w-fit flex-col items-start">
         <div className="flex items-center gap-2.5">
           <LoaderGrid {...PATTERNS.Drive} />
-          {labelEl}
+          {resolvedLabel ? labelEl : null}
           {elapsedEl}
         </div>
         <div
@@ -143,7 +144,7 @@ export default function LoadingState({
   return (
     <div role="status" className="flex w-fit items-center gap-2.5">
       <LoaderGrid delays={pattern.delays} dur={pattern.dur} round={pattern.round} />
-      {labelEl}
+      {resolvedLabel ? labelEl : null}
       {elapsedEl}
     </div>
   );

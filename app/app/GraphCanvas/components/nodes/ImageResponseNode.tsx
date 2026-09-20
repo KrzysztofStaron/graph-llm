@@ -1,4 +1,5 @@
 import { ImageResponseNode as ImageResponseNodeType } from "@/app/types/graph";
+import LoadingState from "@/app/components/ui/LoadingState";
 import GridReveal from "@/components/ui/grid-reveal";
 import { memo, useEffect, useState } from "react";
 
@@ -104,13 +105,18 @@ export const ImageResponseNode = memo(
               <GridReveal
                 src={src}
                 alt={node.prompt || "Generated image"}
-                caption={src ? "Finishing…" : "Processing image…"}
                 estimatedDuration={18000}
                 aspect={1}
                 onRevealComplete={() => setIsLoaded(true)}
                 onError={() => setHasError(true)}
                 className="rounded-3xl bg-[#0a0a0a]"
               />
+
+              {!isLoaded && (
+                <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/45 px-2.5 py-1.5 backdrop-blur-md">
+                  <LoadingState label="" variant="Drive" />
+                </div>
+              )}
 
               {isLoaded && (
                 <div
