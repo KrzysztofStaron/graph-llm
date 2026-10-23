@@ -22,8 +22,8 @@ const MODEL_ALIASES: Record<string, string> = {
 const IMAGE_MODEL_ALIASES: Record<string, string> = {
   "google/gemini-2.5-flash-image": "gpt-image-1-mini",
   "google/gemini-3.1-flash-image": "gpt-image-1-mini",
-  "google/gemini-3-pro-image-preview": "gpt-image-1",
-  "google/gemini-3-pro-image": "gpt-image-1",
+  "google/gemini-3-pro-image-preview": "gpt-image-2",
+  "google/gemini-3-pro-image": "gpt-image-2",
 };
 
 const resolveModelId = (model?: string): string | undefined =>
