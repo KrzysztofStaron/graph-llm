@@ -27,7 +27,7 @@ export const availableImageModels: ModelOption[] = [
   },
   {
     label: "GPT Image",
-    value: "gpt-image-1",
+    value: "gpt-image-2",
   },
 ];
 

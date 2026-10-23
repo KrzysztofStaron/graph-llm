@@ -1,6 +1,10 @@
 import { throwIfAborted } from "./requestAbort";
 
-export const OPENAI_IMAGE_MODELS = ["gpt-image-1", "gpt-image-1-mini"] as const;
+export const OPENAI_IMAGE_MODELS = [
+  "gpt-image-2",
+  "gpt-image-1",
+  "gpt-image-1-mini",
+] as const;
 
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
 
@@ -9,7 +13,13 @@ export type ImageGenerationResult =
   | { ok: false; error: string };
 
 export const isOpenAIImageModel = (model: string | undefined): boolean =>
-  model === "gpt-image-1" || model === "gpt-image-1-mini";
+  OPENAI_IMAGE_MODELS.some((candidate) => candidate === model);
+
+// Tried in order when OpenAI says the requested model is unavailable to our key.
+export const OPENAI_IMAGE_FALLBACKS: Record<string, string | undefined> = {
+  "gpt-image-1": "gpt-image-2",
+  "gpt-image-2": "gpt-image-1-mini",
+};
 
 export const collectImageUrls = (
   messages: Array<{

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { isOpenAIImageModel } from "../../utils/openaiImage";
+import {
+  isOpenAIImageModel,
+  OPENAI_IMAGE_FALLBACKS,
+} from "../../utils/openaiImage";
 
 export const maxDuration = 120;
 
@@ -63,6 +66,18 @@ const imageUrlFromOpenAI = (data: unknown): { url: string } | { error: string } 
   }
 
   return { error: "OpenAI image entry had no url or b64_json" };
+};
+
+const isModelUnavailable = (data: unknown): boolean => {
+  if (typeof data !== "object" || data === null) return false;
+  const error = (data as Record<string, unknown>).error;
+  if (typeof error !== "object" || error === null) return false;
+  const { code, message } = error as Record<string, unknown>;
+  return (
+    code === "model_not_found" ||
+    (typeof message === "string" &&
+      /does not exist|do not have access|must be verified/i.test(message))
+  );
 };
 
 const blobFromImageUrl = async (
@@ -166,8 +181,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const openaiResponse = await requestOpenAIImage(parsed, apiKey, request.signal);
-  const openaiBody: unknown = await openaiResponse.json();
+  let model = parsed.model;
+  let openaiResponse = await requestOpenAIImage({ ...parsed, model }, apiKey, request.signal);
+  let openaiBody: unknown = await openaiResponse.json();
+
+  // Some OpenAI keys/projects can't access every image model ("The model
+  // 'gpt-image-1' does not exist"). Fall back to the next model we know of.
+  while (!openaiResponse.ok && isModelUnavailable(openaiBody)) {
+    const fallback = OPENAI_IMAGE_FALLBACKS[model];
+    if (!fallback) break;
+    model = fallback;
+    openaiResponse = await requestOpenAIImage({ ...parsed, model }, apiKey, request.signal);
+    openaiBody = await openaiResponse.json();
+  }
+
   const image = imageUrlFromOpenAI(openaiBody);
 
   if ("error" in image) {
@@ -177,5 +204,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ url: image.url, model: parsed.model });
+  return NextResponse.json({ url: image.url, model });
 }
