@@ -206,15 +206,16 @@ export const InputFieldNode = memo(
               />
               <div className="absolute bottom-2.5 right-2.5 flex items-center">
                 <button
+                  type="button"
                   aria-label="Submit query"
                   className="aspect-square rounded-full p-2.5 bg-white text-black hover:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus:outline-none"
                   disabled={query.trim().length === 0}
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleSubmit();
                   }}
-                  onPointerDown={(e) => {
+                  onMouseDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                   }}
