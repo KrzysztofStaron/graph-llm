@@ -10,7 +10,7 @@ export type NodeType =
 
 export type GenerationStatus = "idle" | "streaming" | "done" | "error";
 
-/** The direction a node hangs off its host. New nodes copy it from their host, so a branch keeps its direction. */
+/** The direction a node hangs off its host. */
 export type Flow = "below" | "right" | "left";
 
 /**
@@ -23,8 +23,7 @@ export interface Seat {
   flow: Flow;
   /**
    * Offset across the flow, fixed at creation. "below": child center x minus host center x.
-   * "right" | "left": child top minus host top. Stored as the decision instead of read back from
-   * geometry, because geometry at spawn time is built from placeholder sizes.
+   * "right" | "left": child top minus host top.
    */
   shift: number;
 }

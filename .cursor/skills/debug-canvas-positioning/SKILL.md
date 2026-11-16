@@ -13,7 +13,7 @@ This is not React Flow. Nodes are absolutely positioned (`left`/`top` = `node.x`
 - A seat counts only while its host exists and is in `parentIds`. Otherwise the node is hand-placed.
 - `hang` picks a seat once, at spawn. `settle` re-derives positions from seats and measured sizes and never searches. Applying its moves and calling it again returns `[]`.
 - Flow "below": child center x = host center x + `shift`. Gap is `CHILD_BELOW_PARENT_GAP` (35). Siblings in one lane stack, videos first.
-- Lanes are 880 apart. Replies and summaries are capped at `LANE_WIDTH` (808), so a node never outgrows its lane.
+- Lanes are 880 apart. Replies and summaries are capped at `MAX_NODE_WIDTH` (808), so a node never outgrows its lane.
 - `settle` skips unmeasured nodes. A node keeps its spawn spot until its first size report, and nothing is placed under an unmeasured host. This is what keeps a saved canvas still on load.
 - In `hang` and `drop`, unmeasured nodes are obstacles at default size, so nodes spawned in one tick see each other.
 - A drag is `DRAG_NODES` → `dragNodes`. It unseats the grabbed nodes and carries what is seated under them.

@@ -8,7 +8,7 @@ import { Check, Copy, X, Minimize2, Maximize2 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { PluggableList } from "unified";
 import LoadingState from "@/app/components/ui/LoadingState";
-import { LANE_WIDTH } from "@/app/utils/placement";
+import { MAX_NODE_WIDTH } from "@/app/utils/placement";
 
 type ResponseNodeProps = {
   node: ResponseNodeType;
@@ -224,7 +224,7 @@ export const ResponseNode = memo(
       <div
         className="flex items-center group"
         style={{
-          maxWidth: isCollapsed ? 300 : LANE_WIDTH,
+          maxWidth: isCollapsed ? 300 : MAX_NODE_WIDTH,
           minWidth: "200px",
         }}
       >

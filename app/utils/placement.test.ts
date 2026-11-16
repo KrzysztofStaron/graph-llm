@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   CHILD_BELOW_PARENT_GAP,
-  LANE_WIDTH,
+  MAX_NODE_WIDTH,
   centerOfNodes,
   dragNodes,
   drop,
@@ -135,7 +135,6 @@ function position(world: World, id: string) {
   return { x: world.nodes[id].x, y: world.nodes[id].y };
 }
 
-/** A prompt at the origin with a measured 808x300 reply and its follow-up under it. */
 function chatWithFollowUp(): World {
   const world = emptyWorld();
   placeByHand(world, "q1", "input", -200, 0);
@@ -233,9 +232,9 @@ describe("hang and settle", () => {
     spawn(world, "q2d", "input", ["a1"], { pointer: left, value: "", size: { width: 400, height: 120 } });
 
     const centers = ["q2", "q2b", "q2c", "q2d"].map((id) => centerX(world, id));
-    assert.ok(centers[1] - centers[0] >= LANE_WIDTH, "first branch is right of the main lane");
-    assert.ok(centers[2] - centers[1] >= LANE_WIDTH, "second branch is right of the first");
-    assert.ok(centers[0] - centers[3] >= LANE_WIDTH, "a left click branches left");
+    assert.ok(centers[1] - centers[0] >= MAX_NODE_WIDTH, "first branch is right of the main lane");
+    assert.ok(centers[2] - centers[1] >= MAX_NODE_WIDTH, "second branch is right of the first");
+    assert.ok(centers[0] - centers[3] >= MAX_NODE_WIDTH, "a left click branches left");
     for (const id of ["q2b", "q2c", "q2d"]) {
       assert.equal(world.nodes[id].y, world.nodes.q2.y, `${id} starts level with the follow-up`);
     }
@@ -263,7 +262,7 @@ describe("hang and settle", () => {
     const nested = centerX(world, "q3b2");
     for (const other of ["q2", "q2b", "q2c"]) {
       assert.ok(
-        Math.abs(nested - centerX(world, other)) >= LANE_WIDTH,
+        Math.abs(nested - centerX(world, other)) >= MAX_NODE_WIDTH,
         `nested branch keeps clear of ${other}'s column`
       );
     }
@@ -347,7 +346,7 @@ describe("hang and settle", () => {
 
     spawn(world, "q2b", "input", ["a1"], { pointer: point(300, 0), size: { width: 400, height: 120 } });
 
-    assert.ok(centerX(world, "q2b") - centerX(world, "q2") >= LANE_WIDTH - 60);
+    assert.ok(centerX(world, "q2b") - centerX(world, "q2") >= MAX_NODE_WIDTH - 60);
     assert.deepEqual(overlappingPairs(world), []);
   });
 
@@ -498,7 +497,7 @@ describe("placement over random graphs", () => {
       const pick = <T,>(items: readonly T[]): T | undefined =>
         items[Math.floor(random() * items.length)];
       const between = (low: number, high: number) => low + Math.round(random() * (high - low));
-      const replySize = (): Size => ({ width: between(180, LANE_WIDTH), height: between(60, 900) });
+      const replySize = (): Size => ({ width: between(180, MAX_NODE_WIDTH), height: between(60, 900) });
       const world = emptyWorld();
       placeByHand(world, "n0", "input", -200, 0);
       let count = 0;

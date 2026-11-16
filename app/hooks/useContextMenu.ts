@@ -328,7 +328,6 @@ export function useContextMenu({
       { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
       selectedArray
     );
-    // Delete first, so the nodes being replaced are not obstacles for the summary.
     selectedArray.forEach((id) => {
       treeManager.deleteNodeDetach(id);
     });

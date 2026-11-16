@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { LANE_WIDTH } from "@/app/utils/placement";
+import { MAX_NODE_WIDTH } from "@/app/utils/placement";
 
 type SummaryNodeProps = {
   node: SummaryNodeType;
@@ -24,7 +24,7 @@ export const SummaryNode = memo(
     return (
       <div
         className="min-w-[240px] flex items-center group"
-        style={{ maxWidth: LANE_WIDTH }}
+        style={{ maxWidth: MAX_NODE_WIDTH }}
       >
         <div
           className="relative w-full items-center gap-3 overflow-hidden rounded-3xl bg-linear-to-tr p-px from-white/5 to-white/20"

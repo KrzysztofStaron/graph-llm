@@ -25,7 +25,6 @@ export function readDomNodeSize(
   return { width, height };
 }
 
-/** The canvas placement reads, with the DOM size of `freshIds` in place of what was last reported. */
 export function liveCanvas(
   nodes: GraphNodes,
   sizes: NodeDimensions,

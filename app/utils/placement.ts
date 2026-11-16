@@ -9,28 +9,22 @@ import type {
 
 export const CHILD_BELOW_PARENT_GAP = 35;
 
-/** Widest a conversation node can be. ResponseNode and SummaryNode read it as their max width. */
-export const LANE_WIDTH = 808;
+export const MAX_NODE_WIDTH = 808;
 
 const LANE_GUTTER = 72;
-/** Center-to-center distance between sibling branches in a "below" flow. */
-const LANE_PITCH = LANE_WIDTH + LANE_GUTTER;
-/** A new side lane needs its column clear of other seated chains this far before and after its first node. */
+const LANE_PITCH = MAX_NODE_WIDTH + LANE_GUTTER;
 const LANE_ROOM = 1200;
-/** Cross-axis step and breadth of a sibling branch in a "right" | "left" flow. */
 const ROW_PITCH = 200;
 const SIDE_GAP = 60;
 const DROP_GAP = 24;
 const NEW_NODE_ID = "\u0000new";
 
-/** What every call reads. Plain data, built by the caller from nodesRef and nodeDimensionsRef. */
 export interface Canvas {
   readonly nodes: GraphNodes;
   /** Measured sizes. A node missing here is unmeasured. */
   readonly sizes: NodeDimensions;
 }
 
-/** A point in canvas coordinates. The `__space` field keeps a screen point from passing for one. */
 export type CanvasPoint = {
   readonly x: number;
   readonly y: number;
@@ -52,14 +46,13 @@ export interface SeatedSpot extends Spot {
   seat: Seat;
 }
 
-/** Absolute position. No deltas, so a stale snapshot cannot double-apply. */
 export interface Move {
   id: string;
   x: number;
   y: number;
 }
 
-/** The one screen-to-canvas conversion. `viewportPoint` is relative to the [data-viewport] element. */
+/** `viewportPoint` is relative to the [data-viewport] element. */
 export function toCanvasPoint(
   viewportPoint: { x: number; y: number },
   transform: ViewTransform
@@ -71,7 +64,6 @@ export function toCanvasPoint(
   };
 }
 
-/** Center of the bounding box of `ids`. Undefined when none of them exist. */
 export function centerOfNodes(
   canvas: Canvas,
   ids: readonly string[]
@@ -228,7 +220,7 @@ export function drop(
  * returns [], and no two calls can disagree. A hand-placed node is never in the output.
  *
  * An unmeasured node keeps its spawn spot until its first size report, and nothing is placed after
- * it in its lane or under it. A saved canvas therefore loads without a move per report.
+ * it in its lane or under it.
  */
 export function settle(canvas: Canvas, changedId: string): Move[] {
   const changed = canvas.nodes[changedId];
@@ -268,7 +260,7 @@ export function settle(canvas: Canvas, changedId: string): Move[] {
 /**
  * The whole meaning of a pointer drag for layout. Every dragged node moves by (dx, dy), and so does
  * everything seated on it, transitively. A dragged node loses its seat unless its host moves in the
- * same gesture, so settle never moves it again and new children hang off where the user put it.
+ * same gesture.
  */
 export function dragNodes(
   nodes: GraphNodes,
@@ -344,7 +336,6 @@ interface Rect {
 
 type SeatedNode = GraphNode & { seat: Seat };
 
-/** What placeLane reads from a lane member. A node about to be created has no record yet. */
 interface LaneNode {
   readonly id: string;
   readonly type: NodeType;
@@ -352,21 +343,17 @@ interface LaneNode {
   readonly seat: Seat;
 }
 
-/** Built once per public call so each lookup below is answered without another pass over nodes. */
 interface View {
   readonly canvas: Canvas;
-  /** Host id to the nodes seated on it, in creation order. */
   readonly seatedOn: ReadonlyMap<string, readonly SeatedNode[]>;
-  /** Seated nodes at their current spot, measured size or the default for their type. */
   readonly seatedRects: readonly Rect[];
-  /** Measured hand-placed nodes. The only obstacles placeLane hops. */
-  readonly handPlaced: ReadonlyArray<{ readonly id: string; readonly rect: Rect }>;
+  readonly measuredHandPlaced: ReadonlyArray<{ readonly id: string; readonly rect: Rect }>;
 }
 
 function viewOf(canvas: Canvas): View {
   const seatedOn = new Map<string, SeatedNode[]>();
   const seatedRects: Rect[] = [];
-  const handPlaced: Array<{ id: string; rect: Rect }> = [];
+  const measuredHandPlaced: Array<{ id: string; rect: Rect }> = [];
   for (const node of Object.values(canvas.nodes)) {
     if (isSeated(node, canvas.nodes)) {
       const mates = seatedOn.get(node.seat.hostId);
@@ -374,10 +361,10 @@ function viewOf(canvas: Canvas): View {
       else seatedOn.set(node.seat.hostId, [node]);
       seatedRects.push(rectOf(canvas, node));
     } else if (isMeasured(canvas, node.id)) {
-      handPlaced.push({ id: node.id, rect: rectOf(canvas, node) });
+      measuredHandPlaced.push({ id: node.id, rect: rectOf(canvas, node) });
     }
   }
-  return { canvas, seatedOn, seatedRects, handPlaced };
+  return { canvas, seatedOn, seatedRects, measuredHandPlaced };
 }
 
 function isSeated(node: GraphNode, nodes: GraphNodes): node is SeatedNode {
@@ -396,7 +383,6 @@ function isMeasured(canvas: Canvas, id: string): boolean {
   return canvas.sizes[id] !== undefined;
 }
 
-/** Measured size, else the default for the type. */
 function rectOf(
   canvas: Canvas,
   node: { id: string; type: NodeType; x: number; y: number }
@@ -405,7 +391,6 @@ function rectOf(
   return { x: node.x, y: node.y, width: size.width, height: size.height };
 }
 
-/** Video results stack directly under their reply, ahead of the follow-up. The one type rule here. */
 function isAttachment(type: NodeType): boolean {
   return type === "youtube";
 }
@@ -428,7 +413,6 @@ function stackOrder<T extends { type: NodeType }>(lane: readonly T[]): T[] {
   ];
 }
 
-/** Nodes seated on `hostId`, grouped by lane. A lane with several nodes is a stack: videos, then the follow-up. */
 function lanesOf(view: View, hostId: string): SeatedNode[][] {
   const lanes = new Map<string, SeatedNode[]>();
   for (const node of view.seatedOn.get(hostId) ?? []) {
@@ -448,12 +432,6 @@ function measuredPrefix<T extends { id: string }>(
   return firstUnmeasured === -1 ? [...lane] : lane.slice(0, firstUnmeasured);
 }
 
-/**
- * The single place geometry is computed. `hang` and `settle` both end here.
- * Each node sits after the previous one (or the host) along the flow, at its seat's offset across
- * it, then hops past any measured hand-placed node it touches. The cross-axis coordinate never
- * changes, and the hop only moves forward along the flow, so it ends.
- */
 function placeLane(
   view: View,
   host: GraphNode,
@@ -465,7 +443,7 @@ function placeLane(
   for (const node of lane) {
     const size =
       view.canvas.sizes[node.id] ?? getDefaultNodeDimensions(node.type);
-    const blockers = view.handPlaced.flatMap((other) =>
+    const blockers = view.measuredHandPlaced.flatMap((other) =>
       other.id === host.id || node.childrenIds.includes(other.id)
         ? []
         : [other.rect]
@@ -526,10 +504,6 @@ function hopPast(rect: Rect, flow: Flow, blockers: readonly Rect[]): Rect {
   return out;
 }
 
-/**
- * The direction nodes created under `host` flow in. A seated host keeps its chain's direction.
- * A hand-placed host flows the way the user put it relative to its conversation parent.
- */
 function flowFor(canvas: Canvas, host: GraphNode): Flow {
   if (isSeated(host, canvas.nodes)) return host.seat.flow;
   const parentId =
@@ -549,7 +523,6 @@ function isConversation(type: NodeType | undefined): boolean {
   return type === "input" || type === "response" || type === "image-response";
 }
 
-/** The host whose bottom edge is lowest, so a multi-parent question sits under all of them. */
 function lowest(canvas: Canvas, hosts: readonly GraphNode[]): GraphNode {
   const [first, ...rest] = hosts;
   if (!first) throw new Error("hang: none of the hosts exist");
@@ -560,13 +533,12 @@ function lowest(canvas: Canvas, hosts: readonly GraphNode[]): GraphNode {
   return rest.reduce((low, node) => (bottom(node) > bottom(low) ? node : low), first);
 }
 
-/** The room a new branch needs: a lane-wide band through `rect`, reaching LANE_ROOM both ways along the flow. */
 function columnAround(rect: Rect, flow: Flow): Rect {
   return flow === "below"
     ? {
-        x: centerX(rect) - LANE_WIDTH / 2,
+        x: centerX(rect) - MAX_NODE_WIDTH / 2,
         y: rect.y - LANE_ROOM,
-        width: LANE_WIDTH,
+        width: MAX_NODE_WIDTH,
         height: 2 * LANE_ROOM,
       }
     : {
@@ -580,7 +552,6 @@ function columnAround(rect: Rect, flow: Flow): Rect {
 type Direction = "down" | "right" | "up" | "left";
 const DIRECTIONS: readonly Direction[] = ["down", "right", "up", "left"];
 
-/** Push monotonically past every obstacle in each axis direction, keep the shortest slide. */
 function nudgeClear(block: Rect, obstacles: readonly Rect[]): Rect {
   const slides = DIRECTIONS.map((direction) =>
     slideClear(block, obstacles, direction)
@@ -613,7 +584,6 @@ function slideClear(
   return out;
 }
 
-/** Written with `<` so a NaN coordinate reads as clear instead of blocking every candidate. */
 function touches(a: Rect, b: Rect, gap: number): boolean {
   return (
     a.x < b.x + b.width + gap &&
