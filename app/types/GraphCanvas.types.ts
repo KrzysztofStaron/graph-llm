@@ -10,6 +10,25 @@ export type NodeType =
 
 export type GenerationStatus = "idle" | "streaming" | "done" | "error";
 
+/** The direction a node hangs off its host. New nodes copy it from their host, so a branch keeps its direction. */
+export type Flow = "below" | "right" | "left";
+
+/**
+ * Where a node sits relative to its host, decided once when the node is created.
+ * A node with a seat has derived x/y that only `settle` writes. A node without one is hand-placed:
+ * its x/y belong to the user. A seat counts only while `hostId` exists and is still in `parentIds`.
+ */
+export interface Seat {
+  hostId: string;
+  flow: Flow;
+  /**
+   * Offset across the flow, fixed at creation. "below": child center x minus host center x.
+   * "right" | "left": child top minus host top. Stored as the decision instead of read back from
+   * geometry, because geometry at spawn time is built from placeholder sizes.
+   */
+  shift: number;
+}
+
 export interface BaseNode {
   id: string;
   type: NodeType;
@@ -18,6 +37,7 @@ export interface BaseNode {
   value: string;
   parentIds: string[];
   childrenIds: string[];
+  seat?: Seat;
   pinned?: boolean;
   error?: string;
   status?: GenerationStatus;
