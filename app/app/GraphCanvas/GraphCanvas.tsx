@@ -375,14 +375,14 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
 
     return (
       <CanvasContext.Provider value={{ nodes, reportNodeSize: updateNodeDimension }}>
-        <div className="relative w-full h-dvh overflow-hidden">
+        <div className="relative w-full h-dvh overflow-clip">
           <motion.div
             ref={viewportRef}
             data-viewport
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
-            className="w-full h-dvh overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
+            className="w-full h-dvh overflow-clip pointer-events-auto cursor-grab active:cursor-grabbing select-none"
             style={{ touchAction: "none" }}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
