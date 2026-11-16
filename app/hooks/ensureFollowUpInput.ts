@@ -1,12 +1,8 @@
 import type { GraphNodes } from "../types/GraphCanvas.types";
 import type { TreeManager } from "../interfaces/TreeManager";
-import {
-  getDefaultNodeDimensions,
-  hasRenderableContent,
-  placeCenteredBelowOrForce,
-} from "../utils/placement";
+import { hang, hasRenderableContent } from "../utils/placement";
 import { createNode } from "../interfaces/TreeManager";
-import { readDomNodeSize } from "./spawnPredictedNode";
+import { liveCanvas } from "./spawnPredictedNode";
 
 type NodeDimensionsRef = {
   current: Record<string, { width: number; height: number }>;
@@ -33,22 +29,15 @@ export function ensureFollowUpInput(args: {
     );
   if (!hasRenderableContent(finishedNode) || alreadyHasFollowUp) return;
 
-  const responseDim =
-    readDomNodeSize(args.responseNodeId) ??
-    args.nodeDimensionsRef.current[args.responseNodeId];
-  const inputSize = getDefaultNodeDimensions("input");
-  const freePos = placeCenteredBelowOrForce({
-    parentX: finishedNode.x,
-    parentY: finishedNode.y,
-    parentWidth: responseDim?.width ?? 0,
-    parentHeight: responseDim?.height ?? 0,
-    childWidth: inputSize.width,
-    childHeight: inputSize.height,
-    nodes: args.nodesWithQuery,
-    dimensions: args.nodeDimensionsRef.current,
-  });
+  const spot = hang(
+    liveCanvas(args.nodesRef.current, args.nodeDimensionsRef.current, [
+      args.responseNodeId,
+    ]),
+    { type: "input", on: [args.responseNodeId] }
+  );
   const newInputNode = {
-    ...createNode("input", freePos.x, freePos.y),
+    ...createNode("input", spot.x, spot.y),
+    seat: spot.seat,
     parentIds: [args.responseNodeId],
   };
   args.treeManager.addNode(newInputNode);

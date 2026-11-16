@@ -2,7 +2,8 @@ import { useRef } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { createNode } from "../interfaces/TreeManager";
 import { storageService } from "../interfaces/storageService";
-import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import { drop, type CanvasPoint } from "../utils/placement";
+import type { NodeType } from "../types/GraphCanvas.types";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import logger from "../utils/logger";
 import {
@@ -17,9 +18,9 @@ interface UseFileUploadProps {
 interface UseFileUploadReturn {
   onDropFilesAsContext: (
     files: FileList,
-    canvasPoint: { x: number; y: number }
+    canvasPoint: CanvasPoint
   ) => Promise<void>;
-  handleUploadContext: (canvasPoint: { x: number; y: number }) => void;
+  handleUploadContext: (canvasPoint: CanvasPoint) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -65,13 +66,11 @@ export function useFileUpload({
   graphCanvasRef,
 }: UseFileUploadProps): UseFileUploadReturn {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadContextCanvasPointRef = useRef<{ x: number; y: number } | null>(
-    null
-  );
+  const uploadContextCanvasPointRef = useRef<CanvasPoint | null>(null);
 
   const onDropFilesAsContext = async (
     files: FileList,
-    canvasPoint: { x: number; y: number }
+    canvasPoint: CanvasPoint
   ) => {
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
@@ -90,25 +89,20 @@ export function useFileUpload({
 
     if (imageFiles.length === 0 && documentFiles.length === 0) return;
 
-    // Keep track of nodes as we create them for collision detection
-    const workingNodes = { ...nodesRef.current };
+    const spots = drop(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      {
+        types: [
+          ...imageFiles.map((): NodeType => "image-context"),
+          ...documentFiles.map((): NodeType => "document"),
+        ],
+        at: canvasPoint,
+      }
+    );
 
     // Process image files in parallel
     const imagePromises = imageFiles.map(async (file, imageIndex) => {
-      const nodeIndex = imageIndex;
-      const targetX = canvasPoint.x + nodeIndex * 40;
-      const targetY = canvasPoint.y + nodeIndex * 120;
-
-      const newNodeDim = getDefaultNodeDimensions("image-context");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        workingNodes,
-        nodeDimensionsRef.current,
-        "below"
-      );
+      const freePos = spots[imageIndex];
 
       // Image specific logic
 
@@ -138,7 +132,6 @@ export function useFileUpload({
       const nodeWithValue = { ...newImageContextNode, value: dataUrl };
 
       treeManager.addNode(nodeWithValue);
-      workingNodes[nodeWithValue.id] = nodeWithValue;
 
       logger.info("Created image-context node", {
         nodeId: nodeWithValue.id.substring(0, 8),
@@ -161,20 +154,7 @@ export function useFileUpload({
     
     // Process document files in parallel
     const documentPromises = documentFiles.map(async (file, docIndex) => {
-      const nodeIndex = imageFiles.length + docIndex;
-      const targetX = canvasPoint.x + nodeIndex * 40;
-      const targetY = canvasPoint.y + nodeIndex * 120;
-
-      const newNodeDim = getDefaultNodeDimensions("document");
-      const freePos = findFreePosition(
-        targetX,
-        targetY,
-        newNodeDim.width,
-        newNodeDim.height,
-        workingNodes,
-        nodeDimensionsRef.current,
-        "below"
-      );
+      const freePos = spots[imageFiles.length + docIndex];
 
       // Document specyfic logic
 
@@ -208,13 +188,12 @@ export function useFileUpload({
         value: parseResult.text,
       };
       treeManager.addNode(nodeWithValue);
-      workingNodes[nodeWithValue.id] = nodeWithValue;
     });
 
     await Promise.all([...imagePromises, ...documentPromises]);
   };
 
-  const handleUploadContext = (canvasPoint: { x: number; y: number }) => {
+  const handleUploadContext = (canvasPoint: CanvasPoint) => {
     // Store canvas coordinates before opening file dialog
     uploadContextCanvasPointRef.current = canvasPoint;
     fileInputRef.current?.click();

@@ -5,7 +5,7 @@ interface UsePointerGesturesProps {
   selectedNodeIds: Set<string>;
   toggleNodeSelection: (nodeId: string) => void;
   clearSelection: () => void;
-  moveNode: (nodeId: string, dx: number, dy: number, setPinned?: boolean) => void;
+  dragNodes: (ids: readonly string[], dx: number, dy: number) => void;
   onRequestContextMenu?: (clientX: number, clientY: number, nodeId?: string) => void;
   onNodeDragToStorage?: (nodeId: string, clientX: number, clientY: number) => void;
 }
@@ -24,7 +24,7 @@ export function usePointerGestures({
   selectedNodeIds,
   toggleNodeSelection,
   clearSelection,
-  moveNode,
+  dragNodes,
   onRequestContextMenu,
   onNodeDragToStorage,
 }: UsePointerGesturesProps): UsePointerGesturesReturn {
@@ -289,16 +289,10 @@ export function usePointerGestures({
           dragging.startX = e.clientX;
           dragging.startY = e.clientY;
 
-          const setPinned = distance > MOVE_THRESHOLD && !dragging.hasMoved;
-
-          // Move all selected nodes if dragged node is selected
-          if (selectedNodeIds.has(dragging.nodeId)) {
-            selectedNodeIds.forEach((nodeId) => {
-              moveNode(nodeId, canvasDx, canvasDy, setPinned);
-            });
-          } else {
-            moveNode(dragging.nodeId, canvasDx, canvasDy, setPinned);
-          }
+          const ids = selectedNodeIds.has(dragging.nodeId)
+            ? [...selectedNodeIds]
+            : [dragging.nodeId];
+          dragNodes(ids, canvasDx, canvasDy);
         }
       }
     };
@@ -367,7 +361,7 @@ export function usePointerGestures({
   }, [
     transform.k,
     selectedNodeIds,
-    moveNode,
+    dragNodes,
     clearSelection,
     toggleNodeSelection,
     clearLongPressTimer,
