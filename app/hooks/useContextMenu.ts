@@ -2,7 +2,15 @@
 import { useState } from "react";
 import { GraphCanvasRef } from "../app/GraphCanvas/GraphCanvas";
 import { createNode, summarizeNodes } from "../interfaces/TreeManager";
-import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import {
+  centerOfNodes,
+  drop,
+  hang,
+  toCanvasPoint,
+  type CanvasPoint,
+  type Spot,
+} from "../utils/placement";
+import type { Seat } from "../types/GraphCanvas.types";
 import { ContextMenuItem } from "../components/ui/ContextMenu";
 
 type ContextMenuState = {
@@ -10,13 +18,12 @@ type ContextMenuState = {
   x: number;
   y: number;
   target: { kind: "canvas" } | { kind: "node"; nodeId: string };
-  canvasX: number;
-  canvasY: number;
+  point: CanvasPoint;
 };
 
 interface UseContextMenuProps {
   graphCanvasRef: React.RefObject<GraphCanvasRef | null>;
-  onUploadContext: (canvasPoint: { x: number; y: number }) => void;
+  onUploadContext: (canvasPoint: CanvasPoint) => void;
   onListen: (targetNodeIds: string[]) => void;
   onEditContext?: (nodeId: string) => void;
   onEditInput?: (nodeId: string) => void;
@@ -50,17 +57,12 @@ export function useContextMenu({
     const transform = graphCanvasRef.current?.transform;
     if (!transform) return;
 
-    // Convert client coordinates to canvas coordinates
-    const canvasX = (clientX - transform.x) / transform.k;
-    const canvasY = (clientY - transform.y) / transform.k;
-
     setContextMenu({
       isOpen: true,
       x: clientX,
       y: clientY,
       target: nodeId ? { kind: "node", nodeId } : { kind: "canvas" },
-      canvasX,
-      canvasY,
+      point: toCanvasPoint({ x: clientX, y: clientY }, transform),
     });
   };
 
@@ -132,19 +134,11 @@ export function useContextMenu({
     const treeManager = graphCanvasRef.current?.treeManager;
     if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
-    const newNodeDim = getDefaultNodeDimensions("input");
-    const freePos = findFreePosition(
-      contextMenu.canvasX,
-      contextMenu.canvasY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below"
+    const [spot] = drop(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      { types: ["input"], at: contextMenu.point }
     );
-
-    const newInputNode = createNode("input", freePos.x, freePos.y);
-    treeManager.addNode(newInputNode);
+    treeManager.addNode(createNode("input", spot.x, spot.y));
   };
 
   const handleAskQuestion = () => {
@@ -179,48 +173,16 @@ export function useContextMenu({
       }
     }
 
-    if (eligibleParentIds.length === 0) return;
-
-    // Calculate target position - if right-clicking on a node, place directly below it
-    let targetX = contextMenu.canvasX;
-    let targetY = contextMenu.canvasY;
-
-    if (contextMenu.target.kind === "node") {
-      const clickedNode = nodes[contextMenu.target.nodeId];
-      if (clickedNode) {
-        const nodeDim =
-          nodeDimensionsRef.current[clickedNode.id] ||
-          getDefaultNodeDimensions(clickedNode.type);
-
-        // Calculate node center X position
-        const nodeCenterX = clickedNode.x + nodeDim.width / 2;
-
-        // Determine if click was to the left or right of center
-        const clickOffset = contextMenu.canvasX - nodeCenterX;
-
-        // Place directly below, but offset slightly based on click position
-        const horizontalOffset =
-          clickOffset < 0 ? -80 : clickOffset > 0 ? 80 : 0;
-
-        // Center the input node below the parent node, with optional offset
-        const newNodeDim = getDefaultNodeDimensions("input");
-        targetX = nodeCenterX - newNodeDim.width / 2 + horizontalOffset;
-        targetY = clickedNode.y + nodeDim.height + 30;
-      }
-    }
-
-    const newNodeDim = getDefaultNodeDimensions("input");
-    const freePos = findFreePosition(
-      targetX,
-      targetY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below"
+    const [first, ...rest] = eligibleParentIds.filter(
+      (parentId) => nodesRef.current[parentId]
     );
+    if (!first) return;
 
-    const newInputNode = createNode("input", freePos.x, freePos.y);
+    const spot = hang(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      { type: "input", on: [first, ...rest], pointer: contextMenu.point }
+    );
+    const newInputNode = { ...createNode("input", spot.x, spot.y), seat: spot.seat };
     treeManager.addNode(newInputNode);
 
     // Link all eligible parent nodes
@@ -231,48 +193,21 @@ export function useContextMenu({
 
   const handleAddContext = () => {
     if (!contextMenu) return;
-    const nodes = graphCanvasRef.current?.nodes;
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
     const treeManager = graphCanvasRef.current?.treeManager;
-    if (!nodes || !nodesRef || !nodeDimensionsRef || !treeManager) return;
+    if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
-    let targetX = contextMenu.canvasX;
-    let targetY = contextMenu.canvasY;
-
-    // If right-clicking on a node, place directly below it
-    if (contextMenu.target.kind === "node") {
-      const clickedNode = nodes[contextMenu.target.nodeId];
-      if (clickedNode) {
-        const nodeDim =
-          nodeDimensionsRef.current[clickedNode.id] ||
-          getDefaultNodeDimensions(clickedNode.type);
-        targetX = clickedNode.x;
-        targetY = clickedNode.y + nodeDim.height + 30;
-      }
-    }
-
-    const newNodeDim = getDefaultNodeDimensions("context");
-    const freePos = findFreePosition(
-      targetX,
-      targetY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below"
+    const [spot] = drop(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      { types: ["context"], at: contextMenu.point }
     );
-
-    const newContextNode = createNode("context", freePos.x, freePos.y);
-    treeManager.addNode(newContextNode);
+    treeManager.addNode(createNode("context", spot.x, spot.y));
   };
 
   const handleUploadContext = () => {
     if (contextMenu) {
-      onUploadContext({
-        x: contextMenu.canvasX,
-        y: contextMenu.canvasY,
-      });
+      onUploadContext(contextMenu.point);
     }
   };
 
@@ -383,36 +318,32 @@ export function useContextMenu({
       });
     });
 
-    const centroid = selectedArray.reduce(
-      (acc, id) => {
-        const node = nodesRef.current[id];
-        if (!node) return acc;
-        return { x: acc.x + node.x, y: acc.y + node.y, n: acc.n + 1 };
-      },
-      { x: 0, y: 0, n: 0 }
-    );
-
-    const targetX = centroid.n > 0 ? centroid.x / centroid.n : 0;
-    const targetY = centroid.n > 0 ? centroid.y / centroid.n : 0;
-
     const { summary, images } = await summarizeNodes(selectedNodes);
     const summaryValue =
       `Summary:\n${summary}\n\n` +
       `Images:\n` +
       (images.length > 0 ? images.map((url) => `- ${url}`).join("\n") : "- (none)");
 
-    const newNodeDim = getDefaultNodeDimensions("summary");
-    const freePos = findFreePosition(
-      targetX,
-      targetY,
-      newNodeDim.width,
-      newNodeDim.height,
-      nodesRef.current,
-      nodeDimensionsRef.current,
-      "below"
+    const hole = centerOfNodes(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      selectedArray
     );
+    // Delete first, so the nodes being replaced are not obstacles for the summary.
+    selectedArray.forEach((id) => {
+      treeManager.deleteNodeDetach(id);
+    });
 
-    const summaryNode = createNode("summary", freePos.x, freePos.y);
+    const canvas = { nodes: nodesRef.current, sizes: nodeDimensionsRef.current };
+    const [firstParent, ...otherParents] = Array.from(externalParentIds).filter(
+      (pid) => canvas.nodes[pid]
+    );
+    const spot: Spot & { seat?: Seat } = firstParent
+      ? hang(canvas, { type: "summary", on: [firstParent, ...otherParents] })
+      : hole
+        ? drop(canvas, { types: ["summary"], at: hole })[0]
+        : { x: 0, y: 0 };
+
+    const summaryNode = { ...createNode("summary", spot.x, spot.y), seat: spot.seat };
     treeManager.addNode(summaryNode);
     treeManager.patchNode(summaryNode.id, { value: summaryValue });
 
@@ -422,11 +353,6 @@ export function useContextMenu({
     });
     Array.from(externalChildIds).forEach((cid) => {
       treeManager.linkNodes(summaryNode.id, cid);
-    });
-
-    // Remove the selected nodes (after we've re-linked external edges)
-    selectedArray.forEach((id) => {
-      treeManager.deleteNodeDetach(id);
     });
 
     graphCanvasRef.current?.clearSelection();

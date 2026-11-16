@@ -38,7 +38,6 @@ export interface BaseNode {
   parentIds: string[];
   childrenIds: string[];
   seat?: Seat;
-  pinned?: boolean;
   error?: string;
   status?: GenerationStatus;
   /** Epoch ms when the current generation request started. */

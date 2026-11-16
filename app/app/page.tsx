@@ -20,12 +20,11 @@ import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import SettingsModal from "./QuickMenu";
 import { HelpCircle, Settings } from "lucide-react";
 import { createNode } from "../interfaces/TreeManager";
-import { findFreePosition, getDefaultNodeDimensions } from "../utils/placement";
+import { drop, toCanvasPoint, type CanvasPoint } from "../utils/placement";
 import { parseDocumentWithFallback } from "../utils/documentParserClient";
 import { PLAIN_TEXT_EXTENSIONS, DOCUMENT_EXTENSIONS } from "../hooks/useFileUpload";
 import { useContextStorage } from "../hooks/useContextStorage";
-import type { StoredItem } from "../hooks/useContextStorage";
-import type { GraphNodes } from "../types/GraphCanvas.types";
+import type { GraphNode, GraphNodes } from "../types/GraphCanvas.types";
 
 // Always start with default nodes for hydration consistency
 // Load from localStorage after hydration in useEffect
@@ -166,13 +165,6 @@ const AppPageContent = () => {
   // AI chat hook
   const { onInputSubmit, cancelRequestsForNodes } = useAIChat({ graphCanvasRef });
 
-  const handleRequestNodeMove = useCallback((nodeId: string, dx: number, dy: number) => {
-    const treeManager = graphCanvasRef.current?.treeManager;
-    if (treeManager) {
-      treeManager.moveNode(nodeId, dx, dy);
-    }
-  }, []);
-
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [tipsOpen, setTipsOpen] = useState(false);
   const [storagePanelOpen, setStoragePanelOpen] = useState(false);
@@ -185,42 +177,43 @@ const AppPageContent = () => {
     },
   });
 
-  const handleRestoreNode = useCallback((
-    node: import("../types/GraphCanvas.types").GraphNode,
-    canvasPoint: { x: number; y: number }
-  ) => {
+  const handleRestoreNode = useCallback((node: GraphNode, canvasPoint: CanvasPoint) => {
     const nodesRef = graphCanvasRef.current?.nodesRef;
     const nodeDimensionsRef = graphCanvasRef.current?.nodeDimensionsRef;
     const treeManager = graphCanvasRef.current?.treeManager;
     if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
-    const workingNodes = { ...nodesRef.current };
-    const newNodeDim = getDefaultNodeDimensions(node.type);
-    const freePos = findFreePosition(
-      canvasPoint.x,
-      canvasPoint.y,
-      newNodeDim.width,
-      newNodeDim.height,
-      workingNodes,
-      nodeDimensionsRef.current,
-      "below"
+    const [spot] = drop(
+      { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+      { types: [node.type], at: canvasPoint }
     );
 
     const restoredNode = {
       ...node,
-      x: freePos.x,
-      y: freePos.y,
+      x: spot.x,
+      y: spot.y,
       id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       parentIds: [],
       childrenIds: [],
+      seat: undefined,
     };
 
     treeManager.addNode(restoredNode);
   }, [graphCanvasRef]);
 
+  const canvasPointAtViewportCenter = useCallback((): CanvasPoint | undefined => {
+    const transform = graphCanvasRef.current?.transform;
+    const viewport = document.querySelector("[data-viewport]");
+    if (!transform || !(viewport instanceof HTMLElement)) return undefined;
+    return toCanvasPoint(
+      { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 },
+      transform
+    );
+  }, [graphCanvasRef]);
+
   const handleRestoreFile = useCallback(async (
     file: File,
-    canvasPoint: { x: number; y: number }
+    canvasPoint: CanvasPoint
   ) => {
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
@@ -245,9 +238,8 @@ const AppPageContent = () => {
   };
 
   useEffect(() => {
-    const handleStorageItemDrop = (e: Event) => {
-      const customEvent = e as CustomEvent<{ item: StoredItem; canvasPoint: { x: number; y: number } }>;
-      const { item, canvasPoint } = customEvent.detail;
+    const handleStorageItemDrop = (e: WindowEventMap["storageItemDrop"]) => {
+      const { item, canvasPoint } = e.detail;
 
       if (item.type === "file") {
         if (item.url && item.mimeType.startsWith("image/")) {
@@ -256,19 +248,12 @@ const AppPageContent = () => {
           const treeManager = graphCanvasRef.current?.treeManager;
           if (!nodesRef || !nodeDimensionsRef || !treeManager) return;
 
-          const workingNodes = { ...nodesRef.current };
-          const newNodeDim = getDefaultNodeDimensions("image-context");
-          const freePos = findFreePosition(
-            canvasPoint.x,
-            canvasPoint.y,
-            newNodeDim.width,
-            newNodeDim.height,
-            workingNodes,
-            nodeDimensionsRef.current,
-            "below"
+          const [spot] = drop(
+            { nodes: nodesRef.current, sizes: nodeDimensionsRef.current },
+            { types: ["image-context"], at: canvasPoint }
           );
 
-          const newImageContextNode = createNode("image-context", freePos.x, freePos.y);
+          const newImageContextNode = createNode("image-context", spot.x, spot.y);
           const nodeWithValue = { ...newImageContextNode, value: item.url };
           treeManager.addNode(nodeWithValue);
         } else if (item.url) {
@@ -301,7 +286,6 @@ const AppPageContent = () => {
         onInputSubmit={onInputSubmit}
         setEditingContextNodeId={setEditingContextNodeId}
         onDropFilesAsContext={onDropFilesAsContext}
-        onRequestNodeMove={handleRequestNodeMove}
         onRequestContextMenu={handleRequestContextMenu}
         onNodeDragToStorage={handleNodeDroppedToStorage}
         onNodesRemoved={cancelRequestsForNodes}
@@ -375,6 +359,7 @@ const AppPageContent = () => {
       <ContextStoragePanel
         isOpen={storagePanelOpen}
         onToggle={() => setStoragePanelOpen((prev) => !prev)}
+        canvasPointAtViewportCenter={canvasPointAtViewportCenter}
         onRestoreNode={handleRestoreNode}
         onRestoreFile={handleRestoreFile}
         onNodeDropped={handleNodeDroppedToStorage}

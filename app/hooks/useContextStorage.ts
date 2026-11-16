@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { GraphNode } from "../types/GraphCanvas.types";
 import { storageService } from "../interfaces/storageService";
 import logger from "../utils/logger";
+import type { CanvasPoint } from "../utils/placement";
 
 export interface StoredFile {
   id: string;
@@ -21,6 +22,12 @@ export interface StoredNode {
 export type StoredItem = 
   | ({ type: "file" } & StoredFile)
   | ({ type: "node" } & StoredNode);
+
+declare global {
+  interface WindowEventMap {
+    storageItemDrop: CustomEvent<{ item: StoredItem; canvasPoint: CanvasPoint }>;
+  }
+}
 
 const STORAGE_KEY = "graph-llm-context-storage";
 

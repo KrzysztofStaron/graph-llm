@@ -4,10 +4,7 @@ import type {
   NodeDimensions,
 } from "../types/GraphCanvas.types";
 import { createNode, type TreeManager } from "../interfaces/TreeManager";
-import {
-  getDefaultNodeDimensions,
-  placeCenteredBelowOrForce,
-} from "../utils/placement";
+import { hang, settle, type Canvas } from "../utils/placement";
 import {
   spawnNodeType,
   type SpawnType,
@@ -28,85 +25,48 @@ export function readDomNodeSize(
   return { width, height };
 }
 
-export function alignChildUnderParent(args: {
-  child: GraphNode;
-  parentId: string;
-  nodes: GraphNodes;
-  dimensions: NodeDimensions;
-}): { node: GraphNode; dimensions: NodeDimensions } {
-  const parent = args.nodes[args.parentId];
-  const childDim = readDomNodeSize(args.child.id) ?? args.dimensions[args.child.id];
-  const parentDim = parent
-    ? (readDomNodeSize(parent.id) ?? args.dimensions[parent.id])
-    : undefined;
-  if (!parent || !childDim || !parentDim) {
-    return { node: args.child, dimensions: args.dimensions };
+/** The canvas placement reads, with the DOM size of `freshIds` in place of what was last reported. */
+export function liveCanvas(
+  nodes: GraphNodes,
+  sizes: NodeDimensions,
+  freshIds: readonly string[]
+): Canvas {
+  const fresh = { ...sizes };
+  for (const id of freshIds) {
+    const dom = readDomNodeSize(id);
+    if (dom) fresh[id] = dom;
   }
-  const dimensions = {
-    ...args.dimensions,
-    [args.child.id]: childDim,
-    [parent.id]: parentDim,
-  };
-  const placed = placeCenteredBelowOrForce({
-    parentX: parent.x,
-    parentY: parent.y,
-    parentWidth: parentDim.width,
-    parentHeight: parentDim.height,
-    childWidth: childDim.width,
-    childHeight: childDim.height,
-    nodes: args.nodes,
-    dimensions,
-    ignoreIds: [args.child.id, ...args.child.childrenIds],
-  });
-  return {
-    node: { ...args.child, x: placed.x, y: placed.y },
-    dimensions,
-  };
+  return { nodes, sizes: fresh };
 }
 
 export function commitAlignedNode(args: {
-  node: GraphNode;
-  parent: GraphNode;
+  nodeId: string;
   nodesRef: { current: GraphNodes };
   nodeDimensionsRef: { current: NodeDimensions };
   treeManager: TreeManager;
-  nodesWithQuery: GraphNodes;
-}): GraphNode {
-  const current = args.nodesRef.current[args.node.id];
+}): GraphNode | undefined {
+  const current = args.nodesRef.current[args.nodeId];
   if (!current) {
-    return args.node;
+    return undefined;
   }
-  const parent = args.nodesRef.current[args.parent.id] ?? args.parent;
-  const aligned = alignChildUnderParent({
-    child: current,
-    parentId: parent.id,
-    nodes: {
-      ...args.nodesRef.current,
-      [parent.id]: parent,
-      [current.id]: current,
-    },
-    dimensions: args.nodeDimensionsRef.current,
-  });
-  if (!args.nodesRef.current[args.node.id]) {
-    return args.node;
+  const canvas = liveCanvas(
+    args.nodesRef.current,
+    args.nodeDimensionsRef.current,
+    current.seat ? [current.id, current.seat.hostId] : [current.id]
+  );
+  args.nodeDimensionsRef.current = canvas.sizes;
+  for (const move of settle(canvas, current.id)) {
+    if (!args.nodesRef.current[move.id]) continue;
+    args.treeManager.patchNode(move.id, { x: move.x, y: move.y });
   }
-  args.nodeDimensionsRef.current = aligned.dimensions;
-  args.treeManager.patchNode(args.node.id, {
-    x: aligned.node.x,
-    y: aligned.node.y,
-  });
-  args.nodesRef.current[args.node.id] = aligned.node;
-  args.nodesWithQuery[args.node.id] = aligned.node;
-  return aligned.node;
+  return args.nodesRef.current[args.nodeId];
 }
 
 export function scheduleAlignWhenPainted(args: {
   nodeId: string;
-  parent: GraphNode;
   nodesRef: { current: GraphNodes };
   nodeDimensionsRef: { current: NodeDimensions };
   treeManager: TreeManager;
-  nodesWithQuery: GraphNodes;
 }) {
   let attempts = 0;
   const tick = () => {
@@ -114,14 +74,7 @@ export function scheduleAlignWhenPainted(args: {
     const current = args.nodesRef.current[args.nodeId];
     const size = readDomNodeSize(args.nodeId);
     if (current && size && size.width > 20) {
-      commitAlignedNode({
-        node: current,
-        parent: args.parent,
-        nodesRef: args.nodesRef,
-        nodeDimensionsRef: args.nodeDimensionsRef,
-        treeManager: args.treeManager,
-        nodesWithQuery: args.nodesWithQuery,
-      });
+      commitAlignedNode(args);
     }
     if (attempts < 30) {
       requestAnimationFrame(tick);
@@ -179,7 +132,6 @@ export function applyPredictedReplyType(args: {
 export function applySpawnPrediction(args: {
   nodeId: string;
   spawn: SpawnType;
-  parent: GraphNode;
   treeManager: TreeManager;
   nodesWithQuery: GraphNodes;
   nodesRef: { current: GraphNodes };
@@ -200,11 +152,9 @@ export function applySpawnPrediction(args: {
     });
     scheduleAlignWhenPainted({
       nodeId: args.nodeId,
-      parent: args.parent,
       nodesRef: args.nodesRef,
       nodeDimensionsRef: args.nodeDimensionsRef,
       treeManager: args.treeManager,
-      nodesWithQuery: args.nodesWithQuery,
     });
     return undefined;
   }
@@ -214,6 +164,7 @@ export function applySpawnPrediction(args: {
     return ensureYoutubeSkeleton({
       responseNode: reply,
       nodesWithQuery: args.nodesWithQuery,
+      nodesRef: args.nodesRef,
       nodeDimensionsRef: args.nodeDimensionsRef,
       treeManager: args.treeManager,
     });
@@ -231,29 +182,23 @@ export function createStreamingReplyNode(args: {
   treeManager: TreeManager;
 }): { responseNode: GraphNode; responseNodeId: string } {
   const replyType = spawnNodeType(args.spawn ?? "text");
-  const replySize = getDefaultNodeDimensions(replyType);
-  const callerDim =
-    readDomNodeSize(args.parent.id) ??
-    args.nodeDimensionsRef.current[args.parent.id];
-  const freePos = placeCenteredBelowOrForce({
-    parentX: args.parent.x,
-    parentY: args.parent.y,
-    parentWidth: callerDim?.width ?? 0,
-    parentHeight: callerDim?.height ?? 0,
-    childWidth: replySize.width,
-    childHeight: replySize.height,
-    nodes: args.nodesWithQuery,
-    dimensions: args.nodeDimensionsRef.current,
-  });
+  const spot = hang(
+    liveCanvas(args.nodesRef.current, args.nodeDimensionsRef.current, [
+      args.parent.id,
+    ]),
+    { type: replyType, on: [args.parent.id] }
+  );
 
   const newNode =
     replyType === "image-response"
       ? {
-          ...createNode("image-response", freePos.x, freePos.y),
+          ...createNode("image-response", spot.x, spot.y),
+          seat: spot.seat,
           parentIds: [args.parent.id],
         }
       : {
-          ...createNode("response", freePos.x, freePos.y),
+          ...createNode("response", spot.x, spot.y),
+          seat: spot.seat,
           parentIds: [args.parent.id],
         };
   const streamingNode = {
@@ -276,11 +221,9 @@ export function createStreamingReplyNode(args: {
 
   scheduleAlignWhenPainted({
     nodeId: newNode.id,
-    parent: args.parent,
     nodesRef: args.nodesRef,
     nodeDimensionsRef: args.nodeDimensionsRef,
     treeManager: args.treeManager,
-    nodesWithQuery: args.nodesWithQuery,
   });
 
   return { responseNode: streamingNode, responseNodeId: newNode.id };
@@ -293,6 +236,7 @@ export function createStreamingReplyNode(args: {
 export function ensureYoutubeSkeleton(args: {
   responseNode: GraphNode;
   nodesWithQuery: GraphNodes;
+  nodesRef: { current: GraphNodes };
   nodeDimensionsRef: { current: NodeDimensions };
   treeManager: TreeManager;
 }): string | undefined {
@@ -320,23 +264,16 @@ export function ensureYoutubeSkeleton(args: {
     return existing;
   }
 
-  const responseDim =
-    readDomNodeSize(args.responseNode.id) ??
-    args.nodeDimensionsRef.current[args.responseNode.id];
-  const youtubeSize = getDefaultNodeDimensions("youtube");
-  const freePos = placeCenteredBelowOrForce({
-    parentX: args.responseNode.x,
-    parentY: args.responseNode.y,
-    parentWidth: responseDim?.width ?? youtubeSize.width,
-    parentHeight: responseDim?.height ?? youtubeSize.height,
-    childWidth: youtubeSize.width,
-    childHeight: youtubeSize.height,
-    nodes: args.nodesWithQuery,
-    dimensions: args.nodeDimensionsRef.current,
-  });
+  const spot = hang(
+    liveCanvas(args.nodesRef.current, args.nodeDimensionsRef.current, [
+      args.responseNode.id,
+    ]),
+    { type: "youtube", on: [args.responseNode.id] }
+  );
 
   const youtubeNode = {
-    ...createNode("youtube", freePos.x, freePos.y),
+    ...createNode("youtube", spot.x, spot.y),
+    seat: spot.seat,
     parentIds: [args.responseNode.id],
     status: "streaming" as const,
     generationStartedAt:
@@ -366,6 +303,7 @@ export function fillYoutubeNodes(args: {
   videos: Array<{ videoId: string; explanation?: string }>;
   skeletonId: string | undefined;
   nodesWithQuery: GraphNodes;
+  nodesRef: { current: GraphNodes };
   nodeDimensionsRef: { current: NodeDimensions };
   treeManager: TreeManager;
 }) {
@@ -376,11 +314,6 @@ export function fillYoutubeNodes(args: {
     }
     return;
   }
-
-  const responseDim =
-    readDomNodeSize(args.responseNode.id) ??
-    args.nodeDimensionsRef.current[args.responseNode.id];
-  const youtubeSize = getDefaultNodeDimensions("youtube");
 
   args.videos.forEach((video, index) => {
     if (index === 0 && args.skeletonId && args.nodesWithQuery[args.skeletonId]) {
@@ -403,19 +336,16 @@ export function fillYoutubeNodes(args: {
       return;
     }
 
-    const freePos = placeCenteredBelowOrForce({
-      parentX: args.responseNode.x,
-      parentY: args.responseNode.y,
-      parentWidth: responseDim?.width ?? 0,
-      parentHeight: responseDim?.height ?? 0,
-      childWidth: youtubeSize.width,
-      childHeight: youtubeSize.height,
-      nodes: args.nodesWithQuery,
-      dimensions: args.nodeDimensionsRef.current,
-    });
+    const spot = hang(
+      liveCanvas(args.nodesRef.current, args.nodeDimensionsRef.current, [
+        args.responseNode.id,
+      ]),
+      { type: "youtube", on: [args.responseNode.id] }
+    );
 
     const youtubeNode = {
-      ...createNode("youtube", freePos.x, freePos.y),
+      ...createNode("youtube", spot.x, spot.y),
+      seat: spot.seat,
       parentIds: [args.responseNode.id],
     };
     args.treeManager.addNode(youtubeNode);

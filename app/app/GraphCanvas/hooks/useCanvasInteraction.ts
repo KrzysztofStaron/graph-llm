@@ -1,17 +1,18 @@
 import { useRef, useReducer, useCallback, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { GraphNodes, NodeDimensions } from "@/app/types/GraphCanvas.types";
-import { getDefaultNodeDimensions } from "@/app/utils/placement";
+import {
+  getDefaultNodeDimensions,
+  toCanvasPoint,
+  type CanvasPoint,
+} from "@/app/utils/placement";
 import logger from "@/app/utils/logger";
 
 interface UseCanvasInteractionProps {
   nodes: GraphNodes;
   localNodeDimensions: NodeDimensions;
   initialTransform?: { x: number; y: number; k: number };
-  onDropFilesAsContext?: (
-    files: FileList,
-    canvasPoint: { x: number; y: number }
-  ) => void;
+  onDropFilesAsContext?: (files: FileList, canvasPoint: CanvasPoint) => void;
   onRequestContextMenu?: (
     clientX: number,
     clientY: number,
@@ -216,15 +217,10 @@ export function useCanvasInteraction({
     if (!viewport) return;
 
     const viewportRect = viewport.getBoundingClientRect();
-    
-    // Convert screen coordinates relative to viewport
-    const viewportX = e.clientX - viewportRect.left;
-    const viewportY = e.clientY - viewportRect.top;
-
-    // Convert viewport coordinates to canvas coordinates
-    // Formula: canvas = (viewport - transform.translate) / transform.scale
-    const canvasX = (viewportX - transform.x) / transform.k;
-    const canvasY = (viewportY - transform.y) / transform.k;
+    const canvasPoint = toCanvasPoint(
+      { x: e.clientX - viewportRect.left, y: e.clientY - viewportRect.top },
+      transform
+    );
 
     // Check if dropping a stored item from storage panel (already retrieved above)
     
@@ -234,7 +230,7 @@ export function useCanvasInteraction({
         
         // Dispatch custom event to handle storage item drop
         const event = new CustomEvent("storageItemDrop", {
-          detail: { item, canvasPoint: { x: canvasX, y: canvasY } },
+          detail: { item, canvasPoint },
         });
         window.dispatchEvent(event);
         return;
@@ -245,7 +241,7 @@ export function useCanvasInteraction({
 
     if (!onDropFilesAsContext || !e.dataTransfer.files.length) return;
 
-    onDropFilesAsContext(e.dataTransfer.files, { x: canvasX, y: canvasY });
+    onDropFilesAsContext(e.dataTransfer.files, canvasPoint);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {

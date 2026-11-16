@@ -37,13 +37,6 @@ export type GraphAction =
   | { type: "UNLINK"; fromId: string; toId: string }
   | { type: "DETACH_NODE"; id: string }
   | { type: "REMOVE_EDGES_BETWEEN"; nodeIds: string[] }
-  | {
-      type: "MOVE_NODE";
-      id: string;
-      dx: number;
-      dy: number;
-      setPinned?: boolean;
-    }
   | { type: "DRAG_NODES"; ids: readonly string[]; dx: number; dy: number }
   | { type: "DELETE_CASCADE"; id: string }
   | { type: "DELETE_NODE_DETACH"; id: string }
@@ -666,10 +659,6 @@ export class TreeManager {
     this.dispatch({ type: "REMOVE_EDGES_BETWEEN", nodeIds });
   }
 
-  moveNode(id: string, dx: number, dy: number, setPinned?: boolean): void {
-    this.dispatch({ type: "MOVE_NODE", id, dx, dy, setPinned });
-  }
-
   dragNodes(ids: readonly string[], dx: number, dy: number): void {
     this.dispatch({ type: "DRAG_NODES", ids, dx, dy });
   }
@@ -845,22 +834,6 @@ export function graphReducer(
       }
 
       return updatedNodes;
-    }
-    case "MOVE_NODE": {
-      const node = nodes[action.id];
-      if (!node) return nodes;
-      const updated: GraphNode = {
-        ...node,
-        x: node.x + action.dx,
-        y: node.y + action.dy,
-      };
-      if (action.setPinned !== undefined) {
-        updated.pinned = action.setPinned;
-      }
-      return {
-        ...nodes,
-        [action.id]: updated,
-      };
     }
     case "DRAG_NODES": {
       return dragNodes(nodes, action.ids, action.dx, action.dy);

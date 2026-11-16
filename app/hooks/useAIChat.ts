@@ -143,11 +143,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         responseNode = patched;
         scheduleAlignWhenPainted({
           nodeId: responseNodeId,
-          parent: currentCaller,
           nodesRef,
           nodeDimensionsRef,
           treeManager,
-          nodesWithQuery,
         });
       } else {
         const created = createStreamingReplyNode({
@@ -182,7 +180,6 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         youtubeSkeletonId = applySpawnPrediction({
           nodeId: responseNodeId,
           spawn,
-          parent: currentCaller,
           treeManager,
           nodesWithQuery,
           nodesRef,
@@ -248,11 +245,9 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
             }
             scheduleAlignWhenPainted({
               nodeId: responseNodeId,
-              parent: currentCaller,
               nodesRef,
               nodeDimensionsRef,
               treeManager,
-              nodesWithQuery,
             });
           },
           (reasoning) => {
@@ -347,14 +342,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         await waitForPaintedImage(responseNodeId, nodesRef);
         const liveImage = nodesRef.current[responseNodeId];
         if (!liveImage) return;
-        responseNode = commitAlignedNode({
-          node: liveImage,
-          parent: currentCaller,
-          nodesRef,
-          nodeDimensionsRef,
-          treeManager,
-          nodesWithQuery,
-        });
+        responseNode =
+          commitAlignedNode({
+            nodeId: responseNodeId,
+            nodesRef,
+            nodeDimensionsRef,
+            treeManager,
+          }) ?? liveImage;
       } else {
         const cleanedContent = result.content
           .replace(/\[YOUTUBE:[^\]]+\]/g, "")
@@ -378,14 +372,13 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         };
         const liveText = nodesRef.current[responseNodeId];
         if (!liveText) return;
-        responseNode = commitAlignedNode({
-          node: liveText,
-          parent: currentCaller,
-          nodesRef,
-          nodeDimensionsRef,
-          treeManager,
-          nodesWithQuery,
-        });
+        responseNode =
+          commitAlignedNode({
+            nodeId: responseNodeId,
+            nodesRef,
+            nodeDimensionsRef,
+            treeManager,
+          }) ?? liveText;
       }
 
       if (!nodesRef.current[responseNodeId]) return;
@@ -395,6 +388,7 @@ export function useAIChat({ graphCanvasRef }: UseAIChatProps): UseAIChatReturn {
         videos: youtubeVideos,
         skeletonId: youtubeSkeletonId,
         nodesWithQuery,
+        nodesRef,
         nodeDimensionsRef,
         treeManager,
       });
