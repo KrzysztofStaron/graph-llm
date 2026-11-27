@@ -6,18 +6,21 @@ import { useContextStorage, type StoredItem } from "../hooks/useContextStorage";
 import { GraphNode } from "../types/GraphCanvas.types";
 import { UPLOAD_CONTEXT_ACCEPT } from "../hooks/useFileUpload";
 import logger from "../utils/logger";
+import type { CanvasPoint } from "../utils/placement";
 
 interface ContextStoragePanelProps {
   isOpen: boolean;
   onToggle: () => void;
-  onRestoreNode: (node: GraphNode, canvasPoint: { x: number; y: number }) => void;
-  onRestoreFile: (file: File, canvasPoint: { x: number; y: number }) => void;
+  canvasPointAtViewportCenter: () => CanvasPoint | undefined;
+  onRestoreNode: (node: GraphNode, canvasPoint: CanvasPoint) => void;
+  onRestoreFile: (file: File, canvasPoint: CanvasPoint) => void;
   onNodeDropped: (nodeId: string) => void;
 }
 
 export function ContextStoragePanel({
   isOpen,
   onToggle,
+  canvasPointAtViewportCenter,
   onRestoreNode,
   onRestoreFile,
   onNodeDropped,
@@ -132,14 +135,8 @@ export function ContextStoragePanel({
 
   const handleItemClick = useCallback(
     async (item: StoredItem, e: React.MouseEvent) => {
-      const viewportElement = document.querySelector('[data-viewport]') as HTMLElement | null;
-      if (!viewportElement) return;
-
-      const viewportRect = viewportElement.getBoundingClientRect();
-      const viewportCenter = {
-        x: viewportRect.left + viewportRect.width / 2,
-        y: viewportRect.top + viewportRect.height / 2,
-      };
+      const viewportCenter = canvasPointAtViewportCenter();
+      if (!viewportCenter) return;
 
       if (item.type === "file") {
         if (item.url && item.mimeType.startsWith("image/")) {
@@ -172,7 +169,7 @@ export function ContextStoragePanel({
         onRestoreNode(item.node, viewportCenter);
       }
     },
-    [onRestoreFile, onRestoreNode]
+    [canvasPointAtViewportCenter, onRestoreFile, onRestoreNode]
   );
 
   // Desktop only - hide on mobile

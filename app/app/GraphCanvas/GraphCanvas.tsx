@@ -17,7 +17,8 @@ import {
   forwardRef,
   createContext,
 } from "react";
-import { layoutMovesAfterResize } from "../../utils/nodeResizeLayout";
+import { settle, type CanvasPoint } from "../../utils/placement";
+import { liveCanvas } from "../../hooks/spawnPredictedNode";
 import { removedNodeIds } from "../../utils/requestAbort";
 import { graphReducer } from "../../interfaces/TreeManager";
 import type { GraphAction, TreeManager } from "../../interfaces/TreeManager";
@@ -49,11 +50,7 @@ interface GraphCanvasProps {
   initialTransform?: { x: number; y: number; k: number };
   onInputSubmit: (query: string, caller: GraphNode) => void;
   setEditingContextNodeId?: (nodeId: string | null) => void;
-  onDropFilesAsContext?: (
-    files: FileList,
-    canvasPoint: { x: number; y: number }
-  ) => void;
-  onRequestNodeMove?: (nodeId: string, dx: number, dy: number) => void;
+  onDropFilesAsContext?: (files: FileList, canvasPoint: CanvasPoint) => void;
   onRequestContextMenu?: (
     clientX: number,
     clientY: number,
@@ -79,7 +76,6 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
       onInputSubmit,
       setEditingContextNodeId,
       onDropFilesAsContext,
-      onRequestNodeMove,
       onRequestContextMenu,
       onNodeDragToStorage,
       onNodesRemoved,
@@ -163,8 +159,8 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         selectedNodeIds,
         toggleNodeSelection,
         clearSelection,
-        moveNode: (nodeId, dx, dy, setPinned) => {
-          treeManager.moveNode(nodeId, dx, dy, setPinned);
+        dragNodes: (ids, dx, dy) => {
+          treeManager.dragNodes(ids, dx, dy);
         },
         onRequestContextMenu,
         onNodeDragToStorage,
@@ -301,11 +297,10 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
         const viewportWidth = viewport.clientWidth || window.innerWidth;
         const viewportHeight = viewport.clientHeight || window.innerHeight;
         
-        // Use the actual measured dimensions for perfect centering
-        const centerX = -measuredDim.width / 2;
-        const centerY = -measuredDim.height / 2;
-        
-        treeManager.moveNode("input-1", centerX - initialInputNode.x, centerY - initialInputNode.y, true);
+        treeManager.patchNode("input-1", {
+          x: -measuredDim.width / 2,
+          y: -measuredDim.height / 2,
+        });
         
         const tx = viewportWidth / 2;
         const ty = viewportHeight / 2;
@@ -336,57 +331,23 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
           setNodeDimensions(updated);
         }
 
-        if (width <= 0 || height <= 0 || isUndoingRef.current || !onRequestNodeMove) {
+        if (width <= 0 || height <= 0 || isUndoingRef.current) {
           return;
         }
 
-        const snapshot = nodesRef.current;
-        const liveNode = snapshot[nodeId];
+        const liveNode = nodesRef.current[nodeId];
         if (!liveNode) {
           return;
         }
 
-        const dimensions = { ...nodeDimensionsRef.current };
-        for (const parentId of liveNode.parentIds) {
-          const parentEl = contentRef.current?.querySelector(
-            `[data-node-id="${parentId}"]`
-          );
-          if (
-            parentEl instanceof HTMLElement &&
-            parentEl.offsetWidth > 0 &&
-            parentEl.offsetHeight > 0
-          ) {
-            dimensions[parentId] = {
-              width: parentEl.offsetWidth,
-              height: parentEl.offsetHeight,
-            };
-          }
-        }
-
-        const moves = layoutMovesAfterResize({
-          node: liveNode,
-          width,
-          height,
-          nodes: snapshot,
-          dimensions,
-        });
-        for (const move of moves) {
-          const origin = snapshot[move.nodeId];
-          const live = nodesRef.current[move.nodeId];
-          if (!origin || !live) {
-            continue;
-          }
-          const x = origin.x + move.dx;
-          const y = origin.y + move.dy;
-          if (x === live.x && y === live.y) {
-            continue;
-          }
-          treeManager.patchNode(move.nodeId, { x, y });
-          nodesRef.current[move.nodeId] = {
-            ...live,
-            x,
-            y,
-          };
+        const canvas = liveCanvas(
+          nodesRef.current,
+          nodeDimensionsRef.current,
+          liveNode.seat ? [liveNode.seat.hostId] : []
+        );
+        for (const move of settle(canvas, nodeId)) {
+          if (!nodesRef.current[move.id]) continue;
+          treeManager.patchNode(move.id, { x: move.x, y: move.y });
         }
       },
       [treeManager, isUndoingRef]
@@ -414,14 +375,14 @@ export const GraphCanvas = forwardRef<GraphCanvasRef, GraphCanvasProps>(
 
     return (
       <CanvasContext.Provider value={{ nodes, reportNodeSize: updateNodeDimension }}>
-        <div className="relative w-full h-dvh overflow-hidden">
+        <div className="relative w-full h-dvh overflow-clip">
           <motion.div
             ref={viewportRef}
             data-viewport
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
-            className="w-full h-dvh overflow-hidden pointer-events-auto cursor-grab active:cursor-grabbing select-none"
+            className="w-full h-dvh overflow-clip pointer-events-auto cursor-grab active:cursor-grabbing select-none"
             style={{ touchAction: "none" }}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
